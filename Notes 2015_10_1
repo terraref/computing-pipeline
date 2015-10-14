@@ -1,0 +1,60 @@
+# TERRAref
+
+October 1, 2015
+11 am – 12 pm
+
+Meeting called by David LeBauer
+Attendees:	Rob Kooper, Yan Liu, David Raila, Rachel Shekar, Kandace Turner
+
+
+### New team members
+Rachel Shekar will be the primary project manager, and will work with Jay as well as other Project Managers in Steve's lab.
+
+### Request additional budget
+I was asked to submit a budget that would cover increasing our data storage 10x (e.g. from 1TB/d x 6 mo / y x 4 y to 10TB/d). This data is the compressed volume.
+I can start by multiplying everything by 10, but mostly, I was wondering if this would change the overall architecture, and if this would require additional personnel.
+The request only has to be a paragraph + revised budget. But I wanted to go ahead and throw this out there
+
+Additional Information:
+Added 9/30/15
+For reference, here are notes from today's discussion about requesting additional funding for increased data volume requirement. one sensor seems to account for > 90% of total.
+
+Data volume
+* Issue: budgeted for only 1 PB for life of project – how much data is coming in?
+* David needs to know sooner rather than later, at least within an order of magnitude. If it’s 1-2 TB coming in per day, this is maybe a slight cost increase. A few PB may be primarily hardware cost, whereas tens of PB would require more technical support to install / reconfigure a system. Cost is ~$100 / TB / year, so factor this into the total dollar figure. May need to increase system admin labor.
+
+Data collection plan: Jeff White has been experimenting with different collection plans and figuring out collection times and data volumes. 
+Notes:
+* The biggest data driver is the VNIR hyperspectral camera, which can generate 10-20x more data than all other sensors combined. If all sensors are on in scan mode (excluding side view scanners), it would take 48 hours to scan full field (target was 2x/day or more), and would generate 29 TB data. If VNIR is removed, this drops to 3.9 TB/day. Looking to see if one can pre-process the VNIR data, to filter it and bring the volume down. For spot mode, Jeff still sorting this out. Ben’s recommendation – in year 1, might want to collect all wavelengths, but in future years might want to remove / bin certain bands.
+
+
+Added 10/2/15
+Michelle and I had a good discussion. We agreed that we would write up a proposal at the $100/TB/y primary and $50/TB/y backup rate, plus additional funds for a data storage technician and that Michelle could provide a quote with justification on Monday.
+
+My first pass at a rough estimate follows:
+
+assume that we accumulate 10 PB at a constant over four years. This is equivalent to 10 PB for two years or 20 PB-years (area of triangle = 1/2 base x height; here base = time and height = storage volume) 
+
+20PB-years = 20,000 TB-years at $150/y. That gets us to $3,000,000, and we add  Plus an FTE for four years at $70k, with indirects etc gets to +$500,000. (Whoa!!!!) So this would basically triple my current budget of $1.7m.
+
+But I will wait for Michelle for the official word. But I'd like to keep 1FTE (or more) whether we give estimates of 5PB or 10PB.
+
+
+Options for data storage include Blue Waters, ADS and Roger.  
+Determine the following: 
+•	Does user need to be next to computer or if can access be remote? 
+•	What is need for storage vs. bandwidth for moving data?
+•	Do we want tape or disk storage and access?
+•	Will data be computed locally where collected or here?
+**Actions: David will have a meeting with Michelle to determine cost**
+
+### Review of milestones and open issues on Github.	
+https://huboard.com/terraref/reference-data#/
+
+333 Near-term milestones
+David, Yan, Rob, and I are planning to demo an image processing pipeline integrated into the ISDA Clowder tool, this will be based on the PlantCV pipeline and is outlined here: https://github.com/terraref/pipeline/issues/1
+
+The pipeline was discussed and a user story was drafted.  See https://docs.google.com/presentation/d/1LaOI3ESTFwn7b8x5oWZcdOWBLsCh2v4F7yqgQ836etU/edit?usp=sharing
+Additional discussion needed for how account management access will be handled (read only)
+
+
