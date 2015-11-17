@@ -30,15 +30,15 @@ Each file has some metadata associated with it. Generally, sources will write sc
 **1 Source has one or more files (e.g. a JPG) and metadata associated with each in some format.**
 
 **2 Source creates a Dataset in Clowder to hold the file(s). This allows related files to be stored together.**
-* POST to /api/datasets/createempty returns a new empty Dataset ID.
+* POST to **/api/datasets/createempty** returns a new empty Dataset ID.
 
 **3 Source uploads file(s) to new Dataset.**
-* POST to /api/uploadToDataset/:id where :id is the Dataset ID from Step 2. This will return the new File ID.
+* POST to **/api/uploadToDataset/:id** where :id is the Dataset ID from Step 2. This will return the new File ID.
 * This initiates extractors to derive information from the file (e.g. PlantCV, EXIF metadata). Derived information is automatically added to file’s metadata. 
 * Certain metadata/extractor outputs will be added to a BETYdb database as well.
 
 **4 Source associates metadata with files. Several options here:**
-* POST to /api/files/:id/metadata where :id is the File ID from Step 3, upon receiving successful response. Metadata can be individual fields or a JSON object.
+* POST to **/api/files/:id/metadata** where :id is the File ID from Step 3, upon receiving successful response. Metadata can be individual fields or a JSON object.
 * Embed all desired metadata in the image itself, using something like [ExifTool](http://www.sno.phy.queensu.ca/~phil/exiftool/). Our extractors can parse this metadata.
 * POST a .JSON file with the same name as the primary file to the same Dataset – we write an extractor to search for an existing file to associate the parsed JSON data with. This may be less desirable if it doubles the number of files to transfer.
 * It is desirable for end users to have a means to export available metadata for a file as JSON, XML, YAML, etc.
