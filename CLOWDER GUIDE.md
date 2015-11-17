@@ -3,12 +3,13 @@ Clowder Installation & Development
 
 Clowder setup
 -------------
-An online overview of installing Clowder is available [https://opensource.ncsa.illinois.edu/projects/artifacts/CATS/0.9.1/documentation/manual/](here).
-•	Requirements for Clowder:
+An online overview of installing Clowder is available [here](https://opensource.ncsa.illinois.edu/projects/artifacts/CATS/0.9.1/documentation/manual/).
+
+Requirements for Clowder:
 o	Java JDK and JRE
 o	MongoDB
 •	RabbitMQ is required for extractor functionality/development.
-•	Clowder source code is available as a [https://opensource.ncsa.illinois.edu/stash/projects/CATS ](git repository). 
+•	Clowder source code is available as a [git repository](https://opensource.ncsa.illinois.edu/stash/projects/CATS). 
 
 Developing extractors
 ---------------------
@@ -37,6 +38,6 @@ A generic workflow:
 
 4.	Source associates metadata with files. Several options here:
 * POST to /api/files/:id/metadata where :id is the File ID from Step 3, upon receiving successful response. Metadata can be individual fields or a JSON object.
-* Embed all desired metadata in the image itself, using something like [http://www.sno.phy.queensu.ca/~phil/exiftool/](ExifTool). Our extractors can parse this metadata.
+* Embed all desired metadata in the image itself, using something like [ExifTool](http://www.sno.phy.queensu.ca/~phil/exiftool/). Our extractors can parse this metadata.
 * POST a .JSON file with the same name as the primary file to the same Dataset – we write an extractor to search for an existing file to associate the parsed JSON data with. This may be less desirable if it doubles the number of files to transfer.
 It is desirable for end users to have a means to export available metadata for a file as JSON, XML, YAML, etc. 
