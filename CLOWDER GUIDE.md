@@ -24,7 +24,7 @@ Two example sources that will be pushing high data volumes into Clowder:
 * LemnaTec indoor system at Danforth (running)
 * LemnaTec outdoor system at Maricopa (in progress)
 
-File delivery
+**File delivery**  
 Each file has some metadata associated with it. Generally, sources will write scripts against the Clowder API to post files to the database. Metadata can potentially be associated a few different ways. A generic workflow:
 
 **1 Source has one or more files (e.g. a JPG) and metadata associated with each in some format.**
