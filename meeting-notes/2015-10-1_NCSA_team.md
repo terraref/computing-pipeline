@@ -8,9 +8,11 @@ Attendees:	Rob Kooper, Yan Liu, David Raila, Rachel Shekar, Kandace Turner
 
 
 ### New team members
+
 Rachel Shekar will be the primary project manager, and will work with Jay as well as other Project Managers in Steve's lab.
 
 ### Request additional budget
+
 I was asked to submit a budget that would cover increasing our data storage 10x (e.g. from 1TB/d x 6 mo / y x 4 y to 10TB/d). This data is the compressed volume.
 I can start by multiplying everything by 10, but mostly, I was wondering if this would change the overall architecture, and if this would require additional personnel.
 The request only has to be a paragraph + revised budget. But I wanted to go ahead and throw this out there
@@ -20,6 +22,7 @@ Added 9/30/15
 For reference, here are notes from today's discussion about requesting additional funding for increased data volume requirement. one sensor seems to account for > 90% of total.
 
 Data volume
+
 * Issue: budgeted for only 1 PB for life of project – how much data is coming in?
 * David needs to know sooner rather than later, at least within an order of magnitude. If it’s 1-2 TB coming in per day, this is maybe a slight cost increase. A few PB may be primarily hardware cost, whereas tens of PB would require more technical support to install / reconfigure a system. Cost is ~$100 / TB / year, so factor this into the total dollar figure. May need to increase system admin labor.
 
