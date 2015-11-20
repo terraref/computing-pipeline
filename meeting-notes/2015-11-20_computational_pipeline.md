@@ -75,17 +75,17 @@ Can support this project; they need clear specifications and funding
 * ED: should spread 15 PacBiom through diversity of germplam + more coverage on more likely to be commercial lines
 
 
-Need to figure out data flows for the entire project
+### Define data flows for the entire project
 
-* **Victor**: makes sense to analyze data at same place it is generated. Then deposit both raw data and derived products in common repository.
-* **Chris Fields**: browsing and visualization 
-
-
-* What can teams collaborate on?
-  * TODO Survey to be coordinated by Rob, Rachel, and David
-    * what people are required to do according to milestones, and what are the overlaps?
-    * how can the reference team help? to what degree are teams interested in using a centralized pipeline, and in sharing data at different points in the pipeline?
+* makes sense to analyze data at same place it is generated. Then deposit both raw data and derived products in common repository.
+* compute, browsing, visualization should be done where data is
+* a core standardized pipeline would be of value to individual teams  
 
 
+### Define Collaborations among teams (with germplasm, informatics, cyberinfrastrucutre)
 
+What can teams collaborate on?
+ * what people are required to do according to milestones, and what are the overlaps?
+ * how can the reference team help? to what degree are teams interested in using a centralized pipeline, and in sharing data at different points in the pipeline?
 
+* **TODO** Survey of teams to be coordinated by Rob, Rachel, and David
