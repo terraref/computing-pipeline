@@ -116,8 +116,8 @@ For more details about the computing that has been allocated, the CyberGIS group
 Additional requests to support the 10x increase in data volume that has occurred during construction of the Lemnatec field system [4].
 
 
-[1] http://hpcbio.illinois.edu/content/services-and-fees 
-[2] http://help.igb.illinois.edu/Biocluster
-[3] https://wiki.ncsa.illinois.edu/display/ROGER/ROGER+Technical+Summary
-[4] http://terraref.ncsa.illinois.edu/articles/spectral-imaging-data-volume-compression/#on-the-upcoming-data-deluge
+* [1] http://hpcbio.illinois.edu/content/services-and-fees 
+* [2] http://help.igb.illinois.edu/Biocluster
+* [3] https://wiki.ncsa.illinois.edu/display/ROGER/ROGER+Technical+Summary
+* [4] http://terraref.ncsa.illinois.edu/articles/spectral-imaging-data-volume-compression/#on-the-upcoming-data-deluge
 
