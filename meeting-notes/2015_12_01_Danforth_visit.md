@@ -6,10 +6,10 @@ Location:	2000 NCSA
 
 ## Phenomics pipeline 
 Rob Alba, Noah Fahlgren, David LeBauer, Rachel Shekar, Yan Liu, Rob Kooper, Max Burnette, David Raila, Dan Lapine
-1.	Overview of phonemics pipeline: what we have so far
-•	Clowder 
-•	CMS for data sharing with privacy control.  Originally started with Medichi 6 years ago, but metadata extraction with tagging and commenting was data agnostic and not scalable and difficult for others to update and change.  Clowder was developed to scale both horizontally (multiple servers to share and balance load) and vertically (more memory) and easily be able to add code to change extractors.  It is no SQL.  Extractors distributed across servers that extract metadata.  We are learning from NSF Datanet project looks at long term data storage and publishing using standards.  NSF Browndog project also uses Clowder.  It is about how to extract information from files (metadata) and alter file formats.  All of this software is Open Source.
-•	PlantCV VM, Jupyter notebook 
+ 1.	Overview of phonemics pipeline: what we have so far
+  •	Clowder 
+  •	CMS for data sharing with privacy control.  Originally started with Medichi 6 years ago, but metadata extraction with tagging and commenting was data agnostic and not scalable and difficult for others to update and change.  Clowder was developed to scale both horizontally (multiple servers to share and balance load) and vertically (more memory) and easily be able to add code to change extractors.  It is no SQL.  Extractors distributed across servers that extract metadata.  We are learning from NSF Datanet project looks at long term data storage and publishing using standards.  NSF Browndog project also uses Clowder.  It is about how to extract information from files (metadata) and alter file formats.  All of this software is Open Source.
+  •	PlantCV VM, Jupyter notebook 
 •	PlantCV is now running on Clowder.  Files can be uploaded from the archive and other images and metadata will be created.  API can push the data as well. We still need to determine how AZ data will be pushed to Clowder. “Collections” can be created using metadata.  Noah and everyone else needs to know how to update and add extractors to pipeline.  VM allows software to be run by anyone who has open stack.  Initial setup only requires a few lines of code.
 •	In the next 6 months we need to determine what data we want to show.  There is common data that everyone will want to access that always needs to be updated real-time.  
 •	Metadata is stored in MongoDB (no SQL).  Every PlantCV file will trigger extractors.  This information will be stored within Clowder. In the future, the architecture will be expanded.  As files are added, individual extractors will process them, but the extractors can also interact with each other.
