@@ -11,23 +11,21 @@ Rob Alba, Noah Fahlgren, David LeBauer, Rachel Shekar, Yan Liu, Rob Kooper, Max 
  1.	Overview of phonemics pipeline: what we have so far
 
   •	Clowder 
-  
   •	CMS for data sharing with privacy control.  Originally started with Medichi 6 years ago, but metadata extraction with tagging and commenting was data agnostic and not scalable and difficult for others to update and change.  Clowder was developed to scale both horizontally (multiple servers to share and balance load) and vertically (more memory) and easily be able to add code to change extractors.  It is no SQL.  Extractors distributed across servers that extract metadata.  We are learning from NSF Datanet project looks at long term data storage and publishing using standards.  NSF Browndog project also uses Clowder.  It is about how to extract information from files (metadata) and alter file formats.  All of this software is Open Source.
-
-  •	PlantCV VM, Jupyter notebook 
-•	PlantCV is now running on Clowder.  Files can be uploaded from the archive and other images and metadata will be created.  API can push the data as well. We still need to determine how AZ data will be pushed to Clowder. “Collections” can be created using metadata.  Noah and everyone else needs to know how to update and add extractors to pipeline.  VM allows software to be run by anyone who has open stack.  Initial setup only requires a few lines of code.
-•	In the next 6 months we need to determine what data we want to show.  There is common data that everyone will want to access that always needs to be updated real-time.  
-•	Metadata is stored in MongoDB (no SQL).  Every PlantCV file will trigger extractors.  This information will be stored within Clowder. In the future, the architecture will be expanded.  As files are added, individual extractors will process them, but the extractors can also interact with each other.
-•	Make contact with algorithm experts at WUSL: Robert Pless (data collection) and Roman Garnett (prediction)
-•	We are currently testing different storage options before choosing the best for our use and scalable.  Right now, we only have 5 PB at Roger and Blue Waters has 10PB. We need to determine where to invest money to add storage.
-•	Implicit parallelization? Recoding can reduce load by 10%. We have architectural parallelization.  1million CPU hours from xsede so it is capable of parallelization at the level we need. A lot of images can be handled simultaneously and individually in parallel.  
-•	We not want to run Matlab as a service.  We do not have licensing for this.  However, people can use it if they have the license.  
-•	The developer and end user can go to clowder to open Jupyter and play with data and alter parameters.  Each user would be authentic with a local account and could have their own configuration with customizable datasets.  They could launch their own VM and share access.  Settings could also be shared with rest of group.
-2.	The developer and end user can go to clowder to open Jupyter and play with data and alter parameters.  Each user would be authentic with a local account and could have their own configuration with customizable datasets.  They could launch their own VM and share access.  Settings could also be shared with rest of group.
+  •	PlantCV VM, Jupyter notebook   
+  •	PlantCV is now running on Clowder.  Files can be uploaded from the archive and other images and metadata will be created.  API can push the data as well. We still need to determine how AZ data will be pushed to Clowder. “Collections” can be created using metadata.  Noah and everyone else needs to know how to update and add extractors to pipeline.  VM allows software to be run by anyone who has open stack.  Initial setup only requires a few lines of code.  
+  •	In the next 6 months we need to determine what data we want to show.  There is common data that everyone will want to access that always needs to be updated real-time.    
+  •	Metadata is stored in MongoDB (no SQL).  Every PlantCV file will trigger extractors.  This information will be stored within Clowder. In the future, the architecture will be expanded.  As files are added, individual extractors will process them, but the extractors can also interact with each other.  
+  •	Make contact with algorithm experts at WUSL: Robert Pless (data collection) and Roman Garnett (prediction)  
+  •	We are currently testing different storage options before choosing the best for our use and scalable.  Right now, we only have 5 PB at Roger and Blue Waters has 10PB. We need to determine where to invest money to add storage.  
+  •	Implicit parallelization? Recoding can reduce load by 10%. We have architectural parallelization.  1million CPU hours from xsede so it is capable of parallelization at the level we need. A lot of images can be handled simultaneously and individually in parallel.
+  •	We not want to run Matlab as a service.  We do not have licensing for this.  However, people can use it if they have the license.  
+  •	The developer and end user can go to clowder to open Jupyter and play with data and alter parameters.  Each user would be authentic with a local account and could have their own configuration with customizable datasets.  They could launch their own VM and share access.  Settings could also be shared with rest of group.  
+2.	The developer and end user can go to clowder to open Jupyter and play with data and alter parameters.  Each user would be authentic with a local account and could have their own configuration with customizable datasets.  They could launch their own VM and share access.  Settings could also be shared with rest of group.  
 3.	BETYdb
-•	BETYdb has 8 instances and data access can be controlled.  TERRA has three versions of BETYdb running.  Ref, MEPP, test.  This will fit within original EBI BETYdb paradigm, but with only one species. Data can be downloaded.  This differs from Clowder in that it has hierarchical data structure for plant traits.  Clowder will be capable of adding metadata to BETYdb.  
-•	Kresovich wants the word “accession” to be used.  “Lines” is for inbred.  Rob will ask Cat 1 PM Barry Flynn will ask for a terminology document to be put together. 
-•	Ropensci/traits, url-based API
+  •	BETYdb has 8 instances and data access can be controlled.  TERRA has three versions of BETYdb running.  Ref, MEPP, test.  This will fit within original EBI BETYdb paradigm, but with only one species. Data can be downloaded.  This differs from Clowder in that it has hierarchical data structure for plant traits.  Clowder will be capable of adding metadata to BETYdb.    
+  •	Kresovich wants the word “accession” to be used.  “Lines” is for inbred.  Rob will ask Cat 1 PM Barry Flynn will ask for a terminology document to be put together.   
+  •	Ropensci/traits, url-based API
 4.	What else do we need, what are priorities for pipeline from Danforth?
 5.	How will the field system differ?
 •	One of Lemnatec’s software programs is proprietary and runs the sensors.  Lemnatec will give 3 software packages to us that are Open Source.  This was not done with Danforth sensors – they gave software but it was not Open Source so PlantCV was created.  These software packages are Lemna minor (like PlantCV), Lemna grid, and xx.  These will be available on github to Cat5 team. 
