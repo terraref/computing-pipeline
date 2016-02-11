@@ -5,6 +5,7 @@ import sys
 import argparse
 import requests
 import posixpath
+import json
 
 
 # Parse command-line arguments
@@ -20,6 +21,7 @@ def options():
     Raises:
         IOError: if dir does not exist.
         IOError: if the metadata file SnapshotInfo.csv does not exist in dir.
+        IOError: if the experimental metadata file does not exist.
     """
 
     parser = argparse.ArgumentParser(description="PlantCV dataset Clowder uploader.",
@@ -31,6 +33,7 @@ def options():
     parser.add_argument("-u", "--url", help="Clowder URL.", required=True)
     parser.add_argument("-U", "--username", help="Clowder username.", required=True)
     parser.add_argument("-p", "--password", help="Clowder password.", required=True)
+    parser.add_argument("-m", "--meta", help="Experiment metadata file in JSON format", required=True)
     parser.add_argument("-v", "--verbose", help="Verbose output.", action="store_true")
     parser.add_argument("-n", "--dryrun", help="Dry run, do not upload files.", action="store_true")
 
@@ -40,6 +43,8 @@ def options():
         raise IOError("Directory does not exist: {0}".format(args.dir))
     if not os.path.exists(args.dir + '/SnapshotInfo.csv'):
         raise IOError("The snapshot metadata file SnapshotInfo.csv does not exist in {0}".format(args.dir))
+    if not os.path.exists(args.meta):
+        raise IOError("The metadata file {0} does not exist".format(args.meta))
 
     return args
 
@@ -61,6 +66,10 @@ def main():
 
     # Create a new collection
     coll_id = create_clowder_collection(sess, args.url, args.collection, args.dryrun)
+
+    # Read experiment metadata from JSON
+    meta_json = open(args.meta, 'rU')
+    exp_metadata = json.load(meta_json)
 
     # Open the SnapshotInfo.csv file
     csvfile = open(args.dir + '/SnapshotInfo.csv', 'rU')
@@ -92,7 +101,8 @@ def main():
         if len(img_list) > 0:
             # Name the dataset after the snapshot ID
             dataset_name = 'snapshot' + data[colnames['id']]
-            ds_id = create_clowder_dataset(sess, args.url, dataset_name, coll_id, args.dryrun)
+            ds_id = create_clowder_dataset(sess, args.url, dataset_name,
+                                           coll_id, exp_metadata['experiment'], args.dryrun)
 
             # Create list of images by splitting the tiles column on semicolons
             imgs = img_list.split(';')
@@ -146,7 +156,7 @@ def create_clowder_collection(session, url, collection, dryrun=False):
 
 # Create Clowder dataset
 ###########################################
-def create_clowder_dataset(session, url, dataset, collection_id, dryrun=False):
+def create_clowder_dataset(session, url, dataset, collection_id, metadata, dryrun=False):
     """Create a Clowder dataset and associate it with a collection.
 
     Args:
@@ -154,6 +164,7 @@ def create_clowder_dataset(session, url, dataset, collection_id, dryrun=False):
         url: Clowder URL
         dataset: Clowder dataset name
         collection_id: Clowder collection ID
+        metadata: Experimental metadata to tag with Clowder dataset
         dryrun: Boolean. If true, no POST requests are made
     Returns:
         ds_id: Clowder dataset ID
@@ -186,6 +197,16 @@ def create_clowder_dataset(session, url, dataset, collection_id, dryrun=False):
         if coll_r.status_code != 200:
             raise StandardError("Adding dataset {0} to collection {1} failed: Return value = {2}".format(
                 ds_id, collection_id, coll_r.status_code))
+
+    # Add metadata to dataset
+    if dryrun is False:
+        meta_r = session.post(url + "api/datasets/" + ds_id + "/metadata", headers={"Content-Type": "application/json"},
+                              data=json.dumps(metadata))
+
+        # Was the metadata added to the dataset successfully?
+        if meta_r.status_code != 200:
+            raise StandardError("Adding metadata to dataset {0} failed: Return value = {1}".format(ds_id,
+                                                                                                   meta_r.status_code))
 
     return ds_id
 ###########################################
@@ -221,9 +242,31 @@ def upload_file_to_clowder(session, url, file, dataset_id, dryrun=False):
             if up_r.status_code != 200:
                 raise StandardError("Uploading file failed: Return value = {0}".format(up_r.status_code))
     else:
-        print("ERROR: Image file {0} does not exist".format(image_path), file=sys.stderr)
+        print("ERROR: Image file {0} does not exist".format(file), file=sys.stderr)
 ###########################################
 
+
+# Danforth Center barcode parser
+###########################################
+def barcode_parser(barcode):
+    """Parses barcodes from the DDPSC phenotyping system.
+
+    Args:
+        barcode: barcode string
+    Returns:
+        parsed_barcode: barcode components
+    Raises:
+
+    """
+
+    parsed_barcode = {}
+    parsed_barcode['species'] = barcode[0:2]
+    parsed_barcode['genotype'] = barcode[2:5]
+    parsed_barcode['treatment'] = barcode[5:7]
+    parsed_barcode['unique_id'] = barcode[7:]
+    return parsed_barcode
+
+###########################################
 
 if __name__ == '__main__':
     main()
