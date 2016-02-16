@@ -110,9 +110,11 @@ def main():
             for img in imgs:
                 # Images are in PNG format
                 image_name = img + '.png'
+                # Format image file metadata
+                img_metadata = metadata_to_json(img, exp_metadata, data, colnames)
                 # Build image file path
                 image_path = posixpath.join(args.dir, 'snapshot' + data[colnames['id']], image_name)
-                upload_file_to_clowder(sess, args.url, image_path, ds_id, args.dryrun)
+                upload_file_to_clowder(sess, args.url, image_path, ds_id, img_metadata, args.dryrun)
 
 ###########################################
 
@@ -214,7 +216,7 @@ def create_clowder_dataset(session, url, dataset, collection_id, metadata, dryru
 
 # Upload file to a Clowder dataset
 ###########################################
-def upload_file_to_clowder(session, url, file, dataset_id, dryrun=False):
+def upload_file_to_clowder(session, url, file, dataset_id, metadata, dryrun=False):
     """Upload a file to a Clowder dataset.
 
     Args:
@@ -228,7 +230,7 @@ def upload_file_to_clowder(session, url, file, dataset_id, dryrun=False):
     Raises:
         StandardError: HTTP POST return not 200
     """
-
+    
     # Make sure file exists
     if os.path.exists(file):
         # Upload image file
@@ -236,7 +238,7 @@ def upload_file_to_clowder(session, url, file, dataset_id, dryrun=False):
             # Open file in binary mode
             f = open(file, 'rb')
             # Upload file to Clowder
-            up_r = session.post(url + "api/uploadToDataset/" + dataset_id, files={"File" : f})
+            up_r = session.post(url + "api/uploadToDataset/" + dataset_id, files={"File" : f}, data=metadata)
 
             # Was the upload successful?
             if up_r.status_code != 200:
@@ -267,6 +269,95 @@ def barcode_parser(barcode):
     return parsed_barcode
 
 ###########################################
+
+
+# Danforth Center image metadata formatter
+###########################################
+def metadata_to_json(filename, metadata, data, fields):
+    """Parses metadata from the DDPSC phenotyping system and returns metadata in JSON.
+        For now there will be some manual reformatting of the metadata keywords.
+
+    Args:
+        filename: Image filename
+        metadata: Experimental metadata
+        data: List of metadata values
+        fields: Dictionary of field names mapping to list IDs
+    Returns:
+        metadata_json: JSON-formatted metadata string
+    Raises:
+        StandardError: unrecognized camera type
+        StandardError: unrecognized camera perspective
+    """
+
+    # Manual metadata reformatting (for now)
+    # Format of side-view image names: imgtype_camera_rotation_zoom_lifter_gain_exposure_imageID
+    # Format of top-view image names: imgtyp_camera_zoom_lifter_gain_exposure_imageID
+    img_meta = filename.split('_')
+
+    # Format camera_type
+    if img_meta[0] == 'VIS':
+        camera_type = 'visible/RGB'
+    elif img_meta[0] == 'NIR':
+        camera_type = 'near-infrared'
+    else:
+        raise StandardError("Unrecognized camera type {0} for image {1}.".format(img_meta[0], filename))
+
+    # Format camera perspective
+    if img_meta[1] == 'SV':
+        perspective = 'side-view'
+    elif img_meta[1] == 'TV':
+        perspective = 'top-view'
+    else:
+        raise StandardError("Unrecognized camera perspective {0} for image {1}.".format(img_meta[1], filename))
+
+    if len(img_meta) == 8:
+        # Is this a side-view image?
+        rotation_angle = img_meta[2]
+        zoom = (0.0008335 * int(img_meta[3].replace('z', ''))) + 0.9991665
+        stage_position = img_meta[4].replace('h', '')
+        camera_gain = img_meta[5].replace('g', '')
+        camera_exposure = img_meta[6].replace('e', '')
+        img_id = img_meta[7]
+    elif len(img_meta) == 7:
+        # Is this a top-view image?
+        rotation_angle = 0
+        zoom = (0.0008335 * int(img_meta[2].replace('z', ''))) + 0.9991665
+        stage_position = img_meta[3].replace('h', '')
+        camera_gain = img_meta[4].replace('g', '')
+        camera_exposure = img_meta[5].replace('e', '')
+        img_id = img_meta[6]
+    else:
+        raise StandardError("Unrecognized image name format for image {0}".format(filename))
+
+    # Extract metadata from Danforth Center barcodes
+    parsed_barcode = barcode_parser(data[fields['plantbarcode']])
+    if parsed_barcode['species'] in metadata['sample']['barcode']['species']:
+        species = metadata['sample']['barcode']['species'][parsed_barcode['species']]
+    else:
+        raise StandardError("Unrecognized species code {0} for image {1}".format(parsed_barcode['species'], filename))
+
+    if parsed_barcode['genotype'] in metadata['sample']['barcode']['genotypes']:
+        genotype = metadata['sample']['barcode']['genotypes'][parsed_barcode['genotype']]
+    else:
+        raise StandardError("Unrecognized genotype code {0} for image {1}".format(parsed_barcode['genotype'], filename))
+
+    if parsed_barcode['treatment'] in metadata['sample']['barcode']['treatments']:
+        treatment = metadata['sample']['barcode']['treatments'][parsed_barcode['treatment']]
+    else:
+        raise StandardError("Unrecognized treatment code {0} for image {1}".format(parsed_barcode['treatment'],
+                                                                                   filename))
+
+    file_metadata = {'snapshot_id' : data[fields['id']], 'plant_barcode' : data[fields['plantbarcode']],
+                     'camera_type' : camera_type, 'perspective' : perspective, 'rotation_angle' : rotation_angle,
+                     'zoom' : zoom, 'imager_stage_vertical_position' : stage_position, 'camera_gain' : camera_gain,
+                     'camera_exposure' : camera_exposure, 'image_id' : img_id, 'imagedate' : data[fields['timestamp']],
+                     'species' : species, 'genotype' : genotype, 'treatment' : treatment,
+                     'sample_id' : parsed_barcode['unique_id']}
+
+    #metadata_json = json.dumps(file_metadata)
+    #return metadata_json
+    return file_metadata
+
 
 if __name__ == '__main__':
     main()
