@@ -114,7 +114,7 @@ def main():
                 img_metadata = metadata_to_json(img, exp_metadata, data, colnames)
                 # Build image file path
                 image_path = posixpath.join(args.dir, 'snapshot' + data[colnames['id']], image_name)
-                upload_file_to_clowder(sess, args.url, image_path, ds_id, img_metadata, args.dryrun)
+                upload_file_to_clowder(sess, args.url, image_path, ds_id, {image_path : img_metadata}, args.dryrun)
 
 ###########################################
 
@@ -230,7 +230,8 @@ def upload_file_to_clowder(session, url, file, dataset_id, metadata, dryrun=Fals
     Raises:
         StandardError: HTTP POST return not 200
     """
-    
+
+    print(metadata)
     # Make sure file exists
     if os.path.exists(file):
         # Upload image file
