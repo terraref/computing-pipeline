@@ -88,6 +88,7 @@ def main():
         colnames[col] = i
 
     # Read through the CSV file to identify datasets/snapshots
+    dataset_count = 0
     for row in csvfile:
         # Remove newline
         row = row.rstrip('\n')
@@ -115,6 +116,11 @@ def main():
                 # Build image file path
                 image_path = posixpath.join(args.dir, 'snapshot' + data[colnames['id']], image_name)
                 upload_file_to_clowder(sess, args.url, image_path, ds_id, {image_name : json.dumps(img_metadata)}, args.dryrun)
+
+            dataset_count += 1
+            if args.verbose:
+                if dataset_count % 100 == 0:
+                    print('Datasets uploaded: ' + str(dataset_count), file=sys.stderr)
 
 ###########################################
 
