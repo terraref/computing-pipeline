@@ -263,7 +263,7 @@ def barcode_parser(barcode):
 
     parsed_barcode = {}
     parsed_barcode['species'] = barcode[0:2]
-    parsed_barcode['genotype'] = barcode[2:5]
+    parsed_barcode['genotype'] = barcode[0:5]
     parsed_barcode['treatment'] = barcode[5:7]
     parsed_barcode['unique_id'] = barcode[7:]
     return parsed_barcode
