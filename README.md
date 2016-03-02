@@ -7,6 +7,8 @@ Gitter is an instant messaging and chat room system for developers and users of 
 
 Huboard is a Kanban-style interface on top of the GitHub API.
 [![Huboard](http://img.shields.io/badge/Hu-Board-7965cc.svg)](https://huboard.com/terraref/computing-pipeline)
+
+[Open Science Framework](https://osf.io/n532g/) is a scholarly commons to connect the entire research cycle
 ___
 Computing Pipeline Development Team
 
