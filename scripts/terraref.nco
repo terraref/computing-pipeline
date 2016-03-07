@@ -1,0 +1,15 @@
+/* Purpose: Combine 2D TR image data into single 3D variable
+   Usage:
+   ncap2 -4 -v -O -S terraref.nco in.nc out.nc */
+
+*sz=926;
+defdim("band",sz); 
+image[band,x,y]=0.0f; 
+
+for(*idx=1;idx<=sz;idx++){
+  {@loop=snprint(idx,"Band%d");}
+  image((idx-1),:,:)=*@loop;   
+}
+
+// Sanity check: Make sure Band10 minus tenth band is zero
+err_chk=(Band10-allbands(9,:,:)).total();
