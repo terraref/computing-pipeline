@@ -1,6 +1,8 @@
-/* Purpose: Combine 2D TR image data into single 3D variable
+// -*-C++-*-
+
+/* Purpose: NCO/ncap2 script to Combine 2D TR image data into single 3D variable
    Usage:
-   ncap2 -4 -v -O -S terraref.nco in.nc out.nc */
+   ncap2 -4 -v -O -S ~/computing-pipeline/scripts/terraref.nco ${DATA}/terraref/data.nc ${DATA}/terraref/data_ncap2.nc */
 
 *sz=926;
 defdim("band",sz); 
