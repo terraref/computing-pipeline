@@ -1,10 +1,12 @@
+#!/usr/bin/env
+
 '''
 Created on Feb 5, 2016
 
 @author: jeromemao
 '''
 
-import json
+import json, sys
 from netCDF4 import Dataset
 
 _constructorTemplate  = '''self.{var} = source[u'lemnatec_measurement_metadata'][u'{var}']'''
@@ -33,16 +35,22 @@ class DataContainer(object):
       if param in self.__dict__:
          return self.__dict__[param]
 
-   def writeToNetCDF(self):
-      netCDFHandler = Dataset('test.nc','w', format='NETCDF4')
+   def writeToNetCDF(self, filePath):
+      try:
+         netCDFHandler = Dataset(filePath,'r+',format='NETCDF4')
+      except:
+         netCDFHandler = Dataset(filePath,'w',format='NETCDF4')
 
       for members in self.__dict__:
          tempGroup = netCDFHandler.createGroup(members)
          for submembers in self.__dict__[members]:
             if not _isdigit(self.__dict__[members][submembers]):
-               setattr(tempGroup, _replaceIllegalChar(submembers), self.__dict__[members][submembers])
+               setattr(tempGroup, _replaceIllegalChar(submembers), 
+                       self.__dict__[members][submembers])
+
             else:
-               setattr(tempGroup, _replaceIllegalChar(submembers), self.__dict__[members][submembers])
+               setattr(tempGroup, _replaceIllegalChar(submembers), 
+                       self.__dict__[members][submembers])
                nameSet = _spliter(submembers)
 
                if 'Velocity' in submembers or 'Position' in submembers:
@@ -85,11 +93,20 @@ def _spliter(string):
       else: break
 
    if 'Position' in string:
-      return [_replaceIllegalChar(long_name.strip(' ')), long_name.strip(' ').split(' ')[-1]], _globalUnitDictionary[string[string.find('[')+1: string.find(']')].encode('ascii','ignore')]
+      return [_replaceIllegalChar(long_name.strip(' ')),\
+               long_name.strip(' ').split(' ')[-1]]\
+               ,_globalUnitDictionary[string[string.find('[')+1: \
+               string.find(']')].encode('ascii','ignore')]
+
    elif 'Velocity' in string:
-      return [_replaceIllegalChar(long_name.strip(' ')), _velocityDictionary[long_name.strip(' ').split(' ')[-1]]], _globalUnitDictionary[string[string.find('[')+1: string.find(']')].encode('ascii','ignore')]
+      return [_replaceIllegalChar(long_name.strip(' ')), 
+              _velocityDictionary[long_name.strip(' ').split(' ')[-1]]]\
+              ,_globalUnitDictionary[string[string.find('[')+1: \
+              string.find(']')].encode('ascii','ignore')]
+
    else:
-      return _replaceIllegalChar(long_name.strip(' ')), _replaceIllegalChar(string)
+      return _replaceIllegalChar(long_name.strip(' '))\
+             ,_replaceIllegalChar(string)
 
 
 def _filteringTheHeadings(target):
@@ -116,7 +133,10 @@ def jsonHandler(jsonFile):
 
 
 if __name__ == '__main__':
-   testCase = jsonHandler('test.json')
-   testCase.writeToNetCDF()
+   global fileInput
+   fileInput, fileOutput = sys.argv[1], sys.argv[2]
+
+   testCase = jsonHandler(fileInput)
+   testCase.writeToNetCDF(fileOutput)
     
     
