@@ -1,5 +1,3 @@
-# Give permissions
-chmod 755 $(pwd)
 
 # Convert raster to netCDF
 gdal_translate -ot Float32 -of netCDF ${DATA}/terraref/data ${DATA}/terraref/data.nc
