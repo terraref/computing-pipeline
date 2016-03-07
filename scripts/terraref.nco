@@ -2,16 +2,16 @@
 
 /* Purpose: NCO/ncap2 script to Combine 2D TR image data into single 3D variable
    Usage:
-   ncap2 -4 -v -O -S ~/computing-pipeline/scripts/terraref.nco ${DATA}/terraref/data.nc ${DATA}/terraref/data_ncap2.nc */
+   ncap2 -4 -v -O -S ~/computing-pipeline/scripts/terraref.nco ${DATA}/terraref/data.nc4 ${DATA}/terraref/data.nc4 */
 
-*sz=926;
-defdim("band",sz); 
+*bnd_nbr=926;
+defdim("band",bnd_nbr); 
 image[band,x,y]=0.0f; 
 
-for(*idx=1;idx<=sz;idx++){
-  {@loop=snprint(idx,"Band%d");}
-  image((idx-1),:,:)=*@loop;   
+for(*bnd_idx=1;bnd_idx<=bnd_nbr;bnd_idx++){
+  {@loop=snprint(bnd_idx,"Band%d");}
+  image((bnd_idx-1),:,:)=*@loop;   
 }
 
 // Sanity check: Make sure Band10 minus tenth band is zero
-err_chk=(Band10-allbands(9,:,:)).total();
+err_chk=(Band10-image(9,:,:)).total();
