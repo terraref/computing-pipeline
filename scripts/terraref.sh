@@ -14,7 +14,7 @@
 gdal_translate -ot Float32 -of netCDF ${DATA}/terraref/data ${DATA}/terraref/data.nc
 
 # Convert netCDF3 to netCDF4
-ncks -O -4 ${DATA}/terraref/data.nc ${DATA}/Desktop/terraref/data.nc4
+ncks -O -4 ${DATA}/terraref/data.nc ${DATA}/terraref/data.nc4
 
 # Combine 2D TR image data into single 3D variable
 # fxm: Currently only works with HMB-20160131-VLIST branch of NCO
