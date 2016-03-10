@@ -21,14 +21,18 @@ gdal_translate -ot Float32 -of netCDF ${DATA}/terraref/data ${DATA}/terraref/dat
 ncks -O -4 ${DATA}/terraref/data.nc ${DATA}/terraref/data.nc4
 
 # Combine 2D TR image data into single 3D variable
-# fxm: Currently only works with HMB-20160131-VLIST branch of NCO
+# fxm: Currently only works with NCO branch HMB-20160131-VLIST
+# Once this branch is merged into master, next step will work with generic NCO
+# Until then image is split into 926 variables, each the raster of one band
 ncap2 -4 -v -O -S ${HOME}/computing-pipeline/scripts/terraref.nco ${DATA}/terraref/data.nc4 ${DATA}/terraref/data.nc4
 
-# Add metadata
+# Add workflow-specific metadata
 ncatted -O -a "Conventions,global,o,sng,CF-1.5" -a "Project,global,o,sng,TERRAREF" ${DATA}/terraref/data.nc4
 
-# Parse JSON metadata
-python JsonDealer.py test.json ${DATA}/terraref/test.nc4
+# Parse JSON metadata (sensor location, instrument configuration)
+python ${HOME}/computing-pipeline/scripts/JsonDealer.py ${DATA}/terraref/test.json ${DATA}/terraref/test.nc4
 
 # Combine metadata with data
-ncks -A ${DATA}/terraref/test.nc ${DATA}/terraref/data.nc4
+ncks -A ${DATA}/terraref/test.nc4 ${DATA}/terraref/data.nc4
+
+
