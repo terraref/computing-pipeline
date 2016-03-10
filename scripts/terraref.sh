@@ -15,6 +15,12 @@
 # terraref.sh > ~/terraref.out 2>&1 &
 
 # Convert raster to netCDF
+# Raw data stored in ENVI hyperspectral image format in file "data" with accompanying header file "data.hdr"
+# Header file documentation:
+# http://www.exelisvis.com/docs/ENVIHeaderFiles.html
+# Header file indicates raw data is ENVI type 4: single-precision float
+# More optimal for 16-bit input data would be ENVI type 2 (NC_SHORT) or type 12 (NC_USHORT)
+# This would save factor of two in raw data and could obviate packing (which is lossy quantization)
 gdal_translate -ot Float32 -of netCDF ${DATA}/terraref/data ${DATA}/terraref/data.nc
 
 # Convert netCDF3 to netCDF4
@@ -24,9 +30,10 @@ ncks -O -4 ${DATA}/terraref/data.nc ${DATA}/terraref/data.nc4
 # fxm: Currently only works with NCO branch HMB-20160131-VLIST
 # Once this branch is merged into master, next step will work with generic NCO
 # Until then image is split into 926 variables, each the raster of one band
+# fxm: currently this step is slow, and may need to be rewritten to dedicated routine
 ncap2 -4 -v -O -S ${HOME}/computing-pipeline/scripts/terraref.nco ${DATA}/terraref/data.nc4 ${DATA}/terraref/data.nc4
 
-# Add workflow-specific metadata
+# Workflow-specific metadata
 ncatted -O -a "Conventions,global,o,sng,CF-1.5" -a "Project,global,o,sng,TERRAREF" ${DATA}/terraref/data.nc4
 
 # Parse JSON metadata (sensor location, instrument configuration)
@@ -34,5 +41,3 @@ python ${HOME}/computing-pipeline/scripts/JsonDealer.py ${DATA}/terraref/test.js
 
 # Combine metadata with data
 ncks -A ${DATA}/terraref/test.nc4 ${DATA}/terraref/data.nc4
-
-
