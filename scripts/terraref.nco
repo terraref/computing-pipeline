@@ -10,8 +10,15 @@ image[band,x,y]=0.0f;
 
 for(*bnd_idx=1;bnd_idx<=bnd_nbr;bnd_idx++){
   {@loop=snprint(bnd_idx,"Band%d");}
+  print(@loop,"%s ");
   image((bnd_idx-1),:,:)=*@loop;   
 }
 
 // Sanity check: Make sure Band10 minus tenth band is zero
-err_chk=(Band10-image(9,:,:)).total();
+err_chk10=(Band10-image(9,:,:)).total();
+err_chk300=(Band300-image(299,:,:)).total();
+err_chk926=(Band926-image(925,:,:)).total();
+
+print(err_chk10);
+print(err_chk300);
+print(err_chk926);
