@@ -2,10 +2,14 @@
 
 # Purpose: Convert raw imagery from raster to netCDF and annotate with metadata
 
+# if there's any problem regarding the path, try to add the following command:
+# export PATH="$PATH:" where follows the directory to the terraref file
+
 # Prerequisites:
 # GDAL: sudo aptitude install gdal
 # NCO: sudo aptitude install nco
-# Python:
+# Python: both Python 2.X and 3.X are OK, but 3.X preferred
+# netCDF4: A third-party library for Python, install them using sudo ports install netCDF4
 
 # Usage:
 # terraref.sh > ~/terraref.out 2>&1 &
