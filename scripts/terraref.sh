@@ -31,7 +31,7 @@ ncks -O -4 ${DATA}/terraref/data.nc ${DATA}/terraref/data.nc4
 # Once this branch is merged into master, next step will work with generic NCO
 # Until then image is split into 926 variables, each the raster of one band
 # fxm: currently this step is slow, and may need to be rewritten to dedicated routine
-ncap2 -4 -v -O -S ${HOME}/computing-pipeline/scripts/terraref.nco ${DATA}/terraref/data.nc4 ${DATA}/terraref/data.nc4
+#ncap2 -4 -v -O -S ${HOME}/computing-pipeline/scripts/terraref.nco ${DATA}/terraref/data.nc4 ${DATA}/terraref/data.nc4
 
 # Workflow-specific metadata
 ncatted -O -a "Conventions,global,o,sng,CF-1.5" -a "Project,global,o,sng,TERRAREF" ${DATA}/terraref/data.nc4
