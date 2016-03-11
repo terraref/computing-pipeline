@@ -84,7 +84,8 @@ fi # !dbg
 # Header file indicates raw data is ENVI type 4: single-precision float
 # More optimal for 16-bit input data would be ENVI type 2 (NC_SHORT) or type 12 (NC_USHORT)
 # This would save factor of two in raw data and could obviate packing (which is lossy quantization)
-cmd_trn="gdal_translate -ot Float32 -of netCDF ${DATA}/terraref/${in_fl} ${DATA}/terraref/${in_fl}.nc"
+#cmd_trn="gdal_translate -ot Float32 -of netCDF ${DATA}/terraref/${in_fl} ${DATA}/terraref/${in_fl}.nc"
+cmd_trn="ls"
 if [ ${dbg_lvl} -ne 2 ]; then
     eval ${cmd_trn}
     if [ $? -ne 0 ]; then
