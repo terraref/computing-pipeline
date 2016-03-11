@@ -7,12 +7,19 @@
 *bnd_nbr=926;
 defdim("band",bnd_nbr); 
 image[band,x,y]=0.0f; 
+band[band]=0.0f; 
 
 for(*bnd_idx=1;bnd_idx<=bnd_nbr;bnd_idx++){
+  // Are braces necessary?
   {@loop=snprint(bnd_idx,"Band%d");}
   print(@loop,"%s ");
+
+  // Copy band 2D raster into 3D image hypercube
   image((bnd_idx-1),:,:)=*@loop;   
-}
+
+  // Copy wavelength attribute into band coordinate
+  band(bnd_idx-1)=*@loop@wavelength;
+ } // !bnd_idx
 
 // Sanity check: Make sure Band10 minus tenth band is zero
 err_chk10=(Band10-image(9,:,:)).total();
