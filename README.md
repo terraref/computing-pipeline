@@ -19,7 +19,7 @@ Computing Pipeline Development Team
 | Storage Architect | [JD Maloney](https://github.com/jdmaloney) | 
 | Senior Programmer | [Rob Kooper](https://github.com/robkooper) |
 | CyberGIS Senior Programmer |  [Yan Liu](https://github.com/yanliu-chn) | 
-| ISDA Research Programmer |  [Max Bennett](https://github.com/max-zilla) |
+| ISDA Research Programmer |  [Max Burnette](https://github.com/max-zilla) |
 | Image Compression, UCI | [Charlie Zender](https://github.com/czender)| 
 | NDS Research Programmer | [Dora Cai](https://github.com/doracai)|
 
