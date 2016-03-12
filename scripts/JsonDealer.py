@@ -1,5 +1,10 @@
 #!/usr/bin/env
 
+# Purpose: Parse JSON metadata for ENVI-format imagery in Terraref hyperspectral camera
+
+# Usage:
+# python ${HOME}/computing-pipeline/scripts/JsonDealer.py ${DATA}/terraref/test.json ${DATA}/terraref/test.nc4
+
 '''
 Created on Feb 5, 2016
 
