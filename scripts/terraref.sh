@@ -2,6 +2,8 @@
 
 # Purpose: Convert raw imagery from 2D floating-point raster to 3D compressed netCDF annotated with metadata
 
+# Source: https://github.com/terraref/computing-pipeline/tree/master/scripts/terraref.sh
+
 # Prerequisites:
 # GDAL: sudo aptitude install gdal
 # NCO: sudo aptitude install nco
@@ -420,7 +422,9 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     if [ "${jsn_flg}" = 'Yes' ]; then
 	printf "jsn(in)  : ${in_fl}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
-	cmd_jsn[${fl_idx}]="python ${HOME}/computing-pipeline/scripts/JsonDealer.py ${in_fl} ${jsn_fl}"
+	# fxm: Verify naming convention for .json files
+	in_jsn="${fl_in[${fl_idx}]}.json" # [sng] JSON input file
+	cmd_jsn[${fl_idx}]="python ${HOME}/computing-pipeline/scripts/JsonDealer.py ${in_jsn} ${jsn_fl}"
 	in_fl=${jsn_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_jsn[${fl_idx}]}
