@@ -103,8 +103,8 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     printf "Examples: ${fnt_bld}$spt_nm -i ${in_xmp} -o ${out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -I ${drc_in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}ls SWNIR*nc | $spt_nm -O ${drc_out_xmp} ${fnt_nrm}\n"
-    printf "CZ Debug: ${spt_nm} -I ${DATA}/terraref/whiteReference -O ${DATA}/terraref > ~/terraref.out 2>&1 &\n"
-    printf "          ${spt_nm} -I ${DATA}/terraref -O ${DATA}/terraref > ~/terraref.out 2>&1 &\n"
+    printf "CZ Debug: ${spt_nm} -I \${DATA}/terraref/whiteReference -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
+    printf "          ${spt_nm} -I \${DATA}/terraref -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     exit 1
 } # end fnc_usg_prn()
 
