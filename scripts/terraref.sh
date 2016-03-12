@@ -63,6 +63,7 @@ drc_in_xmp='~/drc_in' # [sng] Input file directory for examples
 drc_out="${drc_pwd}" # [sng] Output file directory
 drc_out_xmp="~/drc_out" # [sng] Output file directory for examples
 drc_tmp='' # [sng] Temporary file directory
+gaa_sng="--gaa rgr_script=${spt_nm} --gaa rgr_hostname=${HOSTNAME} --gaa rgr_version=${nco_version}" # [sng] Global attributes to add
 hdr_pad='1000' # [B] Pad at end of header section
 in_fl='whiteReference' # [sng] Input file stub
 in_xmp='data' # [sng] Input file for examples
@@ -103,7 +104,7 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     printf "Examples: ${fnt_bld}$spt_nm -i ${in_xmp} -o ${out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -I ${drc_in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}ls SWNIR*nc | $spt_nm -O ${drc_out_xmp} ${fnt_nrm}\n"
-    printf "CZ Debug: ${spt_nm} -I \${DATA}/terraref/whiteReference -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
+    printf "CZ Debug: ${spt_nm} -i \${DATA}/terraref/whiteReference -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I \${DATA}/terraref -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     exit 1
 } # end fnc_usg_prn()
@@ -199,6 +200,9 @@ if [ ${dbg_lvl} -ge 2 ]; then
 fi # !dbg_lvl
 if [ -n "${nco_usr}" ]; then 
     nco_opt="${nco_usr} ${nco_opt}"
+fi # !var_lst
+if [ -n "${gaa_sng}" ]; then 
+    nco_opt="${nco_opt} ${gaa_sng}"
 fi # !var_lst
 if [ -n "${hdr_pad}" ]; then 
     nco_opt="${nco_opt} --hdr_pad=${hdr_pad}"
@@ -306,6 +310,7 @@ if [ ${dbg_lvl} -ge 2 ]; then
     printf "dbg: drc_in   = ${drc_in}\n"
     printf "dbg: drc_out  = ${drc_out}\n"
     printf "dbg: drc_tmp  = ${drc_tmp}\n"
+    printf "dbg: gaa_sng  = ${gaa_sng}\n"
     printf "dbg: hdr_pad  = ${hdr_pad}\n"
     printf "dbg: job_nbr  = ${job_nbr}\n"
     printf "dbg: in_fl    = ${in_fl}\n"
@@ -379,6 +384,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	printf "trn(in)  : ${in_fl}\n"
 	printf "trn(out) : ${trn_fl}\n"
 	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${in_fl} ${trn_fl}"
+	hst_att="`date`: ${cmd_ln};${cmd_trn[${fl_idx}]}"
 	in_fl=${trn_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_trn[${fl_idx}]}
@@ -396,7 +402,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     if [ "${att_flg}" = 'Yes' ]; then
 	printf "att(in)  : ${in_fl}\n"
 	printf "att(out) : ${att_fl}\n"
-	cmd_att[${fl_idx}]="ncatted -O -a \"Conventions,global,o,sng,CF-1.5\" -a \"Project,global,o,sng,TERRAREF\" ${in_fl} ${att_fl}"
+	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" --gaa history='${hst_att}' ${in_fl} ${att_fl}"
 	in_fl=${att_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_att[${fl_idx}]}
