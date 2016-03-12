@@ -79,7 +79,7 @@ out_xmp='data.nc4' # [sng] Output file for examples
 nco_opt='-O --no_tmp_fl' # [sng] NCO defaults (e.g., '-O -6 -t 1')
 nco_usr='' # [sng] NCO user-configurable options (e.g., '-D 1')
 tmp_fl='terraref_tmp.nc' # [sng] Temporary output file
-unq_sfx=".pid${spt_pid}.terraref.tmp" # [sng] Unique suffix
+unq_sfx=".pid${spt_pid}.tmp" # [sng] Unique suffix
 
 att_flg='Yes' # [sng] Add workflow-specific metadata
 d23_flg='Yes' # [sng] Convert 2D->3D
