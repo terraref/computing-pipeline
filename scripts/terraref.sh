@@ -108,6 +108,7 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     printf "          ${fnt_bld}ls SWNIR*nc | $spt_nm -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "CZ Debug: ${spt_nm} -i \${DATA}/terraref/whiteReference -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I \${DATA}/terraref -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
+    printf "          ${spt_nm} -I /projects/arpae/terraref/raw_data/lemnatec_field -O /projects/arpae/terraref/outputs/lemnatec_field > ~/terraref.out 2>&1 &\n"
     exit 1
 } # end fnc_usg_prn()
 
@@ -446,7 +447,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     # fxm: currently this step is slow, and may need to be rewritten to dedicated routine
     printf "2D  : ${in_fl}\n"
     printf "3D  : ${d23_fl}\n"
-    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -S ${HOME}/computing-pipeline/scripts/terraref.nco ${in_fl} ${d23_fl}"
+    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -S ${HOME}/terraref/computing-pipeline/scripts/terraref.nco ${in_fl} ${d23_fl}"
     in_fl=${d23_fl}
     
     # Block 5 Loop 2: Execute and/or echo commands
