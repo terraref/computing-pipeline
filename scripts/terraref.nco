@@ -3,7 +3,8 @@
 /* Purpose: NCO/ncap2 script to Combine 2D TR fractional exposure into single 3D variable
    Usage:
    ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/terraref.nco ${DATA}/terraref/data.nc ${DATA}/terraref/data_3d.nc
-   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/terraref.nco ${DATA}/terraref/whiteReference.nc ${DATA}/terraref/whiteReference_3d.nc */
+   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/terraref.nco ${DATA}/terraref/whiteReference.nc ${DATA}/terraref/whiteReference_3d.nc
+   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/terraref.nco ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw ${DATA}/terraref/foo_3d.nc */
 
 *bnd_nbr=926;
 defdim("band",bnd_nbr); 
