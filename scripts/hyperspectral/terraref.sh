@@ -40,6 +40,7 @@ esac # !HOSTNAME
 
 # Debugging and Benchmarking:
 # terraref.sh -d 1 -i ${DATA}/terraref/whiteReference -o whiteReference.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
 
 # dbg_lvl: 0 = Quiet, print basic status during evaluation
 #          1 = Print configuration, full commands, and status to output during evaluation
