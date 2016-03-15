@@ -2,7 +2,7 @@
 
 # Purpose: Convert raw imagery from 2D floating-point raster to 3D compressed netCDF annotated with metadata
 
-# Source: https://github.com/terraref/computing-pipeline/tree/master/scripts/terraref.sh
+# Source: https://github.com/terraref/computing-pipeline/tree/master/scripts/hyperspectral/terraref.sh
 
 # Prerequisites:
 # GDAL: sudo aptitude install gdal
