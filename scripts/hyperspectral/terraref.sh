@@ -39,7 +39,7 @@ esac # !HOSTNAME
 # terraref.sh $fl > ~/terraref.out 2>&1 &
 
 # Debugging and Benchmarking:
-# terraref.sh -d 1 -i ${DATA}/terraref/whiteReference -o whiteReference.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# terraref.sh -d 1 -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/terraref.out 2>&1 &
 # terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
 
 # dbg_lvl: 0 = Quiet, print basic status during evaluation
@@ -68,15 +68,15 @@ drc_out_xmp="~/drc_out" # [sng] Output file directory for examples
 drc_tmp='' # [sng] Temporary file directory
 gaa_sng="--gaa rgr_script=${spt_nm} --gaa rgr_hostname=${HOSTNAME} --gaa rgr_version=${nco_version}" # [sng] Global attributes to add
 hdr_pad='1000' # [B] Pad at end of header section
-in_fl='whiteReference' # [sng] Input file stub
-in_xmp='data' # [sng] Input file for examples
+in_fl='whiteReference_raw' # [sng] Input file stub
+in_xmp='test_raw' # [sng] Input file for examples
 fl_nbr=0 # [nbr] Number of files
 job_nbr=2 # [nbr] Job simultaneity for parallelism
 mpi_flg='No' # [sng] Parallelize over nodes
 mtd_mk='Yes' # [sng] Process metadata
 nd_nbr=1 # [nbr] Number of nodes
 out_fl='whiteReference.nc4' # [sng] Output file name
-out_xmp='data.nc4' # [sng] Output file for examples
+out_xmp='test.nc4' # [sng] Output file for examples
 nco_opt='-O --no_tmp_fl' # [sng] NCO defaults (e.g., '-O -6 -t 1')
 nco_usr='' # [sng] NCO user-configurable options (e.g., '-D 1')
 tmp_fl='terraref_tmp.nc' # [sng] Temporary output file
@@ -107,7 +107,7 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     printf "Examples: ${fnt_bld}$spt_nm -i ${in_xmp} -o ${out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -I ${drc_in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}ls *_raw | $spt_nm -O ${drc_out_xmp} ${fnt_nrm}\n"
-    printf "CZ Debug: ${spt_nm} -i \${DATA}/terraref/whiteReference -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
+    printf "CZ Debug: ${spt_nm} -i \${DATA}/terraref/whiteReference_raw -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I \${DATA}/terraref -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I /projects/arpae/terraref/raw_data/lemnatec_field -O /projects/arpae/terraref/outputs/lemnatec_field > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -i \${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &\n"
@@ -426,7 +426,8 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	printf "jsn(in)  : ${in_fl}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
 	# fxm: Verify naming convention for .json files
-	in_jsn="${fl_in[${fl_idx}]}.json" # [sng] JSON input file
+	# in_jsn="${fl_in[${fl_idx}]}.json" # [sng] JSON input file
+	in_jsn="${fl_in[${fl_idx}]}/_raw/_metadata.json}" # [sng] JSON input file
 	cmd_jsn[${fl_idx}]="python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${in_jsn} ${jsn_fl}"
 	in_fl=${jsn_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
