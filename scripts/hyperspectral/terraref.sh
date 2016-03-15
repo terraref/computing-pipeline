@@ -106,10 +106,11 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     printf "\n"
     printf "Examples: ${fnt_bld}$spt_nm -i ${in_xmp} -o ${out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -I ${drc_in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
-    printf "          ${fnt_bld}ls SWNIR*nc | $spt_nm -O ${drc_out_xmp} ${fnt_nrm}\n"
+    printf "          ${fnt_bld}ls *_raw | $spt_nm -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "CZ Debug: ${spt_nm} -i \${DATA}/terraref/whiteReference -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I \${DATA}/terraref -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I /projects/arpae/terraref/raw_data/lemnatec_field -O /projects/arpae/terraref/outputs/lemnatec_field > ~/terraref.out 2>&1 &\n"
+    printf "          ${spt_nm} -i \${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &\n"
     exit 1
 } # end fnc_usg_prn()
 
@@ -426,7 +427,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	printf "jsn(out) : ${jsn_fl}\n"
 	# fxm: Verify naming convention for .json files
 	in_jsn="${fl_in[${fl_idx}]}.json" # [sng] JSON input file
-	cmd_jsn[${fl_idx}]="python ${HOME}/computing-pipeline/scripts/JsonDealer.py ${in_jsn} ${jsn_fl}"
+	cmd_jsn[${fl_idx}]="python ${HOME}/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${in_jsn} ${jsn_fl}"
 	in_fl=${jsn_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_jsn[${fl_idx}]}
