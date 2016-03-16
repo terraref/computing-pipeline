@@ -18,7 +18,7 @@ band@units="nanometer";
 
 for(*bnd_idx=1;bnd_idx<=bnd_nbr;bnd_idx++){
   // Current variable has name produced by gdal_translate
-  @var_crr=snprint(bnd_idx,"Band%d");
+  {  @var_crr=snprint(bnd_idx,"Band%d"); }
   print(@var_crr,"%s ");
 
   // Copy band 2D raster into 3D image hypercube
