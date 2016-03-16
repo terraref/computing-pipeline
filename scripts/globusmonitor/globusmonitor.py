@@ -5,6 +5,8 @@ from flask import Flask, request
 from flask.ext import restful
 from flask_restful import reqparse, abort, Api, Resource
 
+from globusonline.transfer import api_client
+
 app = Flask(__name__) 
 api = restful.Api(app)
 
@@ -73,7 +75,11 @@ def writeJobListsToFile():
 
 """Query Globus API re: globusID to get current transfer status"""
 def checkGlobusStatus(globusID):
-    pass
+    # Examples here: https://github.com/globusonline/transfer-api-client-python/tree/master/globusonline/transfer/api_client/examples
+    api = api_client.TransferAPIClient(username="username",
+                                       cert_file="path/to/client/credential",
+                                       key_file="path/to/client/credential")
+    status_code, status_message, data = api.task_list()
 
 """Send Clowder necessary details to load local file after Globus transfer complete"""
 def notifyClowderOfCompletedFile(globusID):
