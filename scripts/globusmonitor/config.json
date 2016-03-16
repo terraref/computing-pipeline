@@ -1,0 +1,15 @@
+{
+  // globus connection details
+  "globus": {
+    "username": "maxzilla",
+    "password": "TCiHdAslV3RnfEwD8kbj"
+  },
+  "api": {
+    "port": "5454"
+  },
+  "service": {
+    "userListPath": "globus_users.json",
+    "activeJobsPath": "active_jobs.json",
+    "resultsPath": "results.json"
+  }
+}
