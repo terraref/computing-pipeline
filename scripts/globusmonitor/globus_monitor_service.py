@@ -9,6 +9,15 @@ completed = {}
 validUsers = []
 
 
+"""Query API to get jobs it is aware of and update any we don't know about"""
+def getJobsFromAPI():
+    # GET 0.0.0.0:config.api.port/jobs
+    pass
+
+def sendJobUpdateToAPI(globusID, status):
+    # PUT 0.0.0.0:config.api.port/jobs
+    pass
+
 """Load config parameters from config.json file"""
 def loadConfigFromFile():
     configFile = open("config.json")
@@ -85,6 +94,10 @@ def checkGlobusStatus(globusID):
     # Examples here: https://github.com/globusonline/transfer-api-client-python/tree/master/globusonline/transfer/api_client/examples
     api = TransferAPIClient(username=config.globus.username, goauth=authToken)
     status_code, status_message, data = api.task_list()
+    for gid in data.DATA:
+        # check if status has changed...
+        status = data.DATA[gid].status
+        sendJobUpdateToAPI(gid, status)
 
 """Send Clowder necessary details to load local file after Globus transfer complete"""
 def notifyClowderOfCompletedFile(globusID):
@@ -94,7 +107,7 @@ def notifyClowderOfCompletedFile(globusID):
 # Main loop
 config = loadConfigFromFile()
 while True:
-    activeJobs = getActiveJobsFromAPI()
+    activeJobs = getJobsFromAPI()
     for gid in activeJobs.keys:
         status = checkGlobusStatus(gid)
         if status == "DONE":
