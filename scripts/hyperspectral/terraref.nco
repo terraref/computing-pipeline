@@ -18,14 +18,17 @@ band@units="nanometer";
 
 for(*bnd_idx=1;bnd_idx<=bnd_nbr;bnd_idx++){
   // Current variable has name produced by gdal_translate
-  {  @var_crr=snprint(bnd_idx,"Band%d"); }
+  {  
+   @var_crr=snprint(bnd_idx,"Band%d"); 
+   @wavelength=snprint(bnd_idx,"Band%d@wavelength"); 
+  }
   print(@var_crr,"%s ");
 
   // Copy band 2D raster into 3D image hypercube
   xps_frc((bnd_idx-1),:,:)=*@var_crr;   
 
   // Copy wavelength attribute into band coordinate
-  //  band(bnd_idx-1)=*@var_crr@wavelength;
+  band(bnd_idx-1)=*@wavelength;
  } // !bnd_idx
 
 // Sanity check: Make sure Band10 minus tenth band is zero
