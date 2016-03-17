@@ -379,16 +379,19 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     fi # !basename
 
     # Convert raster to netCDF
-    # Raw data stored in ENVI hyperspectral image format in file "data" with accompanying header file "data.hdr"
+    # Raw data stored in ENVI hyperspectral image format in file "test_raw" with accompanying header file "test_raw.hdr"
     # Header file documentation:
     # http://www.exelisvis.com/docs/ENVIHeaderFiles.html
-    # Header file indicates raw data is ENVI type 4: single-precision float
-    # More optimal for 16-bit input data would be ENVI type 2 (NC_SHORT) or type 12 (NC_USHORT)
-    # This would save factor of two in raw data and could obviate packing (which is lossy quantization)
+    # Dimensions: Samples, lines, bands = x,y,wavelength
+    # Header file (*.hdr) codes raw data type as ENVI type 4: single-precision float, or type 12: unsigned 16-bit integer
+    # Corresponding GDAL output types are Float32 for ENVI type 4 (NC_FLOAT) or UInt16 for ENVI type 12 (NC_USHORT)
+    # Potential GDAL output types are INT16,UINT16,INT32,UINT32,Float32
+    # Writing ENVI type 4 input as NC_USHORT output save of factor of two in storage and could obviate packing (which is lossy quantization)
     if [ "${trn_flg}" = 'Yes' ]; then
 	printf "trn(in)  : ${in_fl}\n"
 	printf "trn(out) : ${trn_fl}\n"
-	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${in_fl} ${trn_fl}"
+#	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${in_fl} ${trn_fl}" # Preserves ENVI type 4 input
+	cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${in_fl} ${trn_fl}" # Preserves ENVI type 12 input
 	hst_att="`date`: ${cmd_ln};${cmd_trn[${fl_idx}]}"
 	in_fl=${trn_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
