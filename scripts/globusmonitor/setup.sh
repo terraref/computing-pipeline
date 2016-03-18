@@ -5,3 +5,5 @@
 git clone https://github.com/globusonline/transfer-api-client-python.git
 cd transfer-api-client-python
 python setup.py install
+pip install flask
+pip install flask-restful

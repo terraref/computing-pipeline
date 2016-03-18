@@ -1,9 +1,9 @@
 {
   "globus": {
-    // List of valid users whose transfers will be monitored:
-    //      { "<globus_username>": {"password": "<globus_password>"}, ... }
     "validUsers": {
-
+      "globus_username": {
+        "password": "globus_password"
+      }
     }
   },
   "api": {
@@ -13,9 +13,11 @@
   },
   "clowder": {
     "host": "http://localhost:9000",
-    // Mapping of globus user/pass to clowder user/pass for uploading of files to Clowder
     "userMap": {
-
+      "globus_username": {
+        "clowder_user": "user",
+        "clowder_pass": "pass"
+      }
     }
   }
 }

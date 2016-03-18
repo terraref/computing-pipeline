@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import os, shutil, json, time, datetime
+import os, shutil, json, time, datetime, thread
 from functools import wraps
 from flask import Flask, request, Response
 from flask.ext import restful
@@ -9,7 +9,6 @@ from globusonline.transfer.api_client import TransferAPIClient, goauth
 
 
 config = {}
-configFile = "config.json"
 
 """Active task object is of the format:
 [{
@@ -41,7 +40,7 @@ def loadJsonFile(filename):
 
 """Load activeTasks from file into memory"""
 def loadActiveTasksFromDisk():
-    activePath = config.api.activePath
+    activePath = config['api']['activePath']
 
     # Prefer to load from primary file, try to use backup if primary is missing
     if not os.path.exists(activePath):
@@ -58,7 +57,7 @@ def loadActiveTasksFromDisk():
 """Write activeTasks from memory into file"""
 def writeActiveTasksToDisk():
     # Write current file to backup location before writing current file
-    activePath = config.api.activePath
+    activePath = config['api']['activePath']
     shutil.move(activePath, activePath+".backup")
     f = open(activePath, 'w')
     f.write(json.dumps(activeTasks))
@@ -66,7 +65,7 @@ def writeActiveTasksToDisk():
 
 """Write a completed task onto disk in appropriate folder hierarchy"""
 def writeCompletedTaskToDisk(task):
-    completedPath = config.api.completedPath
+    completedPath = config['api']['completedPath']
     taskID = task.globus_id
 
     # e.g. TaskID "eaca1f1a-d400-11e5-975b-22000b9da45e"
@@ -92,7 +91,7 @@ def writeCompletedTaskToDisk(task):
 
 """Return full path name to completed logfile for a given task id if it exists, otherwise None"""
 def getCompletedTaskLogPath(taskID):
-    completedPath = config.api.completedPath
+    completedPath = config['api']['completedPath']
 
     treeLv1 = os.path.join(completedPath, taskID[:2])
     treeLv2 = os.path.join(treeLv1, taskID[2:4])
@@ -111,7 +110,7 @@ def getCompletedTaskLogPath(taskID):
 """Authentication components for API (http://flask.pocoo.org/snippets/8/)"""
 def check_auth(username, password):
     """Called to check whether username/password is valid"""
-    if username in config.globus.validUsers.keys:
+    if username in config['globus']['validUsers'].keys():
         return password == config.globus.validUsers[username].password
     else:
         return False
@@ -131,7 +130,7 @@ def requires_auth(f):
     return decorated
 
 """Post new globus tasks to be monitored"""
-@requires_auth
+#@requires_auth
 class GlobusMonitor(restful.Resource):
 
     """Return list of all active tasks"""
@@ -140,29 +139,31 @@ class GlobusMonitor(restful.Resource):
 
     """Add new Globus task ID from a known user for monitoring"""
     def post(self):
-        json_data = request.get_json(force=True)
-        for task in json_data:
-            # Add to active list if globus username is known, and write to disk
-            if task.user in config.globus.validUsers.keys:
-                activeTasks[task.globus_id] = {
-                    "user": task.user,
-                    "globus_id": task.globus_id,
-                    "files": task.files,
-                    "received": datetime.datetime.now(),
-                    "completed": None,
-                    "status": "IN PROGRESS"
-                }
-                writeActiveTasksToDisk()
+        task = request.get_json(force=True)
+        #for task in json_data:
+        print("TASK RECEIVED")
+        print(task)
+        # Add to active list if globus username is known, and write to disk
+        if task['user'] in config['globus']['validUsers'].keys():
+            activeTasks[task['globus_id']] = {
+                "user": task['user'],
+                "globus_id": task['globus_id'],
+                "files": task['files'],
+                "received": datetime.datetime.now(),
+                "completed": None,
+                "status": "IN PROGRESS"
+            }
+            writeActiveTasksToDisk()
 
         return 201
 
 """Get status of a particular task by globus id"""
-@requires_auth
+#@requires_auth
 class GlobusTask(restful.Resource):
 
     """Check if the Globus task ID is finished, in progress, or an error has occurred"""
     def get(self, globusID):
-        if globusID not in activeTasks.keys:
+        if globusID not in activeTasks.keys():
             # If not in active list, check for record of completed task
             logPath = getCompletedTaskLogPath(globusID)
             if logPath:
@@ -174,7 +175,7 @@ class GlobusTask(restful.Resource):
 
     """Remove task from active tasks"""
     def delete(self, globusID):
-        if globusID in activeTasks.keys:
+        if globusID in activeTasks.keys():
             # TODO: Should this allow deletion within Globus as well? For now, just deletes from monitoring
             task = activeTasks[globusID]
 
@@ -198,10 +199,10 @@ api.add_resource(GlobusTask, '/tasks/<string:globusID>')
 # ----------------------------------------------------------
 """Use globus goauth tool to get access tokens for valid accounts"""
 def generateAuthTokens():
-    for validUser in config.globus.validUsers.keys:
-        config.globus.validUsers[validUser].authToken = goauth.get_access_token(
+    for validUser in config['globus']['validUsers'].keys():
+        config['globus']['validUsers'][validUser]['authToken'] = goauth.get_access_token(
                 username=validUser,
-                password=config.globus.validUsers[validUser].password
+                password=config['globus']['validUsers'][validUser]['password']
             ).token
 
 """Query Globus API to get current transfer status of a given task"""
@@ -252,18 +253,23 @@ def notifyClowderOfCompletedTask(task):
 
 
 if __name__ == '__main__':
-    loadJsonFile(configFile)
+    print("Loading configuration from "+configFile)
+    config = loadJsonFile(configFile)
     loadActiveTasksFromDisk()
     generateAuthTokens()
 
-    # Create thread for API to begin listening - requires valid Globus user/pass
-    thread.start_new_thread(app.run, kwargs={
-        "host": "0.0.0.0",
-        "port": int(config.api.port),
-        "debug": True
-    })
-    print("API now listening on port "+config.api.port)
-
     # Create thread for service to begin monitoring
-    thread.start_new_thread(globusMonitorLoop)
+    thread.start_new_thread(globusMonitorLoop, ())
+    #globusMonitorLoop()
     print("Service now monitoring Globus tasks")
+
+    # Create thread for API to begin listening - requires valid Globus user/pass
+    """thread.start_new_thread(# app.run, (), {
+        "host": "0.0.0.0",
+        "port": int(config['api']['port']),
+        "debug": True
+    })"""
+    app.run(host="0.0.0.0", port=int(config['api']['port']), debug=True)
+    print("API now listening on port "+config['api']['port'])
+
+
