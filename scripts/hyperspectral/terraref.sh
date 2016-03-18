@@ -41,6 +41,7 @@ esac # !HOSTNAME
 # Debugging and Benchmarking:
 # terraref.sh -d 1 -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/terraref.out 2>&1 &
 # terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/VNIR/2016-03-05/2016-03-05__09-46_17_450/72235cd1-35d5-480a-8443-14281ded1a63_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
 
 # dbg_lvl: 0 = Quiet, print basic status during evaluation
 #          1 = Print configuration, full commands, and status to output during evaluation
@@ -111,6 +112,7 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     printf "          ${spt_nm} -I \${DATA}/terraref -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I /projects/arpae/terraref/raw_data/lemnatec_field -O /projects/arpae/terraref/outputs/lemnatec_field > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -i \${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &\n"
+    printf "          ${spt_nm} -i \${DATA}/terraref/MovingSensor/VNIR/2016-03-05/2016-03-05__09-46_17_450/72235cd1-35d5-480a-8443-14281ded1a63_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &\n"
     exit 1
 } # end fnc_usg_prn()
 
@@ -453,6 +455,10 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     # fxm: currently this step is slow, and may need to be rewritten to dedicated routine
     printf "2D  : ${in_fl}\n"
     printf "3D  : ${d23_fl}\n"
+    if [ ${dbg_lvl} -ne 2 ]; then
+	bnd_nbr=`grep 'bands' whiteReference_raw.hdr | cut -d ' ' -f 3`
+	echo "dbg: diagnosed band number bnd_nbr = ${bnd_nbr}"
+    fi # !dbg
     cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -S ${HOME}/terraref/computing-pipeline/scripts/terraref.nco ${in_fl} ${d23_fl}"
     in_fl=${d23_fl}
     
