@@ -1,24 +1,14 @@
 {
   // globus connection details
   "globus": {
-    "username": "maxzilla",
-    "password": "TCiHdAslV3RnfEwD8kbj",
-    "validUsers": {
-      "danforth": {
-        "password": "12345",
-        "authToken": ""
-      },
-      "maricopa": {
-        "password": "12345",
-        "authToken": ""
-      }
-    }
+    "validUsers": {}
   },
   "api": {
     "port": "5454"
   },
+  // service paths
   "service": {
     "activePath": "active_tasks.json",
-    "completedPath": "completed_tasks.json"
+    "completedPath": "/completed"
   }
 }
