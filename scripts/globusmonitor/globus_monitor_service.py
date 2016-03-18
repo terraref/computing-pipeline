@@ -1,13 +1,16 @@
 #!/usr/bin/python
 
 import os, shutil, json, time, datetime
-from flask import Flask, request
+from functools import wraps
+from flask import Flask, request, Response
 from flask.ext import restful
 from flask_restful import reqparse, abort, Api, Resource
 from globusonline.transfer.api_client import TransferAPIClient, goauth
 
 
 config = {}
+configFile = "config.json"
+
 """Active task object is of the format:
 [{
     "user":                     globus username
@@ -29,15 +32,16 @@ api = restful.Api(app)
 # ----------------------------------------------------------
 # SHARED UTILS
 # ----------------------------------------------------------
-"""Load config parameters from config.json file"""
-def loadConfigFromFile():
-    configFile = open("config.json")
-    config = json.load(configFile)
-    configFile.close()
+"""Load contents of .json file into a JSON object"""
+def loadJsonFile(filename):
+    f = open(filename)
+    jsonObj = json.load(f)
+    f.close()
+    return jsonObj
 
-"""Load previously written details of in-progress and completed jobs from file"""
+"""Load activeTasks from file into memory"""
 def loadActiveTasksFromDisk():
-    activePath = config.service.activePath
+    activePath = config.api.activePath
 
     # Prefer to load from primary file, try to use backup if primary is missing
     if not os.path.exists(activePath):
@@ -49,15 +53,12 @@ def loadActiveTasksFromDisk():
             f.write("{}")
             f.close()
 
-    # Load contents of file into memory
-    f = open(activePath)
-    activeTasks = json.load(f)
-    f.close()
+    activeTasks = loadJsonFile(activePath)
 
 """Write activeTasks from memory into file"""
 def writeActiveTasksToDisk():
     # Write current file to backup location before writing current file
-    activePath = config.service.activePath
+    activePath = config.api.activePath
     shutil.move(activePath, activePath+".backup")
     f = open(activePath, 'w')
     f.write(json.dumps(activeTasks))
@@ -65,22 +66,20 @@ def writeActiveTasksToDisk():
 
 """Write a completed task onto disk in appropriate folder hierarchy"""
 def writeCompletedTaskToDisk(task):
-    completedPath = config.service.completedPath
+    completedPath = config.api.completedPath
     taskID = task.globus_id
+
+    # e.g. TaskID "eaca1f1a-d400-11e5-975b-22000b9da45e"
+    #   = <completedPath>/ea/ca/1f/1a/eaca1f1a-d400-11e5-975b-22000b9da45e.json
 
     # Create root directory if necessary
     if not os.path.exists(completedPath):
         os.mkdir(completedPath)
-
     # Create nested hierarchy folders if needed, to hopefully avoid a long flat list
     treeLv1 = os.path.join(completedPath, taskID[:2])
     treeLv2 = os.path.join(treeLv1, taskID[2:4])
     treeLv3 = os.path.join(treeLv2, taskID[4:6])
     treeLv4 = os.path.join(treeLv3, taskID[6:8])
-
-    # e.g. TaskID "eaca1f1a-d400-11e5-975b-22000b9da45e" would go to:
-    #   <completedPath>/ea/ca/1f/1a/eaca1f1a-d400-11e5-975b-22000b9da45e.json
-
     for dir in [treeLv1, treeLv2, treeLv3, treeLv4]:
         if not os.path.exists(dir):
             os.mkdir(dir)
@@ -91,17 +90,48 @@ def writeCompletedTaskToDisk(task):
     f.write(json.dumps(task))
     f.close()
 
-    # TODO: Write completed jobs to individual .json files by task ID w/ folder nesting
-    # REDO AS INDIVIDUAL JSON FILES
-    completedPath = config.service.completedPath
-    f = open(completedPath, 'w')
-    f.write(json.dumps(completedTasks))
-    f.close()
+"""Return full path name to completed logfile for a given task id if it exists, otherwise None"""
+def getCompletedTaskLogPath(taskID):
+    completedPath = config.api.completedPath
+
+    treeLv1 = os.path.join(completedPath, taskID[:2])
+    treeLv2 = os.path.join(treeLv1, taskID[2:4])
+    treeLv3 = os.path.join(treeLv2, taskID[4:6])
+    treeLv4 = os.path.join(treeLv3, taskID[6:8])
+    fullPath = os.path.join(treeLv4, taskID+".json")
+
+    if os.path.isfile(fullPath):
+        return fullPath
+    else:
+        return None
 
 # ----------------------------------------------------------
 # API COMPONENTS
 # ----------------------------------------------------------
-"""API - Post new globus tasks to be monitored"""
+"""Authentication components for API (http://flask.pocoo.org/snippets/8/)"""
+def check_auth(username, password):
+    """Called to check whether username/password is valid"""
+    if username in config.globus.validUsers.keys:
+        return password == config.globus.validUsers[username].password
+    else:
+        return False
+
+def authenticate():
+    """Send 401 response that enables basic auth"""
+    return Response("Could not authenticate. Please provide valid credentials",
+                    401, {"WWW-Authenticate": 'Basic realm="Login Required"'})
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
+
+"""Post new globus tasks to be monitored"""
+@requires_auth
 class GlobusMonitor(restful.Resource):
 
     """Return list of all active tasks"""
@@ -112,40 +142,51 @@ class GlobusMonitor(restful.Resource):
     def post(self):
         json_data = request.get_json(force=True)
         for task in json_data:
-            globus_user = str(task['user'])
-            globus_id = str(task['globus_id'])
-            file_list = str(task['files'])
-
-            # Check if globus username is known
-            if globus_user in config.globus.validUsers.keys:
-                # Add to local queue that is checked all the time and saved to disk
-                activeTasks[globus_id] = {
-                    "user": globus_user,
-                    "globus_id": globus_id,
-                    "files": file_list,
+            # Add to active list if globus username is known, and write to disk
+            if task.user in config.globus.validUsers.keys:
+                activeTasks[task.globus_id] = {
+                    "user": task.user,
+                    "globus_id": task.globus_id,
+                    "files": task.files,
                     "received": datetime.datetime.now(),
                     "completed": None,
                     "status": "IN PROGRESS"
                 }
+                writeActiveTasksToDisk()
 
         return 201
 
-"""API - Get status of a particular task by globus id"""
+"""Get status of a particular task by globus id"""
+@requires_auth
 class GlobusTask(restful.Resource):
 
     """Check if the Globus task ID is finished, in progress, or an error has occurred"""
     def get(self, globusID):
-        if globusID not in activeTasks.keys and globusID not in completedTasks.keys:
-            return "Globus ID not found", 404
-        elif globusID not in activeTasks.keys:
-            return completedTasks[globusID], 200
+        if globusID not in activeTasks.keys:
+            # If not in active list, check for record of completed task
+            logPath = getCompletedTaskLogPath(globusID)
+            if logPath:
+                return loadJsonFile(logPath), 200
+            else:
+                return "Globus ID not found in active or completed tasks", 404
         else:
             return activeTasks[globusID], 200
 
     """Remove task from active tasks"""
     def delete(self, globusID):
-        # Set status = "ABORTED" and write to completed
-        return 201
+        if globusID in activeTasks.keys:
+            # TODO: Should this allow deletion within Globus as well? For now, just deletes from monitoring
+            task = activeTasks[globusID]
+
+            # Write task as completed with an aborted status
+            task.status = "DELETED"
+            task.completed = datetime.datetime.now()
+            task.path = ""
+
+            writeCompletedTaskToDisk(task)
+            del activeTasks[task.globus_id]
+            writeActiveTasksToDisk()
+            return 204
 
 # Add a new Globus id that should be monitored
 api.add_resource(GlobusMonitor, '/tasks')
@@ -163,47 +204,38 @@ def generateAuthTokens():
                 password=config.globus.validUsers[validUser].password
             ).token
 
-"""Query Globus API re: globusID to get current transfer status"""
-def checkGlobusStatus(taskObj):
-    if globusID in activeTasks.keys:
-        taskUser = activeTasks[globusID].user
-        taskToken = config.globus.validUsers[taskUser].authToken
+"""Query Globus API to get current transfer status of a given task"""
+def checkGlobusStatus(task):
+    authToken = config.globus.validUsers[task.user].authToken
 
-        api = TransferAPIClient(username=taskUser, goauth=taskToken)
-        status_code, status_message, data = api.task_list()
-        for gid in data.DATA:
-            # Check if status has changed from what is already known
-            status = data.DATA[gid].status
-            activeTasks[gid].status = status
-            return status
+    api = TransferAPIClient(username=task.user, goauth=authToken)
+    status_code, status_message, task_data = api.task(task.globus_id)
+    if status_code == 200:
+        return task_data.status
+    else:
+        return "UNKNOWN ("+status_code+": "+status_message+")"
 
 """Continually check globus API for task updates"""
 def globusMonitorLoop():
     refreshTimer = 0
     while True:
         time.sleep(1)
-        # For tasks whose status is still in-progress, check Globus for transfer status
+
+        # For tasks whose status is still in-progress, check Globus for transfer status updates
         for task in activeTasks:
-            status = checkGlobusStatus(task)
+            globusStatus = checkGlobusStatus(task)
 
-            if status == "DONE":
-                # Write file path to actual location on disk before notifying Clowder
-                task.status = "DONE"
+            if globusStatus in ["SUCCEEDED", "FAILED"]:
+                # Update task parameters
+                task.status = globusStatus
                 task.completed = datetime.datetime.now()
-                task.path = "" # TODO: iterate through files and update each path
+                task.path = getCompletedTaskLogPath(task)
 
-                notifyClowderOfCompletedTask(task)
+                # Notify Clowder to process file if transfer successful
+                if globusStatus == "SUCCEEDED":
+                    notifyClowderOfCompletedTask(task)
 
-                writeCompletedTaskToDisk(task)
-                del activeTasks[task.globus_id]
-                writeActiveTasksToDisk()
-
-            elif status == "ERROR":
-                # Write task as completed with an error
-                task.status = "ERROR"
-                task.completed = datetime.datetime.now()
-                task.path = "" # TODO: iterate through files and update each path
-
+                # Write out results file, then delete from active list and write new active file
                 writeCompletedTaskToDisk(task)
                 del activeTasks[task.globus_id]
                 writeActiveTasksToDisk()
@@ -215,23 +247,22 @@ def globusMonitorLoop():
             refreshTimer = 0
 
 """Send Clowder necessary details to load local file after Globus transfer complete"""
-def notifyClowderOfCompletedTask(taskObj):
+def notifyClowderOfCompletedTask(task):
     pass
 
 
 if __name__ == '__main__':
-    loadConfigFromFile()
+    loadJsonFile(configFile)
     loadActiveTasksFromDisk()
     generateAuthTokens()
 
-    # Create thread for API to begin listening
+    # Create thread for API to begin listening - requires valid Globus user/pass
     thread.start_new_thread(app.run, kwargs={
         "host": "0.0.0.0",
         "port": int(config.api.port),
         "debug": True
     })
     print("API now listening on port "+config.api.port)
-    # TODO: look @ flask auth to use basic auth (oauth)
 
     # Create thread for service to begin monitoring
     thread.start_new_thread(globusMonitorLoop)
