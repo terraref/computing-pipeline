@@ -410,7 +410,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     if [ "${att_flg}" = 'Yes' ]; then
 	printf "att(in)  : ${in_fl}\n"
 	printf "att(out) : ${att_fl}\n"
-	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" --gaa history='${hst_att}' ${in_fl} ${att_fl}"
+	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" -a \"GDAL_Band_.?,global,d,,\" --gaa history='${hst_att}' ${in_fl} ${att_fl}"
 	in_fl=${att_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_att[${fl_idx}]}

@@ -19,6 +19,7 @@ xps_frc[band,x,y]=0.0f;
 xps_frc@long_name="Fractional exposure";
 xps_frc@meaning="Ratio of actual to fully exposed (saturated) channel";
 xps_frc@units="fraction";
+set_miss(xps_frc,Band1@_FillValue);
 band[band]=0.0f;
 band@long_name="Wavelength";
 band@units="nanometer";
