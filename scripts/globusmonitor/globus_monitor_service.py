@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import os, shutil, json, time, datetime, thread, copy
+import requests
 from functools import wraps
 from flask import Flask, request, Response
 from flask.ext import restful
@@ -265,8 +266,31 @@ def globusMonitorLoop():
 
 """Send Clowder necessary details to load local file after Globus transfer complete"""
 def notifyClowderOfCompletedTask(task):
-    print("...notifying Clowder of task completion: "+task['globus_id'])
+    # Verify that globus user has a mapping to clowder credentials in config file
+    globUser = task['user']
+    userMap = config['clowder']['userMap']
 
+    if globUser in userMap:
+        print("...notifying Clowder of task completion: "+task['globus_id'])
+        clowderHost = config['clowder']['host']
+        clowderUser = userMap[globUser]['clowder_user']
+        clowderPass = userMap[globUser]['clowder_pass']
+
+        sess = requests.Session()
+        sess.auth = (clowderUser, clowderPass)
+
+        # TODO: How to determine appropriate space/collection to associate dataset with?
+
+        # Create dataset
+        sess.post(clowderHost+"/api/datasetscreateempty", headers={"Content-Type": "application/json"},
+                  data={"name": task['globus_id']})
+
+        # Add local files to dataset by path
+        sess.post(clowderHost+"/api/datasets", headers={"Content-Type": "application/json"},
+                  data={"path": task['path']})
+
+    else:
+        print("[ERROR] cannot find clowder user credentials for globus user "+globUser)
 
 if __name__ == '__main__':
     print("...loading configuration from "+configFile)
