@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import os, shutil, json, time, datetime, thread
+import os, shutil, json, time, datetime, thread, copy
 from functools import wraps
 from flask import Flask, request, Response
 from flask.ext import restful
@@ -9,6 +9,7 @@ from globusonline.transfer.api_client import TransferAPIClient, goauth
 
 
 config = {}
+configFile = "config_test.json"
 
 """Active task object is of the format:
 [{
@@ -66,7 +67,7 @@ def writeActiveTasksToDisk():
 """Write a completed task onto disk in appropriate folder hierarchy"""
 def writeCompletedTaskToDisk(task):
     completedPath = config['api']['completedPath']
-    taskID = task.globus_id
+    taskID = task['globus_id']
 
     # e.g. TaskID "eaca1f1a-d400-11e5-975b-22000b9da45e"
     #   = <completedPath>/ea/ca/1f/1a/eaca1f1a-d400-11e5-975b-22000b9da45e.json
@@ -110,8 +111,8 @@ def getCompletedTaskLogPath(taskID):
 """Authentication components for API (http://flask.pocoo.org/snippets/8/)"""
 def check_auth(username, password):
     """Called to check whether username/password is valid"""
-    if username in config['globus']['validUsers'].keys():
-        return password == config.globus.validUsers[username].password
+    if username in config['globus']['validUsers']:
+        return password == config['globus']['validUsers'][username]['password']
     else:
         return False
 
@@ -144,12 +145,12 @@ class GlobusMonitor(restful.Resource):
         print("TASK RECEIVED")
         print(task)
         # Add to active list if globus username is known, and write to disk
-        if task['user'] in config['globus']['validUsers'].keys():
+        if task['user'] in config['globus']['validUsers']:
             activeTasks[task['globus_id']] = {
                 "user": task['user'],
                 "globus_id": task['globus_id'],
                 "files": task['files'],
-                "received": datetime.datetime.now(),
+                "received": str(datetime.datetime.now()),
                 "completed": None,
                 "status": "IN PROGRESS"
             }
@@ -163,7 +164,7 @@ class GlobusTask(restful.Resource):
 
     """Check if the Globus task ID is finished, in progress, or an error has occurred"""
     def get(self, globusID):
-        if globusID not in activeTasks.keys():
+        if globusID not in activeTasks:
             # If not in active list, check for record of completed task
             logPath = getCompletedTaskLogPath(globusID)
             if logPath:
@@ -175,7 +176,7 @@ class GlobusTask(restful.Resource):
 
     """Remove task from active tasks"""
     def delete(self, globusID):
-        if globusID in activeTasks.keys():
+        if globusID in activeTasks:
             # TODO: Should this allow deletion within Globus as well? For now, just deletes from monitoring
             task = activeTasks[globusID]
 
@@ -185,7 +186,7 @@ class GlobusTask(restful.Resource):
             task.path = ""
 
             writeCompletedTaskToDisk(task)
-            del activeTasks[task.globus_id]
+            del activeTasks[task['globus_id']]
             writeActiveTasksToDisk()
             return 204
 
@@ -199,7 +200,7 @@ api.add_resource(GlobusTask, '/tasks/<string:globusID>')
 # ----------------------------------------------------------
 """Use globus goauth tool to get access tokens for valid accounts"""
 def generateAuthTokens():
-    for validUser in config['globus']['validUsers'].keys():
+    for validUser in config['globus']['validUsers']:
         config['globus']['validUsers'][validUser]['authToken'] = goauth.get_access_token(
                 username=validUser,
                 password=config['globus']['validUsers'][validUser]['password']
@@ -207,12 +208,12 @@ def generateAuthTokens():
 
 """Query Globus API to get current transfer status of a given task"""
 def checkGlobusStatus(task):
-    authToken = config.globus.validUsers[task.user].authToken
+    authToken = config['globus']['validUsers'][task['user']]['authToken']
 
-    api = TransferAPIClient(username=task.user, goauth=authToken)
-    status_code, status_message, task_data = api.task(task.globus_id)
+    api = TransferAPIClient(username=task['user'], goauth=authToken)
+    status_code, status_message, task_data = api.task(task['globus_id'])
     if status_code == 200:
-        return task_data.status
+        return task_data['status']
     else:
         return "UNKNOWN ("+status_code+": "+status_message+")"
 
@@ -222,15 +223,18 @@ def globusMonitorLoop():
     while True:
         time.sleep(1)
 
-        # For tasks whose status is still in-progress, check Globus for transfer status updates
-        for task in activeTasks:
+        # Use copy of task list so it doesn't change during iteration
+        currentActiveTasks = copy.copy(activeTasks)
+        for globusID in currentActiveTasks:
+            # For in-progress tasks, check Globus for status updates
+            task = activeTasks[globusID]
             globusStatus = checkGlobusStatus(task)
 
             if globusStatus in ["SUCCEEDED", "FAILED"]:
                 # Update task parameters
-                task.status = globusStatus
-                task.completed = datetime.datetime.now()
-                task.path = getCompletedTaskLogPath(task)
+                task['status'] = globusStatus
+                task['completed'] = str(datetime.datetime.now())
+                task['path'] = getCompletedTaskLogPath(globusID)
 
                 # Notify Clowder to process file if transfer successful
                 if globusStatus == "SUCCEEDED":
@@ -238,7 +242,7 @@ def globusMonitorLoop():
 
                 # Write out results file, then delete from active list and write new active file
                 writeCompletedTaskToDisk(task)
-                del activeTasks[task.globus_id]
+                del activeTasks[globusID]
                 writeActiveTasksToDisk()
 
         # Refresh auth tokens every 12 hours
