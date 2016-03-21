@@ -46,12 +46,15 @@ def loadActiveTasksFromDisk():
     # Prefer to load from primary file, try to use backup if primary is missing
     if not os.path.exists(activePath):
         if os.path.exists(activePath+".backup"):
+            print("...loading active tasks from "+activePath+".backup")
             shutil.copyfile(activePath+".backup", activePath)
         else:
             # Create an empty file if primary+backup don't exist
             f = open(activePath, 'w')
             f.write("{}")
             f.close()
+    else:
+        print("...loading active tasks from "+activePath)
 
     activeTasks = loadJsonFile(activePath)
 
@@ -59,7 +62,11 @@ def loadActiveTasksFromDisk():
 def writeActiveTasksToDisk():
     # Write current file to backup location before writing current file
     activePath = config['api']['activePath']
-    shutil.move(activePath, activePath+".backup")
+    print("...writing active tasks to "+activePath)
+
+    if os.path.exists(activePath):
+        shutil.move(activePath, activePath+".backup")
+
     f = open(activePath, 'w')
     f.write(json.dumps(activeTasks))
     f.close()
@@ -86,6 +93,7 @@ def writeCompletedTaskToDisk(task):
 
     # Write to json file with task ID as filename
     dest = os.path.join(treeLv4, taskID+".json")
+    print("...writing completed task to "+dest)
     f = open(dest, 'w')
     f.write(json.dumps(task))
     f.close()
@@ -141,13 +149,14 @@ class GlobusMonitor(restful.Resource):
     """Add new Globus task ID from a known user for monitoring"""
     def post(self):
         task = request.get_json(force=True)
-        #for task in json_data:
-        print("TASK RECEIVED")
-        print(task)
+        taskUser = task['user']
+
         # Add to active list if globus username is known, and write to disk
-        if task['user'] in config['globus']['validUsers']:
+        if taskUser in config['globus']['validUsers']:
+            print("[TASK] now monitoring task from "+taskUser+": "+task['globus_id'])
+
             activeTasks[task['globus_id']] = {
-                "user": task['user'],
+                "user": taskUser,
                 "globus_id": task['globus_id'],
                 "files": task['files'],
                 "received": str(datetime.datetime.now()),
@@ -201,6 +210,7 @@ api.add_resource(GlobusTask, '/tasks/<string:globusID>')
 """Use globus goauth tool to get access tokens for valid accounts"""
 def generateAuthTokens():
     for validUser in config['globus']['validUsers']:
+        print("...generating auth token for "+validUser)
         config['globus']['validUsers'][validUser]['authToken'] = goauth.get_access_token(
                 username=validUser,
                 password=config['globus']['validUsers'][validUser]['password']
@@ -231,6 +241,8 @@ def globusMonitorLoop():
             globusStatus = checkGlobusStatus(task)
 
             if globusStatus in ["SUCCEEDED", "FAILED"]:
+                print("[TASK] status update for "+globusID+": "+globusStatus)
+
                 # Update task parameters
                 task['status'] = globusStatus
                 task['completed'] = str(datetime.datetime.now())
@@ -253,11 +265,11 @@ def globusMonitorLoop():
 
 """Send Clowder necessary details to load local file after Globus transfer complete"""
 def notifyClowderOfCompletedTask(task):
-    pass
+    print("...notifying Clowder of task completion: "+task['globus_id'])
 
 
 if __name__ == '__main__':
-    print("Loading configuration from "+configFile)
+    print("...loading configuration from "+configFile)
     config = loadJsonFile(configFile)
     loadActiveTasksFromDisk()
     generateAuthTokens()
@@ -265,7 +277,7 @@ if __name__ == '__main__':
     # Create thread for service to begin monitoring
     thread.start_new_thread(globusMonitorLoop, ())
     #globusMonitorLoop()
-    print("Service now monitoring Globus tasks")
+    print("*** Service now monitoring Globus tasks ***")
 
     # Create thread for API to begin listening - requires valid Globus user/pass
     """thread.start_new_thread(# app.run, (), {
@@ -273,7 +285,7 @@ if __name__ == '__main__':
         "port": int(config['api']['port']),
         "debug": True
     })"""
-    app.run(host="0.0.0.0", port=int(config['api']['port']), debug=True)
+    app.run(host="0.0.0.0", port=int(config['api']['port']), debug=False)
     print("API now listening on port "+config['api']['port'])
 
 
