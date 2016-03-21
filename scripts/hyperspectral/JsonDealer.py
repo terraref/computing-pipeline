@@ -1,9 +1,4 @@
-#!/usr/bin/env
-
-# Purpose: Parse JSON metadata for ENVI-format imagery in Terraref hyperspectral camera
-
-# Usage:
-# python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/test_metadata.nc4
+#!/usr/bin/env python
 
 '''
 Created on Feb 5, 2016
@@ -11,7 +6,7 @@ Created on Feb 5, 2016
 @author: jeromemao
 '''
 
-import json, sys
+import json, sys, os
 from netCDF4 import Dataset
 
 _constructorTemplate  = '''self.{var} = source[u'lemnatec_measurement_metadata'][u'{var}']'''
@@ -19,6 +14,9 @@ _globalUnitDictionary = {'m':'meter', 's':'second', 'm/s': 'meters second^(-1)',
 _velocityDictionary   = {'x':'u', 'y':'v', 'z':'w'}
 
 class JsonError(Exception):
+   '''
+   User-Defined Error Class
+   '''
    def __init__(self, message):
       self.message = message
         
@@ -26,6 +24,9 @@ class JsonError(Exception):
       return repr(self.message)
 
 class DataContainer(object):
+   '''
+   A class which saves the data from Json file
+   '''
    def __init__(self,source):
       for members in source[u'lemnatec_measurement_metadata']:
          exec(_constructorTemplate.format(var=members))
@@ -41,21 +42,22 @@ class DataContainer(object):
          return self.__dict__[param]
 
    def writeToNetCDF(self, filePath):
-      try:
-         netCDFHandler = Dataset(filePath,'r+',format='NETCDF4')
-      except:
-         netCDFHandler = Dataset(filePath,'w',format='NETCDF4')
+
+      netCDFHandler = _fileExistingCheck(filePath, self)
+
+      if netCDFHandler == 0:
+         return
 
       for members in self.__dict__:
          tempGroup = netCDFHandler.createGroup(members)
          for submembers in self.__dict__[members]:
-            if not _isdigit(self.__dict__[members][submembers]):
+            if not _isDigit(self.__dict__[members][submembers]):
                setattr(tempGroup, _replaceIllegalChar(submembers), 
-                       self.__dict__[members][submembers])
+                        self.__dict__[members][submembers])
 
             else:
                setattr(tempGroup, _replaceIllegalChar(submembers), 
-                       self.__dict__[members][submembers])
+                        self.__dict__[members][submembers])
                nameSet = _spliter(submembers)
 
                if 'Velocity' in submembers or 'Position' in submembers:
@@ -68,10 +70,43 @@ class DataContainer(object):
 
                tempVariable.assignValue(float(self.__dict__[members][submembers]))
 
-      netCDFHandler.close()     
+      netCDFHandler.close()  
 
 
-def _isdigit(string):
+def _fileExistingCheck(filePath, dataContainer):
+   '''
+   This method will check wheter the filePath has the same variable name as the dataContainer has. If so, 
+   user will decide whether skip or overwrite it (no append, 
+   since netCDF does not support the repeating variable names)
+
+   Private to module members
+   '''
+   if os.path.exists(filePath):
+      netCDFHandler = Dataset(filePath,'r',format='NETCDF4')
+      if set([x.encode('utf-8') for x in netCDFHandler.groups]) - \
+         set([x for x in dataContainer.__dict__]) != set([x.encode('utf-8') for x in netCDFHandler.groups]):
+
+         while True:
+            userChoice = str(raw_input('Similar output had already existed; would you like to skip it or overwrite? (S, O)'))
+
+            if userChoice is 'S':
+               return 0
+            elif userChoice is 'O':
+               os.remove(filePath)
+               return Dataset(filePath,'w',format='NETCDF4')
+
+   else:
+      os.remove(filePath)
+      return Dataset(filePath,'w',format='NETCDF4')
+
+
+def _isDigit(string):
+   '''
+   This method will check whether the string can be convert to int or float
+   Similar to .isdight method in built-in string class, but python's will not check whether it is a float
+
+   Private to module members
+   '''
    try:
       if '.' in string: float(string)
       else: int(string)
@@ -80,6 +115,11 @@ def _isdigit(string):
       return False
 
 def _replaceIllegalChar(string):
+   '''
+   This method will replace spaces (' '), slashes('/')
+
+   Private to module members
+   '''
    rtn = str()
    if "current setting" in string: string = string.split(' ')[-1]
 
@@ -91,6 +131,12 @@ def _replaceIllegalChar(string):
    return rtn
 
 def _spliter(string):
+   '''
+   This method will parse the string to a group of long names, short names and values
+   Position and Velocity variables will be specially treated
+
+   Private to module members
+   '''
    long_name= str()
 
    for members in string:
@@ -117,6 +163,8 @@ def _spliter(string):
 def _filteringTheHeadings(target):
    '''
    A hook for json module to filter and process the useful data
+
+   Private to module members
    '''
    if u'lemnatec_measurement_metadata' in target:
       return DataContainer(target)
