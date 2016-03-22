@@ -6,12 +6,17 @@ Created on Feb 5, 2016
 @author: jeromemao
 '''
 
-import json, sys, os
+import json
+import sys
+import os
+import platform
 from netCDF4 import Dataset
 
 _constructorTemplate  = '''self.{var} = source[u'lemnatec_measurement_metadata'][u'{var}']'''
 _globalUnitDictionary = {'m':'meter', 's':'second', 'm/s': 'meters second^(-1)', '':''}
 _velocityDictionary   = {'x':'u', 'y':'v', 'z':'w'}
+
+_rawVersion = platform.python_version()[0]
 
 class JsonError(Exception):
    '''
@@ -81,13 +86,18 @@ def _fileExistingCheck(filePath, dataContainer):
 
    Private to module members
    '''
+   userPrompt = 'Similar output had already existed; would you like to skip it or overwrite? (S, O)'
+
    if os.path.exists(filePath):
       netCDFHandler = Dataset(filePath,'r',format='NETCDF4')
       if set([x.encode('utf-8') for x in netCDFHandler.groups]) - \
          set([x for x in dataContainer.__dict__]) != set([x.encode('utf-8') for x in netCDFHandler.groups]):
 
          while True:
-            userChoice = str(raw_input('Similar output had already existed; would you like to skip it or overwrite? (S, O)'))
+            if _rawVersion == '2':
+               exec("userChoice = str(raw_input(userPrompt))")
+            else:
+               exec("userChoice = str(input(userPrompt))")
 
             if userChoice is 'S':
                return 0
@@ -186,7 +196,6 @@ def jsonHandler(jsonFile):
 
 
 if __name__ == '__main__':
-   global fileInput
    fileInput, fileOutput = sys.argv[1], sys.argv[2]
 
    testCase = jsonHandler(fileInput)
