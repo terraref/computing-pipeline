@@ -99,7 +99,7 @@ def writeCompletedTaskToDisk(task):
     f.write(json.dumps(task))
     f.close()
 
-"""Return full path name to completed logfile for a given task id if it exists, otherwise None"""
+"""Return full path to completed logfile for a given task id if it exists, otherwise None"""
 def getCompletedTaskLogPath(taskID):
     completedPath = config['api']['completedPath']
 
@@ -109,10 +109,17 @@ def getCompletedTaskLogPath(taskID):
     treeLv4 = os.path.join(treeLv3, taskID[6:8])
     fullPath = os.path.join(treeLv4, taskID+".json")
 
-    if os.path.isfile(fullPath):
-        return fullPath
-    else:
-        return None
+    return fullPath
+
+"""Return list of full paths to completed files sent in a particular task"""
+def getCompletedTaskPathList(taskID):
+    globusHome = config['globus']['homePath']
+
+    outFiles = []
+    for f in activeTasks[taskID]['files']:
+        outFiles.append(os.path.join(globusHome, f))
+
+    return outFiles
 
 # ----------------------------------------------------------
 # API COMPONENTS
@@ -222,7 +229,15 @@ def checkGlobusStatus(task):
     authToken = config['globus']['validUsers'][task['user']]['authToken']
 
     api = TransferAPIClient(username=task['user'], goauth=authToken)
-    status_code, status_message, task_data = api.task(task['globus_id'])
+    try:
+        status_code, status_message, task_data = api.task(task['globus_id'])
+    except globusonline.transfer.api_client.APIError:
+        # Try refreshing auth token and retrying
+        generateAuthTokens()
+        authToken = config['globus']['validUsers'][task['user']]['authToken']
+        api = TransferAPIClient(username=task['user'], goauth=authToken)
+        status_code, status_message, task_data = api.task(task['globus_id'])
+
     if status_code == 200:
         return task_data['status']
     else:
@@ -248,10 +263,11 @@ def globusMonitorLoop():
                 task['status'] = globusStatus
                 task['completed'] = str(datetime.datetime.now())
                 task['path'] = getCompletedTaskLogPath(globusID)
+                files = getCompletedTaskPathList(globusID)
 
                 # Notify Clowder to process file if transfer successful
                 if globusStatus == "SUCCEEDED":
-                    notifyClowderOfCompletedTask(task)
+                    notifyClowderOfCompletedTask(task, files)
 
                 # Write out results file, then delete from active list and write new active file
                 writeCompletedTaskToDisk(task)
@@ -265,7 +281,7 @@ def globusMonitorLoop():
             refreshTimer = 0
 
 """Send Clowder necessary details to load local file after Globus transfer complete"""
-def notifyClowderOfCompletedTask(task):
+def notifyClowderOfCompletedTask(task, files):
     # Verify that globus user has a mapping to clowder credentials in config file
     globUser = task['user']
     userMap = config['clowder']['userMap']
@@ -275,6 +291,10 @@ def notifyClowderOfCompletedTask(task):
         clowderHost = config['clowder']['host']
         clowderUser = userMap[globUser]['clowder_user']
         clowderPass = userMap[globUser]['clowder_pass']
+
+        for f in files:
+            print("......"+f)
+        return True
 
         sess = requests.Session()
         sess.auth = (clowderUser, clowderPass)
@@ -286,8 +306,9 @@ def notifyClowderOfCompletedTask(task):
                   data={"name": task['globus_id']})
 
         # Add local files to dataset by path
-        sess.post(clowderHost+"/api/datasets", headers={"Content-Type": "application/json"},
-                  data={"path": task['path']})
+        for f in files:
+            sess.post(clowderHost+"/api/datasets", headers={"Content-Type": "application/json"},
+                  data={"path": f})
 
     else:
         print("[ERROR] cannot find clowder user credentials for globus user "+globUser)
