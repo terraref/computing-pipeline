@@ -432,7 +432,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	printf "jsn(out) : ${jsn_fl}\n"
 	# fxm: Verify naming convention for .json files
 	# in_jsn="${fl_in[${fl_idx}]}.json" # [sng] JSON input file
-	in_jsn="${fl_in[${fl_idx}]}/_raw/_metadata.json}" # [sng] JSON input file
+	in_jsn="${fl_in[${fl_idx}]/_raw/_metadata.json}" # [sng] JSON input file
 	cmd_jsn[${fl_idx}]="python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${in_jsn} ${jsn_fl}"
 	in_fl=${jsn_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then

@@ -15,8 +15,10 @@
 // Run in test or production mode?
 *flg_typ=flg_prd; // [enm] Run type
 
+// Defaults for values not provided on command-line
 if(!exists(bnd_nbr)) *bnd_nbr=926; // [nbr] SWIR camera has 926 bands
 //if(!exists(bnd_nbr)) *bnd_nbr=955; // [nbr] VNIR camera has 955 bands
+
 defdim("band",bnd_nbr); 
 xps_frc[band,x,y]=0.0f; 
 xps_frc@long_name="Fractional exposure";
