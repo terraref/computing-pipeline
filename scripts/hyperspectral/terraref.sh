@@ -239,7 +239,7 @@ if [ -n "${in_fl}" ]; then
 else # !in_fl
     # Detecting input on stdin:
     # http://stackoverflow.com/questions/2456750/detect-presence-of-stdin-contents-in-shell-script
-    # ls ${DATA}/ne30/raw/famipc5*1979*.nc | ncremap -D 1 -m ${DATA}/maps/map_ne30np4_to_fv129x256_aave.20150901.nc -O ~/rgr
+    # ls *_raw | terraref.sh -D 1 -O ~/rgr
     if [ -t 0 ]; then 
 	if [ "${drc_in_usr_flg}" = 'Yes' ]; then
 	    for fl in "${drc_in}"/*.hdr ; do
@@ -392,8 +392,8 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     if [ "${trn_flg}" = 'Yes' ]; then
 	printf "trn(in)  : ${in_fl}\n"
 	printf "trn(out) : ${trn_fl}\n"
-#	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${in_fl} ${trn_fl}" # Preserves ENVI type 4 input
-	cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${in_fl} ${trn_fl}" # Preserves ENVI type 12 input
+#	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${in_fl} ${trn_fl}" # Preserves ENVI type 4 input by outputting NC_FLOAT
+	cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${in_fl} ${trn_fl}" # Preserves ENVI type 12 input by outputting NC_USHORT
 	hst_att="`date`: ${cmd_ln};${cmd_trn[${fl_idx}]}"
 	in_fl=${trn_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
@@ -449,17 +449,20 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 
     # Block 5: Convert 2D->3D
     # Combine 2D TR image data into single 3D variable
-    # fxm: Currently only works with NCO branch HMB-20160131-VLIST
-    # Once this branch is merged into master, next step will work with generic NCO
-    # Until then image is split into 926 variables, each the raster of one band
+    # Until then image is split into 926 (SWIR) or 955 (VNIR) variables, each the raster of one band
+    # Requires NCO version 4.5.6-alpha05 or newer
     # fxm: currently this step is slow, and may need to be rewritten to dedicated routine
     printf "2D  : ${in_fl}\n"
     printf "3D  : ${d23_fl}\n"
-    if [ ${dbg_lvl} -ne 2 ]; then
-	bnd_nbr=`grep 'bands' whiteReference_raw.hdr | cut -d ' ' -f 3`
+    bnd_nbr=`grep 'bands' ${fl_in[${fl_idx}]} | cut -d ' ' -f 3`
+    if [ $? -ne 0 ]; then
+	printf "${spt_nm}: ERROR Failed to find 'bands' in ${fl_in[${fl_idx}]}. Debug grep command.\n"
+	exit 1
+    fi # !err
+    if [ ${dbg_lvl} -ge 1 ]; then
 	echo "dbg: diagnosed band number bnd_nbr = ${bnd_nbr}"
     fi # !dbg
-    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -S ${HOME}/terraref/computing-pipeline/scripts/terraref.nco ${in_fl} ${d23_fl}"
+    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*bnd_nbr=${bnd_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/terraref.nco ${in_fl} ${d23_fl}"
     in_fl=${d23_fl}
     
     # Block 5 Loop 2: Execute and/or echo commands
