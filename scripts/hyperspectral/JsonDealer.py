@@ -13,6 +13,9 @@ where
 JsonDealerPath is where this script located
 filePath1      is where the source json file located
 filePath2      is users' expected output location
+
+Example:
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/test_metadata.nc4
 ----------------------------------------------------------------------------------------
 It is version-independent, which means users can run it with either Python 2 or 3 
 (depend on the version of netCDF4). 
