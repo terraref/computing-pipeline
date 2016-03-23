@@ -462,7 +462,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     if [ ${dbg_lvl} -ge 1 ]; then
 	echo "dbg: diagnosed band number bnd_nbr = ${bnd_nbr}"
     fi # !dbg
-    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*bnd_nbr=${bnd_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/terraref.nco ${in_fl} ${d23_fl}"
+    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s *bnd_nbr=${bnd_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/terraref.nco ${in_fl} ${d23_fl}"
     in_fl=${d23_fl}
     
     # Block 5 Loop 2: Execute and/or echo commands
