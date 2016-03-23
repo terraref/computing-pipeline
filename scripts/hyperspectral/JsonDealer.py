@@ -14,6 +14,10 @@ JsonDealerPath is where this script located
 filePath1      is where the source json file located
 filePath2      is users' expected output location
 ----------------------------------------------------------------------------------------
+It is version-independent, which means users can run it with either Python 2 or 3 
+(depend on the version of netCDF4). 
+Thanks for the advice from Professor Zender and sample data from Mr.LeBauer.
+----------------------------------------------------------------------------------------
 '''
 
 import json
@@ -116,7 +120,6 @@ def _fileExistingCheck(filePath, dataContainer):
                return Dataset(filePath,'w',format='NETCDF4')
 
    else:
-      os.remove(filePath)
       return Dataset(filePath,'w',format='NETCDF4')
 
 
