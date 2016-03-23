@@ -2,8 +2,18 @@
 
 '''
 Created on Feb 5, 2016
+This module will parse the json provided by LemnaTec and output a formatted netCDF file
 
 @author: jeromemao
+----------------------------------------------------------------------------------------
+Usage (commandline):
+python JsonDealerPath filePath1 filePath2
+
+where
+JsonDealerPath is where this script located
+filePath1      is where the source json file located
+filePath2      is users' expected output location
+----------------------------------------------------------------------------------------
 '''
 
 import json
