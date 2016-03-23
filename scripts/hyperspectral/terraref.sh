@@ -454,7 +454,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     # fxm: currently this step is slow, and may need to be rewritten to dedicated routine
     printf "2D  : ${in_fl}\n"
     printf "3D  : ${d23_fl}\n"
-    bnd_nbr=`grep 'bands' ${fl_in[${fl_idx}]} | cut -d ' ' -f 3`
+    bnd_nbr=`grep 'bands' ${fl_in[${fl_idx}]/_raw/_raw.hdr} | cut -d ' ' -f 3`
     if [ $? -ne 0 ]; then
 	printf "${spt_nm}: ERROR Failed to find 'bands' in ${fl_in[${fl_idx}]}. Debug grep command.\n"
 	exit 1
