@@ -13,7 +13,7 @@ import platform
 from netCDF4 import Dataset
 
 _constructorTemplate  = '''self.{var} = source[u'lemnatec_measurement_metadata'][u'{var}']'''
-_globalUnitDictionary = {'m':'meter', 's':'second', 'm/s': 'meters second^(-1)', '':''}
+_globalUnitDictionary = {'m':'meter', 's':'second', 'm/s': 'meter second-1', '':''}
 _velocityDictionary   = {'x':'u', 'y':'v', 'z':'w'}
 
 _rawVersion = platform.python_version()[0]
