@@ -88,7 +88,7 @@ d23_flg='Yes' # [sng] Convert 2D->3D
 jsn_flg='Yes' # [sng] Parse metadata from JSON to netCDF
 mrg_flg='Yes' # [sng] Merge JSON metadata with data
 n34_flg='Yes' # [sng] Convert netCDF3 to netCDF4
-trn_flg='No' # [sng] Translate raw data to netCDF
+trn_flg='Yes' # [sng] Translate raw data to netCDF
 
 function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_nm{} syntax
     # Print usage
