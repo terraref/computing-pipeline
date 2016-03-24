@@ -431,11 +431,9 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     
     # Parse metadata from JSON to netCDF (sensor location, instrument configuration)
     if [ "${jsn_flg}" = 'Yes' ]; then
-	printf "jsn(in)  : ${in_fl}\n"
-	printf "jsn(out) : ${jsn_fl}\n"
-	# fxm: Verify naming convention for .json files
-	# in_jsn="${fl_in[${fl_idx}]}.json" # [sng] JSON input file
 	in_jsn="${fl_in[${fl_idx}]/_raw/_metadata.json}" # [sng] JSON input file
+	printf "jsn(in)  : ${in_jsn}\n"
+	printf "jsn(out) : ${jsn_fl}\n"
 	cmd_jsn[${fl_idx}]="python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${in_jsn} ${jsn_fl}"
 	in_fl=${jsn_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
@@ -455,17 +453,19 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     # Until then image is split into 926 (SWIR) or 955 (VNIR) variables, each the raster of one band
     # Requires NCO version 4.5.6-alpha05 or newer
     # fxm: currently this step is slow, and may need to be rewritten to dedicated routine
-    printf "2D  : ${in_fl}\n"
+    printf "2D  : ${att_fl}\n"
     printf "3D  : ${d23_fl}\n"
-    bnd_nbr=`grep 'bands' ${fl_in[${fl_idx}]/_raw/_raw.hdr} | cut -d ' ' -f 3`
+    hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
+    bnd_nbr=`grep 'bands' ${hdr_fl} | cut -d ' ' -f 3`
     if [ $? -ne 0 ]; then
-	printf "${spt_nm}: ERROR Failed to find 'bands' in ${fl_in[${fl_idx}]}. Debug grep command.\n"
+	printf "${spt_nm}: ERROR Failed to find 'bands' in ${hdr_fl}. Debug grep command.\n"
 	exit 1
     fi # !err
     if [ ${dbg_lvl} -ge 1 ]; then
 	echo "dbg: diagnosed band number bnd_nbr = ${bnd_nbr}"
     fi # !dbg
-    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s *bnd_nbr=${bnd_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/terraref.nco ${in_fl} ${d23_fl}"
+#    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s *bnd_nbr=${bnd_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${att_fl} ${d23_fl}"
+    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s bnd_nbr=926 -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${att_fl} ${d23_fl}"
     in_fl=${d23_fl}
     
     # Block 5 Loop 2: Execute and/or echo commands
@@ -475,7 +475,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     if [ ${dbg_lvl} -ne 2 ]; then
 	if [ -z "${par_opt}" ]; then
 	    eval ${cmd_d23[${fl_idx}]}
-	    if [ $? -ne 0 ]; then
+	    if [ $? -ne 0 ] || [ ! -f ${d23_fl} ]; then
 		printf "${spt_nm}: ERROR Failed to convert 2D->3D. cmd_d23[${fl_idx}] failed. Debug this:\n${cmd_d23[${fl_idx}]}\n"
 		exit 1
 	    fi # !err
@@ -554,9 +554,10 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 
     # Convert netCDF3 to netCDF4
     if [ "${n34_flg}" = 'Yes' ]; then
-	printf "n34(in)  : ${in_fl}\n"
-	printf "n34(out) : ${n34_fl}\n"
-	cmd_n34[${fl_idx}]="ncks -O -4 ${in_fl} ${n34_fl}"
+	printf "n34(in)  : ${d23_fl}\n"
+	printf "n34(out) : ${out_fl}\n"
+	n34_fl=${out_fl}
+	cmd_n34[${fl_idx}]="ncks -O -4 ${d23_fl} ${n34_fl}"
 	in_fl=${n34_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_n34[${fl_idx}]}
@@ -572,9 +573,10 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     
     # Merge JSON metadata with data
     if [ "${mrg_flg}" = 'Yes' ]; then
-	printf "mrg(in)  : ${in_fl}\n"
-	printf "mrg(out) : ${mrg_fl}\n"
-	cmd_mrg[${fl_idx}]="ncks -A ${DATA}/terraref/test.nc4 ${in_fl} ${mrg_fl}"
+	printf "mrg(in)  : ${jsn_fl}\n"
+	printf "mrg(out) : ${n34_fl}\n"
+	mrg_fl=${n34_fl}
+	cmd_mrg[${fl_idx}]="ncks -A ${jsn_fl} ${mrg_fl}"
 	in_fl=${mrg_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_mrg[${fl_idx}]}
@@ -592,7 +594,8 @@ done # !fl_idx
 
 if [ "${cln_flg}" = 'Yes' ]; then
     printf "Cleaning-up intermediate files...\n"
-    /bin/rm -f ${att_fl} ${d23_fl} ${jsn_fl} ${mrg_fl} ${n34_fl} ${tmp_fl} ${trn_fl}
+#    /bin/rm -f ${att_fl} ${d23_fl} ${jsn_fl} ${mrg_fl} ${n34_fl} ${tmp_fl} ${trn_fl}
+    /bin/rm -f ${att_fl} ${d23_fl} ${jsn_fl} ${tmp_fl} ${trn_fl}
 fi # !cln_flg
 
 date_end=$(date +"%s")
