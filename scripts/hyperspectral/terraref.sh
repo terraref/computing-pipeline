@@ -408,6 +408,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	fi # !dbg
     else # !trn_flg
 	in_fl=${fl_in[$fl_idx]/_raw/_raw.nc}
+	hst_att="`date`: ${cmd_ln};Skipped translation by GDAL"
     fi # !trn_flg
     
     # Add workflow-specific metadata
