@@ -8,7 +8,7 @@
    ncap2 -v -O -s \*bnd_nbr=926 -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw.nc ${DATA}/terraref/foo_3d.nc
    ncap2 -v -O -s \*bnd_nbr=955 -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/MovingSensor/VNIR/2016-03-05/2016-03-05__09-46_17_450/72235cd1-35d5-480a-8443-14281ded1a63_raw.nc ${DATA}/terraref/foo_3d.nc */
 
-// Declare various flags as RAM variable or they will clutter output file
+// Declare flags as RAM variables or they will clutter output file
 *flg_tst=1s; // [flg] Test mode
 *flg_prd=0s; // [flg] Production mode
 
