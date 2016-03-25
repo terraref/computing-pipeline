@@ -22,7 +22,7 @@ config = {}
 configFile = "config.json"
 
 """Active task object is of the format:
-[{
+{"globus_id": {
     "user":                     globus username
     "globus_id":                globus job ID of upload
     "files":        [{          list of files included in task, each with
@@ -32,7 +32,7 @@ configFile = "config.json"
     "received":                 timestamp when task was sent to monitor API
     "completed":                timestamp when task was completed (including errors and cancelled tasks)
     "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
-}, {...}, {...}, ...]"""
+}, {...}, {...}, ...}"""
 activeTasks = {}
 
 app = Flask(__name__)
@@ -334,15 +334,9 @@ if __name__ == '__main__':
 
     # Create thread for service to begin monitoring
     thread.start_new_thread(globusMonitorLoop, ())
-    #globusMonitorLoop()
     print("*** Service now monitoring Globus tasks ***")
 
     # Create thread for API to begin listening - requires valid Globus user/pass
-    """thread.start_new_thread(# app.run, (), {
-        "host": "0.0.0.0",
-        "port": int(config['api']['port']),
-        "debug": True
-    })"""
     app.run(host="0.0.0.0", port=int(config['api']['port']), debug=False)
     print("API now listening on port "+config['api']['port'])
 
