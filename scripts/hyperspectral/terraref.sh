@@ -39,9 +39,9 @@ esac # !HOSTNAME
 # terraref.sh $fl > ~/terraref.out 2>&1 &
 
 # Debugging and Benchmarking:
-# terraref.sh -d 1 -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/terraref.out 2>&1 &
-# terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
-# terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/VNIR/2016-03-05/2016-03-05__09-46_17_450/72235cd1-35d5-480a-8443-14281ded1a63_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# time terraref.sh -d 1 -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# time terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# time terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/VNIR/2016-03-05/2016-03-05__09-46_17_450/72235cd1-35d5-480a-8443-14281ded1a63_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
 
 # dbg_lvl: 0 = Quiet, print basic status during evaluation
 #          1 = Print configuration, full commands, and status to output during evaluation
@@ -67,7 +67,7 @@ drc_in_xmp='~/drc_in' # [sng] Input file directory for examples
 drc_out="${drc_pwd}" # [sng] Output file directory
 drc_out_xmp="~/drc_out" # [sng] Output file directory for examples
 drc_tmp='' # [sng] Temporary file directory
-gaa_sng="--gaa rgr_script=${spt_nm} --gaa rgr_hostname=${HOSTNAME} --gaa rgr_version=${nco_version}" # [sng] Global attributes to add
+gaa_sng="--gaa terraref_script=${spt_nm} --gaa terraref_hostname=${HOSTNAME} --gaa terraref_version=${nco_version}" # [sng] Global attributes to add
 hdr_pad='1000' # [B] Pad at end of header section
 in_fl='whiteReference_raw' # [sng] Input file stub
 in_xmp='test_raw' # [sng] Input file for examples
@@ -83,6 +83,10 @@ nco_usr='' # [sng] NCO user-configurable options (e.g., '-D 1')
 tmp_fl='terraref_tmp.nc' # [sng] Temporary output file
 unq_sfx=".pid${spt_pid}.tmp" # [sng] Unique suffix
 
+# Derived defaults
+out_fl=${in_fl/_raw/.nc4} # [sng] Output file name
+
+# Default workflow stages
 att_flg='Yes' # [sng] Add workflow-specific metadata
 d23_flg='Yes' # [sng] Convert 2D->3D
 jsn_flg='Yes' # [sng] Parse metadata from JSON to netCDF
@@ -390,39 +394,41 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     # Potential GDAL output types are INT16,UINT16,INT32,UINT32,Float32
     # Writing ENVI type 4 input as NC_USHORT output save of factor of two in storage and could obviate packing (which is lossy quantization)
     if [ "${trn_flg}" = 'Yes' ]; then
-	printf "trn(in)  : ${in_fl}\n"
-	printf "trn(out) : ${trn_fl}\n"
-#	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${in_fl} ${trn_fl}" # Preserves ENVI type 4 input by outputting NC_FLOAT
-	cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${in_fl} ${trn_fl}" # Preserves ENVI type 12 input by outputting NC_USHORT
+	trn_in="${in_fl}"
+	trn_out="${trn_fl}"
+	printf "trn(in)  : ${trn_in}\n"
+	printf "trn(out) : ${trn_out}\n"
+#	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 4 input by outputting NC_FLOAT
+	cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 12 input by outputting NC_USHORT
 	hst_att="`date`: ${cmd_ln};${cmd_trn[${fl_idx}]}"
-	in_fl=${trn_fl}
+	att_in="${trn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_trn[${fl_idx}]}
 	fi # !dbg
 	if [ ${dbg_lvl} -ne 2 ]; then
 	    eval ${cmd_trn[${fl_idx}]}
-	    if [ $? -ne 0 ] || [ ! -f ${trn_fl} ]; then
+	    if [ $? -ne 0 ] || [ ! -f ${trn_out} ]; then
 		printf "${spt_nm}: ERROR Failed to translate raw data. Debug this:\n${cmd_trn[${fl_idx}]}\n"
 		exit 1
 	    fi # !err
 	fi # !dbg
     else # !trn_flg
-	in_fl=${fl_in[$fl_idx]/_raw/_raw.nc}
+	att_in=${fl_in[$fl_idx]/_raw/_raw.nc}
 	hst_att="`date`: ${cmd_ln};Skipped translation by GDAL"
     fi # !trn_flg
     
     # Add workflow-specific metadata
     if [ "${att_flg}" = 'Yes' ]; then
-	printf "att(in)  : ${in_fl}\n"
-	printf "att(out) : ${att_fl}\n"
-	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" -a \"GDAL_Band_.?,global,d,,\" --gaa history='${hst_att}' ${in_fl} ${att_fl}"
-	in_fl=${att_fl}
+	att_out="${att_fl}"
+	printf "att(in)  : ${att_in}\n"
+	printf "att(out) : ${att_out}\n"
+	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" -a \"GDAL_Band_.?,global,d,,\" --gaa history='${hst_att}' ${att_in} ${att_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_att[${fl_idx}]}
 	fi # !dbg
 	if [ ${dbg_lvl} -ne 2 ]; then
 	    eval ${cmd_att[${fl_idx}]}
-	    if [ $? -ne 0 ] || [ ! -f ${att_fl} ]; then
+	    if [ $? -ne 0 ] || [ ! -f ${att_out} ]; then
 		printf "${spt_nm}: ERROR Failed to annotate metadata with ncatted. Debug this:\n${cmd_att[${fl_idx}]}\n"
 		exit 1
 	    fi # !err
@@ -431,10 +437,11 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     
     # Parse metadata from JSON to netCDF (sensor location, instrument configuration)
     if [ "${jsn_flg}" = 'Yes' ]; then
-	in_jsn="${fl_in[${fl_idx}]/_raw/_metadata.json}" # [sng] JSON input file
-	printf "jsn(in)  : ${in_jsn}\n"
+	jsn_in="${fl_in[${fl_idx}]/_raw/_metadata.json}"
+	jsn_out="${jsn_fl}"
+	printf "jsn(in)  : ${jsn_in}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
-	cmd_jsn[${fl_idx}]="python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${in_jsn} ${jsn_fl}"
+	cmd_jsn[${fl_idx}]="python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${jsn_in} ${jsn_fl}"
 	in_fl=${jsn_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_jsn[${fl_idx}]}
@@ -594,7 +601,8 @@ done # !fl_idx
 
 if [ "${cln_flg}" = 'Yes' ]; then
     printf "Cleaning-up intermediate files...\n"
-#    /bin/rm -f ${att_fl} ${d23_fl} ${jsn_fl} ${mrg_fl} ${n34_fl} ${tmp_fl} ${trn_fl}
+    # fxm these all should be unique names
+    #    /bin/rm -f ${att_fl} ${d23_fl} ${jsn_fl} ${mrg_fl} ${n34_fl} ${tmp_fl} ${trn_fl}
     /bin/rm -f ${att_fl} ${d23_fl} ${jsn_fl} ${tmp_fl} ${trn_fl}
 fi # !cln_flg
 
