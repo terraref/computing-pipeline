@@ -1,0 +1,15 @@
+{
+  "gantry": {
+    "homePath": "/home/gantry/data",
+    "pendingPath": "pending_transfers.json",
+    "completedPath": "completed"
+  },
+  "globus": {
+    "destPath": "/Users/mburnette/globus",
+    "username": "",
+    "password": ""
+  },
+  "api": {
+    "host": "0.0.0.0:5454"
+  }
+}
