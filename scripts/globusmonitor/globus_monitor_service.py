@@ -1,5 +1,14 @@
 #!/usr/bin/python
 
+# ----------------------------------------------------------
+# GLOBUS MONITOR SERVICE
+# This will load parameters from the configFile defined below,
+# and start up an API to listen on the specified port for new
+# Globus task IDs. It will then monitor the specified Globus
+# directory and query the Globus API until that task ID has
+# succeeded or failed, and notify Clowder accordingly.
+# ----------------------------------------------------------
+
 import os, shutil, json, time, datetime, thread, copy
 import requests
 from functools import wraps
@@ -10,7 +19,7 @@ from globusonline.transfer.api_client import TransferAPIClient, goauth
 
 
 config = {}
-configFile = "config_test.json"
+configFile = "config.json"
 
 """Active task object is of the format:
 [{
@@ -134,7 +143,7 @@ def check_auth(username, password):
 
 def authenticate():
     """Send 401 response that enables basic auth"""
-    return Response("Could not authenticate. Please provide valid credentials",
+    return Response("Could not authenticate. Please provide valid Globus credentials.",
                     401, {"WWW-Authenticate": 'Basic realm="Login Required"'})
 
 def requires_auth(f):
@@ -147,14 +156,16 @@ def requires_auth(f):
     return decorated
 
 """Post new globus tasks to be monitored"""
-#@requires_auth
 class GlobusMonitor(restful.Resource):
 
     """Return list of all active tasks"""
+    @requires_auth
     def get(self):
+        # TODO: Should this be filtered by user by default?
         return activeTasks, 200
 
     """Add new Globus task ID from a known user for monitoring"""
+    @requires_auth
     def post(self):
         task = request.get_json(force=True)
         taskUser = task['user']
@@ -176,11 +187,12 @@ class GlobusMonitor(restful.Resource):
         return 201
 
 """Get status of a particular task by globus id"""
-#@requires_auth
 class GlobusTask(restful.Resource):
 
     """Check if the Globus task ID is finished, in progress, or an error has occurred"""
+    @requires_auth
     def get(self, globusID):
+        # TODO: Should this require same Globus credentials as 'owner' of task?
         if globusID not in activeTasks:
             # If not in active list, check for record of completed task
             logPath = getCompletedTaskLogPath(globusID)
@@ -192,6 +204,7 @@ class GlobusTask(restful.Resource):
             return activeTasks[globusID], 200
 
     """Remove task from active tasks"""
+    @requires_auth
     def delete(self, globusID):
         if globusID in activeTasks:
             # TODO: Should this allow deletion within Globus as well? For now, just deletes from monitoring
@@ -301,7 +314,7 @@ def notifyClowderOfCompletedTask(task, files):
 
         # TODO: How to determine appropriate space/collection to associate dataset with?
 
-        # Create dataset
+        # Create dataset using globus ID
         sess.post(clowderHost+"/api/datasetscreateempty", headers={"Content-Type": "application/json"},
                   data={"name": task['globus_id']})
 
