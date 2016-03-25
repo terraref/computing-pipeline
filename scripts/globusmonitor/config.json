@@ -1,6 +1,6 @@
 {
   "globus": {
-    "validUsers": {
+    "valid_users": {
       "globus_username": {
         "password": "globus_password"
       }
@@ -8,12 +8,12 @@
   },
   "api": {
     "port": "5454"
-    "activePath": "active_tasks.json",
-    "completedPath": "/completed"
+    "active_path": "active_tasks.json",
+    "completed_path": "/completed"
   },
   "clowder": {
     "host": "http://localhost:9000",
-    "userMap": {
+    "user_map": {
       "globus_username": {
         "clowder_user": "user",
         "clowder_pass": "pass"

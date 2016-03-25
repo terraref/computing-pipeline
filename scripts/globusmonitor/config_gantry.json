@@ -1,15 +1,21 @@
 {
   "gantry": {
-    "homePath": "/home/gantry/data",
-    "pendingPath": "pending_transfers.json",
-    "completedPath": "completed"
+    "incoming_files_path": "/home/gantry/data",
+    "pending_path": "pending_transfers.json",
+    "active_path": "active_tasks.json",
+    "completed_path": "completed",
+    "file_check_frequency": 120
   },
   "globus": {
-    "destPath": "/Users/mburnette/globus",
+    "destination_path": "/Users/mburnette/globus",
+    "source_endpoint_id": "",
+    "destination_endpoint_id": "",
     "username": "",
-    "password": ""
+    "password": "",
+    "authentication_refresh_frequency_secs": 43200
   },
   "api": {
-    "host": "0.0.0.0:5454"
+    "host": "0.0.0.0:5454",
+    "api_check_frequency": 60
   }
 }

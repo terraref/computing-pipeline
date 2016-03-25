@@ -1,13 +1,12 @@
 #!/usr/bin/python
 
-# ----------------------------------------------------------
-# GLOBUS MONITOR SERVICE
-# This will load parameters from the configFile defined below,
-# and start up an API to listen on the specified port for new
-# Globus task IDs. It will then monitor the specified Globus
-# directory and query the Globus API until that task ID has
-# succeeded or failed, and notify Clowder accordingly.
-# ----------------------------------------------------------
+""" GLOBUS MONITOR SERVICE
+    This will load parameters from the configFile defined below,
+    and start up an API to listen on the specified port for new
+    Globus task IDs. It will then monitor the specified Globus
+    directory and query the Globus API until that task ID has
+    succeeded or failed, and notify Clowder accordingly.
+"""
 
 import os, shutil, json, time, datetime, thread, copy
 import requests
@@ -21,7 +20,7 @@ from globusonline.transfer.api_client import TransferAPIClient, goauth
 config = {}
 configFile = "config.json"
 
-"""Active task object is of the format:
+"""activeTasks tracks which Globus IDs are being monitored, and is of the format:
 {"globus_id": {
     "user":                     globus username
     "globus_id":                globus job ID of upload
@@ -51,7 +50,7 @@ def loadJsonFile(filename):
 
 """Load activeTasks from file into memory"""
 def loadActiveTasksFromDisk():
-    activePath = config['api']['activePath']
+    activePath = config['api']['active_path']
 
     # Prefer to load from primary file, try to use backup if primary is missing
     if not os.path.exists(activePath):
@@ -71,7 +70,7 @@ def loadActiveTasksFromDisk():
 """Write activeTasks from memory into file"""
 def writeActiveTasksToDisk():
     # Write current file to backup location before writing current file
-    activePath = config['api']['activePath']
+    activePath = config['api']['active_path']
     print("...writing active tasks to "+activePath)
 
     if os.path.exists(activePath):
@@ -83,7 +82,7 @@ def writeActiveTasksToDisk():
 
 """Write a completed task onto disk in appropriate folder hierarchy"""
 def writeCompletedTaskToDisk(task):
-    completedPath = config['api']['completedPath']
+    completedPath = config['api']['completed_path']
     taskID = task['globus_id']
 
     # e.g. TaskID "eaca1f1a-d400-11e5-975b-22000b9da45e"
@@ -110,7 +109,7 @@ def writeCompletedTaskToDisk(task):
 
 """Return full path to completed logfile for a given task id if it exists, otherwise None"""
 def getCompletedTaskLogPath(taskID):
-    completedPath = config['api']['completedPath']
+    completedPath = config['api']['completed_path']
 
     treeLv1 = os.path.join(completedPath, taskID[:2])
     treeLv2 = os.path.join(treeLv1, taskID[2:4])
@@ -122,7 +121,7 @@ def getCompletedTaskLogPath(taskID):
 
 """Return list of full paths to completed files sent in a particular task"""
 def getCompletedTaskPathList(taskID):
-    globusHome = config['globus']['homePath']
+    globusHome = config['globus']['incoming_files_path']
 
     outFiles = []
     for f in activeTasks[taskID]['files']:
@@ -136,8 +135,8 @@ def getCompletedTaskPathList(taskID):
 """Authentication components for API (http://flask.pocoo.org/snippets/8/)"""
 def check_auth(username, password):
     """Called to check whether username/password is valid"""
-    if username in config['globus']['validUsers']:
-        return password == config['globus']['validUsers'][username]['password']
+    if username in config['globus']['valid_users']:
+        return password == config['globus']['valid_users'][username]['password']
     else:
         return False
 
@@ -171,7 +170,7 @@ class GlobusMonitor(restful.Resource):
         taskUser = task['user']
 
         # Add to active list if globus username is known, and write to disk
-        if taskUser in config['globus']['validUsers']:
+        if taskUser in config['globus']['valid_users']:
             print("[TASK] now monitoring task from "+taskUser+": "+task['globus_id'])
 
             activeTasks[task['globus_id']] = {
@@ -230,16 +229,16 @@ api.add_resource(GlobusTask, '/tasks/<string:globusID>')
 # ----------------------------------------------------------
 """Use globus goauth tool to get access tokens for valid accounts"""
 def generateAuthTokens():
-    for validUser in config['globus']['validUsers']:
+    for validUser in config['globus']['valid_users']:
         print("...generating auth token for "+validUser)
-        config['globus']['validUsers'][validUser]['authToken'] = goauth.get_access_token(
+        config['globus']['valid_users'][validUser]['auth_token'] = goauth.get_access_token(
                 username=validUser,
-                password=config['globus']['validUsers'][validUser]['password']
+                password=config['globus']['valid_users'][validUser]['password']
             ).token
 
 """Query Globus API to get current transfer status of a given task"""
 def checkGlobusStatus(task):
-    authToken = config['globus']['validUsers'][task['user']]['authToken']
+    authToken = config['globus']['valid_users'][task['user']]['auth_token']
 
     api = TransferAPIClient(username=task['user'], goauth=authToken)
     try:
@@ -247,7 +246,7 @@ def checkGlobusStatus(task):
     except globusonline.transfer.api_client.APIError:
         # Try refreshing auth token and retrying
         generateAuthTokens()
-        authToken = config['globus']['validUsers'][task['user']]['authToken']
+        authToken = config['globus']['valid_users'][task['user']]['auth_token']
         api = TransferAPIClient(username=task['user'], goauth=authToken)
         status_code, status_message, task_data = api.task(task['globus_id'])
 
@@ -258,9 +257,10 @@ def checkGlobusStatus(task):
 
 """Continually check globus API for task updates"""
 def globusMonitorLoop():
-    refreshTimer = 0
+    authWait = 0
     while True:
         time.sleep(1)
+        authWait += 1
 
         # Use copy of task list so it doesn't change during iteration
         currentActiveTasks = copy.copy(activeTasks)
@@ -287,17 +287,16 @@ def globusMonitorLoop():
                 del activeTasks[globusID]
                 writeActiveTasksToDisk()
 
-        # Refresh auth tokens every 12 hours
-        refreshTimer += 1
-        if refreshTimer >= 43200:
+        # Refresh auth tokens periodically
+        if authWait >= config['api']['authentication_refresh_frequency_secs']:
             generateAuthTokens()
-            refreshTimer = 0
+            authWait = 0
 
 """Send Clowder necessary details to load local file after Globus transfer complete"""
 def notifyClowderOfCompletedTask(task, files):
     # Verify that globus user has a mapping to clowder credentials in config file
     globUser = task['user']
-    userMap = config['clowder']['userMap']
+    userMap = config['clowder']['user_map']
 
     if globUser in userMap:
         print("...notifying Clowder of task completion: "+task['globus_id'])

@@ -1,13 +1,22 @@
 #!/usr/bin/python
 
-# ----------------------------------------------------------
-# GANTRY MONITOR SERVICE
-# This will load parameters from the configFile defined below,
-# and begin monitoring the specified gantry file directory for
-# new files. When transfer from the gantry to the directory
-# is complete, this service will initiate the Globus transfer
-# and send notification to the API at the receiving end.
-# ----------------------------------------------------------
+""" GANTRY MONITOR SERVICE
+    This will load parameters from the configFile defined below,
+    and begin monitoring the specified gantry file directory for
+    new files. When transfer from the gantry to the directory
+    is complete, this service will initiate the Globus transfer
+    and send notification to the API at the receiving end.
+
+    This service has 2 objects in memory:
+      pendingTransfers (files queued for Globus transfer)
+      activeTasks (Globus transfer tasks of 1+ files)
+
+    When criteria for transfer are met, a batch of files is
+    sent in a Globus task and the pendingTransfers queue is flushed.
+    This will continually check with the NCSA Globus monitor API
+    until that task is completed; then the gantry files are
+    queued for deletion.
+"""
 
 import os, shutil, json, time, datetime, thread, copy
 import requests
@@ -17,7 +26,7 @@ from globusonline.transfer.api_client import TransferAPIClient, goauth
 config = {}
 configFile = "config_gantry.json"
 
-"""Pending task object is of the format:
+"""pendingTransfers tracks individual files and is of the format:
 {"filename": {
     "metadata": {},     metadata object to associate with file
     "globus_id":        globus ID of task, once transfer has begun
@@ -25,9 +34,8 @@ configFile = "config_gantry.json"
 """
 pendingTransfers = {}
 
-"""Active task object is of the format:
+"""activeTasks tracks Globus transfers is of the format:
 {"globus_id": {
-    "user":                     globus username
     "globus_id":                globus job ID of upload
     "files":        [{          list of files included in task, each with
             "path": "file1",        ...file path, which is updated with path-on-disk once completed
@@ -51,7 +59,7 @@ def loadJsonFile(filename):
 
 """Load activeTasks from file into memory"""
 def loadPendingTransfersFromDisk():
-    pendingPath = config['api']['pendingPath']
+    pendingPath = config['api']['pending_path']
 
     # Prefer to load from primary file, try to use backup if primary is missing
     if not os.path.exists(pendingPath):
@@ -71,7 +79,7 @@ def loadPendingTransfersFromDisk():
 """Write activeTasks from memory into file"""
 def writePendingTransfersToDisk():
     # Write current file to backup location before writing current file
-    pendingPath = config['api']['pendingPath']
+    pendingPath = config['api']['pending_path']
     print("...writing active tasks to "+pendingPath)
 
     if os.path.exists(pendingPath):
@@ -83,7 +91,7 @@ def writePendingTransfersToDisk():
 
 """Write a completed task onto disk in appropriate folder hierarchy"""
 def writeCompletedTransferToDisk(transfer):
-    completedPath = config['api']['completedPath']
+    completedPath = config['api']['completed_path']
     taskID = transfer['globus_id']
 
     # e.g. TaskID "eaca1f1a-d400-11e5-975b-22000b9da45e"
@@ -110,7 +118,7 @@ def writeCompletedTransferToDisk(transfer):
 
 """Return full path to completed logfile for a given task id if it exists, otherwise None"""
 def getCompletedTransferLogPath(taskID):
-    completedPath = config['api']['completedPath']
+    completedPath = config['api']['completed_path']
 
     treeLv1 = os.path.join(completedPath, taskID[:2])
     treeLv2 = os.path.join(treeLv1, taskID[2:4])
@@ -120,90 +128,150 @@ def getCompletedTransferLogPath(taskID):
 
     return fullPath
 
-"""Return list of full paths to completed files sent in a particular task"""
-def getCompletedTaskPathList(taskID):
-    globusHome = config['globus']['homePath']
-
-    outFiles = []
-    for f in pendingTransfers[taskID]['files']:
-        outFiles.append(os.path.join(globusHome, f))
-
-    return outFiles
-
 # ----------------------------------------------------------
 # SERVICE COMPONENTS
 # ----------------------------------------------------------
 """Use globus goauth tool to get access token for config account"""
 def generateAuthToken():
     print("...generating auth token for "+config['globus']['username'])
-    config['globus']['authToken'] = goauth.get_access_token(
+    config['globus']['auth_token'] = goauth.get_access_token(
             username=config['globus']['username'],
             password=config['globus']['password']
         ).token
 
+"""Generate a submission ID that can be used to avoid double-submitting"""
+def generateGlobusSubmissionID():
+    try:
+        api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+        status_code, status_message, submission_id = api.submission_id()
+    except globusonline.transfer.api_client.APIError:
+        # Try refreshing auth token and retrying
+        generateAuthToken()
+        api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+        status_code, status_message, submission_id = api.submission_id()
+
+    if status_code == 200:
+        return submission_id['value']
+    else:
+        return "UNKNOWN ("+status_code+": "+status_message+")"
+
 """Check for files ready for transmission and return list"""
-def checkFileModifiedStatus(gantryDir):
+def getGantryFilesForTransfer(gantryDir):
+    foundFiles = [] # find gantryDir -mmin +15 -type f -print
+
+    # Check whether file is already queued for transfer
     readyFiles = []
-    # find gantryDir -mmin +15 -type f -print
+    for f in foundFiles:
+        if (f not in pendingTransfers) and (f not in activeTasks):
+            readyFiles.append(f)
+
     return readyFiles
 
 """Continually monitor gantry directory for new files to transmit"""
 def gantryMonitorLoop():
-    refreshTimer = 0
+    # Prepare timers for tracking how often different refreshes are executed
+    gantryWait = config['gantry']['file_check_frequency']
+    apiWait = config['api']['api_check_frequency']
+    authWait = config['api']['authentication_refresh_frequency_secs']
+
     while True:
         time.sleep(1)
+        gantryWait -= 1
+        apiWait -= 1
+        authWait -= 1
 
-        # Get list of files in directory with created time
-        gantryDir = config['gantry']['homePath']
-        readyFiles = checkFileModifiedStatus(gantryDir)
+        # Check for new files in incoming gantry directory
+        if gantryWait <= 0:
+            gantryDir = config['gantry']['incoming_files_path']
 
-        for f in readyFiles:
-            # Check whether f is already in JSON file (ready for transfer but pending)
-            f in pendingTransfers
+            # Get list of files that are ready to send
+            pendingTransfers = getGantryFilesForTransfer(gantryDir)
 
-        for f in pendingTransfers:
-            # Initiate transfer and add to activeTasks
             # TODO: How should transfers be batched together?
-            initializeGlobusTransfer(f)
+            initializeGlobusTransfer(pendingTransfers)
 
-        for f in activeTasks:
-            # Check w/ Globus monitor API and move completed files into deleteme directory
-            pass
+            # Use copy of task list so it doesn't change during iteration
+            currentActiveTasks = copy.copy(activeTasks)
+            for globusID in currentActiveTasks:
+                # For in-progress tasks, check Globus for status updates
+                task = activeTasks[globusID]
+                readyFiles = checkFileModifiedStatus(task)
 
-        # Use copy of task list so it doesn't change during iteration
-        currentActiveTasks = copy.copy(activeTasks)
-        for globusID in currentActiveTasks:
-            # For in-progress tasks, check Globus for status updates
-            task = activeTasks[globusID]
-            readyFiles = checkFileModifiedStatus(task)
+                if globusStatus in ["SUCCEEDED", "FAILED"]:
+                    print("[TASK] status update for "+globusID+": "+globusStatus)
 
-            if globusStatus in ["SUCCEEDED", "FAILED"]:
-                print("[TASK] status update for "+globusID+": "+globusStatus)
+                    # Update task parameters
+                    task['status'] = globusStatus
+                    task['completed'] = str(datetime.datetime.now())
+                    task['path'] = getCompletedTransferLogPath(globusID)
 
-                # Update task parameters
-                task['status'] = globusStatus
-                task['completed'] = str(datetime.datetime.now())
-                task['path'] = getCompletedTransferLogPath(globusID)
-                files = getCompletedTaskPathList(globusID)
+                    # Notify Clowder to process file if transfer successful
+                    if globusStatus == "SUCCEEDED":
+                        initializeGlobusTransfer(task, files)
 
-                # Notify Clowder to process file if transfer successful
-                if globusStatus == "SUCCEEDED":
-                    initializeGlobusTransfer(task, files)
+                    # Write out results file, then delete from active list and write new active file
+                    writeCompletedTransferToDisk(task)
+                    del activeTasks[globusID]
+                    writePendingTransfersToDisk()
 
-                # Write out results file, then delete from active list and write new active file
-                writeCompletedTransferToDisk(task)
-                del activeTasks[globusID]
-                writePendingTransfersToDisk()
+            # Reset timer
+            gantryWait = config['gantry']['file_check_frequency']
 
-        # Refresh auth tokens every 12 hours
-        refreshTimer += 1
-        if refreshTimer >= 43200:
+        # Check with NCSA Globus monitor API for completed transfers
+        if apiWait <= 0:
+            apiWait = config['api']['api_check_frequency']
+
+        # Refresh Globus auth tokens
+        if authWait <= 0:
             generateAuthToken()
-            refreshTimer = 0
+            authWait = config['api']['authentication_refresh_frequency_secs']
 
-"""Send Clowder necessary details to load local file after Globus transfer complete"""
-def initializeGlobusTransfer(file):
-    pass
+"""Initiate Globus transfer with batch of files and add to activeTasks"""
+def initializeGlobusTransfer(fileList):
+    submissionID = generateGlobusSubmissionID()
+
+    # TODO: Determine metadata for each file and how to bundle
+    transferItemList = []
+    for f in fileList:
+        transferItemList.append({
+            "source_path": os.path.join(config['gantry']['incoming_files_path'], f),
+            "destination_path": os.path.join(config['globus']['destination_path'], f),
+            "recursive": False, # Can be true for directories
+            "DATA_TYPE": "transfer_item"
+        })
+    transferObj = {
+        "DATA_TYPE": "transfer",
+        "submission_id": submissionID,
+        "source_endpoint": config['globus']['source_endpoint_id'],
+        "destination_endpoint": config['globus']['destination_endpoint_id'],
+        "sync_level": null,
+        "DATA": transferItemList
+    }
+
+    try:
+        api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+        status_code, status_message, transfer_data = api.transfer(transferObj)
+    except globusonline.transfer.api_client.APIError:
+        # Try refreshing auth token and retrying
+        generateAuthToken()
+        api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+        status_code, status_message, transfer_data = api.transfer(transferObj)
+
+    if status_code == 200:
+        globusID = transfer_data['task_id']
+
+        # Add to activeTasks
+        activeTasks[globusID] = {
+            "globus_id": globusID,
+            "files": {
+                # TODO: Remap files to metadata here
+            }
+        }
+        return globusID
+    else:
+        return "UNKNOWN ("+status_code+": "+status_message+")"
+
+
 
 if __name__ == '__main__':
     print("...loading configuration from "+configFile)
