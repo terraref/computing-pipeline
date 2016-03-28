@@ -15,7 +15,7 @@ from functools import wraps
 from flask import Flask, request, Response
 from flask.ext import restful
 from flask_restful import reqparse, abort, Api, Resource
-from globusonline.transfer.api_client import TransferAPIClient, goauth
+from globusonline.transfer.api_client import TransferAPIClient, APIError, goauth
 
 
 config = {}
@@ -26,7 +26,8 @@ configFile = "config.json"
     "user":                     globus username
     "globus_id":                globus job ID of upload
     "files":        [{          list of files included in task, each with
-            "path": "file1",        ...file path, which is updated with path-on-disk once completed
+            "name": "file1.txt",    ...filename
+            "path": "",             ...file path, which is updated with path-on-disk once completed
             "md": {}                ...metadata to be associated with that file
         }, {...}, ...],
     "received":                 timestamp when task was sent to monitor API
@@ -108,28 +109,6 @@ def writeCompletedTaskToDisk(task):
     f.write(json.dumps(task))
     f.close()
 
-"""Return full path to completed logfile for a given task id if it exists, otherwise None"""
-def getCompletedTaskLogPath(taskID):
-    completedPath = config['api']['completed_path']
-
-    treeLv1 = os.path.join(completedPath, taskID[:2])
-    treeLv2 = os.path.join(treeLv1, taskID[2:4])
-    treeLv3 = os.path.join(treeLv2, taskID[4:6])
-    treeLv4 = os.path.join(treeLv3, taskID[6:8])
-    fullPath = os.path.join(treeLv4, taskID+".json")
-
-    return fullPath
-
-"""Return list of full paths to completed files sent in a particular task"""
-def getCompletedTaskPathList(taskID):
-    globusHome = config['globus']['incoming_files_path']
-
-    outFiles = []
-    for f in activeTasks[taskID]['files']:
-        outFiles.append(os.path.join(globusHome, f))
-
-    return outFiles
-
 # ----------------------------------------------------------
 # API COMPONENTS
 # ----------------------------------------------------------
@@ -174,10 +153,25 @@ class GlobusMonitor(restful.Resource):
         if taskUser in config['globus']['valid_users']:
             print("[TASK] now monitoring task from "+taskUser+": "+task['globus_id'])
 
+            filesObj = []
+            for f in task['files']:
+                if type(f) is str:
+                    filesObj.append({
+                        "name": f,
+                        "path": "",
+                        "md": {}
+                    })
+                else:
+                    filesObj.append({
+                        "name": f['name'],
+                        "path": "",
+                        "md": f['md']
+                    })
+
             activeTasks[task['globus_id']] = {
                 "user": taskUser,
                 "globus_id": task['globus_id'],
-                "files": task['files'],
+                "files": filesObj,
                 "received": str(datetime.datetime.now()),
                 "completed": None,
                 "status": "IN PROGRESS"
@@ -195,8 +189,8 @@ class GlobusTask(restful.Resource):
         # TODO: Should this require same Globus credentials as 'owner' of task?
         if globusID not in activeTasks:
             # If not in active list, check for record of completed task
-            logPath = getCompletedTaskLogPath(globusID)
-            if logPath:
+            logPath = os.path.join(config['api']['completed_path'], globusID[:2], globusID[2:4], globusID[4:6], globusID[6:8], globusID+".json")
+            if os.path.exists(logPath):
                 return loadJsonFile(logPath), 200
             else:
                 return "Globus ID not found in active or completed tasks", 404
@@ -238,13 +232,13 @@ def generateAuthTokens():
             ).token
 
 """Query Globus API to get current transfer status of a given task"""
-def checkGlobusStatus(task):
+def getGlobusStatus(task):
     authToken = config['globus']['valid_users'][task['user']]['auth_token']
 
     api = TransferAPIClient(username=task['user'], goauth=authToken)
     try:
         status_code, status_message, task_data = api.task(task['globus_id'])
-    except globusonline.transfer.api_client.APIError:
+    except APIError:
         # Try refreshing auth token and retrying
         generateAuthTokens()
         authToken = config['globus']['valid_users'][task['user']]['auth_token']
@@ -268,7 +262,7 @@ def globusMonitorLoop():
         for globusID in currentActiveTasks:
             # For in-progress tasks, check Globus for status updates
             task = activeTasks[globusID]
-            globusStatus = checkGlobusStatus(task)
+            globusStatus = getGlobusStatus(task)
 
             if globusStatus in ["SUCCEEDED", "FAILED"]:
                 print("[TASK] status update for "+globusID+": "+globusStatus)
@@ -276,12 +270,12 @@ def globusMonitorLoop():
                 # Update task parameters
                 task['status'] = globusStatus
                 task['completed'] = str(datetime.datetime.now())
-                task['path'] = getCompletedTaskLogPath(globusID)
-                files = getCompletedTaskPathList(globusID)
+                for f in task['files']:
+                    f['path'] = os.path.join(config['globus']['incoming_files_path'], f["name"])
 
                 # Notify Clowder to process file if transfer successful
                 if globusStatus == "SUCCEEDED":
-                    notifyClowderOfCompletedTask(task, files)
+                    notifyClowderOfCompletedTask(task)
 
                 # Write out results file, then delete from active list and write new active file
                 writeCompletedTaskToDisk(task)
@@ -294,7 +288,7 @@ def globusMonitorLoop():
             authWait = 0
 
 """Send Clowder necessary details to load local file after Globus transfer complete"""
-def notifyClowderOfCompletedTask(task, files):
+def notifyClowderOfCompletedTask(task):
     # Verify that globus user has a mapping to clowder credentials in config file
     globUser = task['user']
     userMap = config['clowder']['user_map']
@@ -318,9 +312,10 @@ def notifyClowderOfCompletedTask(task, files):
         if ds.status_code == 200:
             # Add local files to dataset by path
             dsid = ds.json()['id']
-            for f in files:
-                print("......adding file "+f)
-                (content, header) = encode_multipart_formdata([("file",'{"path":"%s"}' % f)])
+            for f in task['files']:
+                print("......adding file "+f['name'])
+                # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
+                (content, header) = encode_multipart_formdata([("file",'{"path":"%s", "md":%s}' % (f['path'], json.dumps(f['md'])))])
                 fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid, data=content, headers={'Content-Type':header})
 
                 if fi.status_code != 200:
