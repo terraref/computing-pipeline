@@ -7,15 +7,15 @@
     "file_check_frequency": 120
   },
   "globus": {
-    "destination_path": "/Users/mburnette/globus",
     "source_endpoint_id": "",
     "destination_endpoint_id": "",
     "username": "",
     "password": "",
+    "destination_path": "/~/globus",
     "authentication_refresh_frequency_secs": 43200
   },
   "api": {
-    "host": "0.0.0.0:5454",
+    "host": "http://localhost:5454",
     "api_check_frequency": 60
   }
 }

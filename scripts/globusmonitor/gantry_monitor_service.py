@@ -20,7 +20,7 @@
 
 import os, shutil, json, time, datetime, thread, copy
 import requests
-from globusonline.transfer.api_client import TransferAPIClient, goauth
+from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIError, goauth
 
 
 config = {}
@@ -144,7 +144,7 @@ def generateGlobusSubmissionID():
     try:
         api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
         status_code, status_message, submission_id = api.submission_id()
-    except globusonline.transfer.api_client.APIError:
+    except APIError:
         # Try refreshing auth token and retrying
         generateAuthToken()
         api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
@@ -172,34 +172,26 @@ def initializeGlobusTransfers():
     submissionID = generateGlobusSubmissionID()
 
     # TODO: Determine metadata for each file and how to bundle
-    transferItemList = []
+    transferObj = Transfer(submissionID,
+                           config['globus']['source_endpoint_id'],
+                           config['globus']['destination_endpoint_id'])
     for f in pendingTransfers:
-        transferItemList.append({
-            "source_path": os.path.join(config['gantry']['incoming_files_path'], f),
-            "destination_path": os.path.join(config['globus']['destination_path'], f),
-            "recursive": False, # Can be true for directories
-            "DATA_TYPE": "transfer_item"
-        })
-    transferObj = {
-        "DATA_TYPE": "transfer",
-        "submission_id": submissionID,
-        "source_endpoint": config['globus']['source_endpoint_id'],
-        "destination_endpoint": config['globus']['destination_endpoint_id'],
-        "sync_level": null,
-        "DATA": transferItemList
-    }
+        src_path = os.path.join(config['gantry']['incoming_files_path'], f)
+        dest_path = os.path.join(config['globus']['destination_path'], f)
+        transferObj.add_item(src_path, dest_path)
 
     try:
         api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
         status_code, status_message, transfer_data = api.transfer(transferObj)
-    except globusonline.transfer.api_client.APIError:
+    except APIError:
         # Try refreshing auth token and retrying
         generateAuthToken()
         api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
         status_code, status_message, transfer_data = api.transfer(transferObj)
 
-    if status_code == 200:
+    if status_code == 200 or status_code == 202:
         globusID = transfer_data['task_id']
+        notifyMonitorOfNewTransfer(globusID, pendingTransfers)
 
         # Add to activeTasks
         activeTasks[globusID] = {
@@ -216,6 +208,17 @@ def initializeGlobusTransfers():
         return globusID
     else:
         return "UNKNOWN ("+status_code+": "+status_message+")"
+
+"""Send message to NCSA Globus monitor API that a new task has begun"""
+def notifyMonitorOfNewTransfer(globusID, fileList):
+    sess = requests.Session()
+    sess.auth = (config['globus']['username'], config['globus']['password'])
+
+    sess.post(config['api']['host']+"/tasks", data=json.dumps({
+        "user": config['globus']['username'],
+        "globus_id": globusID,
+        "files": fileList
+    }))
 
 """Contact NCSA Globus monitor API to check whether task was completed successfully"""
 def getTransferStatusFromMonitor(globusID):
@@ -246,7 +249,6 @@ def gantryMonitorLoop():
 
             # Get list of files that are ready to send
             pendingTransfers.append(getGantryFilesForTransfer(gantryDir))
-
             # TODO: How should transfers be batched together?
             initializeGlobusTransfers()
 
