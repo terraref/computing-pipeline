@@ -173,7 +173,7 @@ def getGantryFilesForTransfer(gantryDir):
 def initializeGlobusTransfers():
     submissionID = generateGlobusSubmissionID()
 
-    # TODO: How should metadata be determined, and how should files be bundled? Do we need to evaluate contents of pendingTransfers?
+    # TODO: How should metadata be determined, and how should files be bundled?
 
     # Prepare transfer object
     transferObj = Transfer(submissionID,
@@ -248,13 +248,13 @@ def gantryMonitorLoop():
 
         # Check for new files in incoming gantry directory and initiate transfer
         if gantryWait <= 0:
-            gantryDir = config['gantry']['incoming_files_path']
-
             # Get list of files that are ready to send
-            pendingTransfers.update(getGantryFilesForTransfer(gantryDir))
+            pendingTransfers.update(
+                    getGantryFilesForTransfer(config['gantry']['incoming_files_path']))
+            # TODO: Do we need 2 loops here - one to accumulate pending, and one to evaluate/send as needed?
             initializeGlobusTransfers()
 
-            # Reset timer
+            # Reset wait to check gantry incoming directory again
             gantryWait = config['gantry']['file_check_frequency']
 
         # Check with NCSA Globus monitor API for completed transfers
@@ -271,23 +271,28 @@ def gantryMonitorLoop():
                     task['status'] = globusStatus
                     task['completed'] = str(datetime.datetime.now())
 
+                    # Write out results log, then move file delete and from active list
+                    writeCompletedTransferToDisk(task)
+
                     # TODO: Flag file for deletion if transfer successful
                     if globusStatus == "SUCCEEDED":
-                        pass
+                        gantryDir = config['gantry']['incoming_files_path']
+                        deleteDir = config['gantry']['deletion_queue']
+                        for f in task['files']:
+                            shutil.move(os.path.join(gantryDir, f['name']),
+                                        os.path.join(deleteDir, f['name']))
 
-                    # Write out results file, then delete from active list and write new active file
-                    writeCompletedTransferToDisk(task)
                     del activeTasks[globusID]
                     writeActiveTasksToDisk()
 
-            # Reset timer
+            # Reset timer to check NCSA api for transfer updates again
             apiWait = config['api']['api_check_frequency']
 
         # Refresh Globus auth tokens
         if authWait <= 0:
             generateAuthToken()
 
-            # Reset timer
+            # Reset timer to get new auth token (will also try to refresh as-needed)
             authWait = config['api']['authentication_refresh_frequency_secs']
 
 
