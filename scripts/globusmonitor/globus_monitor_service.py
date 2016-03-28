@@ -10,6 +10,7 @@
 
 import os, shutil, json, time, datetime, thread, copy
 import requests
+from requests.packages.urllib3.filepost import encode_multipart_formdata
 from functools import wraps
 from flask import Flask, request, Response
 from flask.ext import restful
@@ -288,7 +289,7 @@ def globusMonitorLoop():
                 writeActiveTasksToDisk()
 
         # Refresh auth tokens periodically
-        if authWait >= config['api']['authentication_refresh_frequency_secs']:
+        if authWait >= config['globus']['authentication_refresh_frequency_secs']:
             generateAuthTokens()
             authWait = 0
 
@@ -304,24 +305,28 @@ def notifyClowderOfCompletedTask(task, files):
         clowderUser = userMap[globUser]['clowder_user']
         clowderPass = userMap[globUser]['clowder_pass']
 
-        for f in files:
-            print("......"+f)
-        return True
-
         sess = requests.Session()
         sess.auth = (clowderUser, clowderPass)
 
         # TODO: How to determine appropriate space/collection to associate dataset with?
 
         # Create dataset using globus ID
-        sess.post(clowderHost+"/api/datasetscreateempty", headers={"Content-Type": "application/json"},
-                  data={"name": task['globus_id']})
+        print("......creating dataset "+task['globus_id'])
+        ds = sess.post(clowderHost+"/api/datasets/createempty", headers={"Content-Type": "application/json"},
+                  data='{"name": "%s"}' % task['globus_id'])
 
-        # Add local files to dataset by path
-        for f in files:
-            sess.post(clowderHost+"/api/datasets", headers={"Content-Type": "application/json"},
-                  data={"path": f})
+        if ds.status_code == 200:
+            # Add local files to dataset by path
+            dsid = ds.json()['id']
+            for f in files:
+                print("......adding file "+f)
+                (content, header) = encode_multipart_formdata([("file",'{"path":"%s"}' % f)])
+                fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid, data=content, headers={'Content-Type':header})
 
+                if fi.status_code != 200:
+                    print("[ERROR] cannot upload file ("+str(fi.status_code)+")")
+        else:
+            print("[ERROR] cannot create dataset ("+str(ds.status_code)+")")
     else:
         print("[ERROR] cannot find clowder user credentials for globus user "+globUser)
 
@@ -336,7 +341,5 @@ if __name__ == '__main__':
     print("*** Service now monitoring Globus tasks ***")
 
     # Create thread for API to begin listening - requires valid Globus user/pass
-    app.run(host="0.0.0.0", port=int(config['api']['port']), debug=False)
     print("API now listening on port "+config['api']['port'])
-
-
+    app.run(host="0.0.0.0", port=int(config['api']['port']), debug=False)
