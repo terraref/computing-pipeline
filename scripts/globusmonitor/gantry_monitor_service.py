@@ -169,13 +169,14 @@ def getGantryFilesForTransfer(gantryDir):
 
             # Check whether file is already queued for transfer
             for f in foundFiles:
-                if (f not in pendingTransfers[datasetID]['files']) and f != "":
-                    if f.find(".json") == -1 and f[0] != ".":
-                        transferQueue[datasetID]['files'][f] = {
-                            "name": f,
-                            "md": {}
+                rootName = f.split("/")[-1]
+                if f != "" and (rootName not in pendingTransfers[datasetID]['files']):
+                    if rootName.find(".json") == -1 and rootName[0] != ".":
+                        transferQueue[datasetID]['files'][rootName] = {
+                            "name": rootName,
+                            "md": {} # TODO: remove support for per-file metadata?
                         }
-                    else:
+                    elif rootName.find(".json") > -1:
                         # Found a json file, consider it dataset metadata
                         transferQueue[datasetID]['md'] = loadJsonFile(f)
 
@@ -188,6 +189,7 @@ def initializeGlobusTransfers():
     # Each globus task corresponds to an eventual Clowder dataset
     for ds in pendingTransfers:
         # TODO: how to determine a whole dataset is ready?
+        # TODO: If we have dataset at time t, assume done if we have time t+1
 
         # Prepare transfer object
         transferObj = Transfer(submissionID,
