@@ -25,11 +25,23 @@ configFile = "config.json"
 {"globus_id": {
     "user":                     globus username
     "globus_id":                globus job ID of upload
-    "files":        [{          list of files included in task, each with
-            "name": "file1.txt",    ...filename
-            "path": "",             ...file path, which is updated with path-on-disk once completed
-            "md": {}                ...metadata to be associated with that file
-        }, {...}, ...],
+    "contents": {
+        "dataset": {                dataset used as key for set of files transferred
+            "md": {}                metadata to be associated with this dataset
+            "files": {              dict of files from this dataset included in task, each with
+                "filename1": {
+                    "name": "file1.txt",    ...filename
+                    "path": "",             ...file path, which is updated with path-on-disk once completed
+                    "md": {},               ...metadata to be associated with that file
+                    "dataset":              ...dataset that file belongs to
+                },
+                "filename2": {...},
+                ...
+            }
+        },
+        "dataset2": {...},
+        ...
+    },
     "received":                 timestamp when task was sent to monitor API
     "completed":                timestamp when task was completed (including errors and cancelled tasks)
     "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
@@ -109,6 +121,20 @@ def writeCompletedTaskToDisk(task):
     f.write(json.dumps(task))
     f.close()
 
+"""Find dataset id if dataset exists, creating if necessary"""
+def fetchDatasetByName(datasetName, sess):
+    # TODO: Check if this exists first
+    print("......creating dataset "+datasetName)
+    ds = sess.post(config['clowder']['host']+"/api/datasets/createempty", headers={"Content-Type": "application/json"},
+                   data='{"name": "%s"}' % datasetName)
+
+    if ds.status_code == 200:
+        return ds.json()['id']
+    else:
+        # TODO: Handle errors gracefully
+        print("[ERROR] cannot create dataset ("+str(ds.status_code)+")")
+        return ""
+
 # ----------------------------------------------------------
 # API COMPONENTS
 # ----------------------------------------------------------
@@ -153,26 +179,34 @@ class GlobusMonitor(restful.Resource):
         if taskUser in config['globus']['valid_users']:
             print("[TASK] now monitoring task from "+taskUser+": "+task['globus_id'])
 
-            filesObj = []
-            for f in task['files']:
-                if type(f) is str:
-                    filesObj.append({
-                        "name": f,
-                        "path": "",
-                        "md": {}
-                    })
-                else:
-                    filesObj.append({
-                        "name": f['name'],
-                        "path": "",
-                        "md": f['md']
-                    })
+            print(task)
+
+            # Convert object structure from gantry into one we want (i.e. without gantry paths)
+            contents = {}
+            for ds in task['contents']:
+                print("..."+ds)
+                contents[ds] = {}
+                if 'md' in task['contents'][ds]:
+                    contents[ds]['md'] = task['contents'][ds]['md']
+                if 'files' in task['contents'][ds]:
+                    contents[ds]['files'] = {}
+                    for f in task['contents'][ds]['files']:
+                        print("......"+f)
+                        fdata = task['contents'][ds]['files'][f]
+                        contents[ds]['files'][fdata['name']] = {
+                            "name": fdata['name'],
+                            "path": "",
+                            "md": fdata['md'] if 'md' in fdata else {},
+                            "dataset": ds
+                        }
+
+            print("!!!")
+            print(contents)
 
             activeTasks[task['globus_id']] = {
                 "user": taskUser,
                 "globus_id": task['globus_id'],
-                "dataset": task['dataset'],
-                "files": filesObj,
+                "contents": contents,
                 "received": str(datetime.datetime.now()),
                 "completed": None,
                 "status": "IN PROGRESS"
@@ -202,7 +236,7 @@ class GlobusTask(restful.Resource):
     @requires_auth
     def delete(self, globusID):
         if globusID in activeTasks:
-            # TODO: Should this allow deletion within Globus as well? For now, just deletes from monitoring
+            # TODO: Should this perform deletion within Globus as well? For now, just deletes from monitoring
             task = activeTasks[globusID]
 
             # Write task as completed with an aborted status
@@ -215,16 +249,22 @@ class GlobusTask(restful.Resource):
             writeActiveTasksToDisk()
             return 204
 
+"""Add metadata to a dataset without requiring files"""
 class MetadataLoader(restful.Resource):
+
     @requires_auth
     def post(self):
-        task = request.get_json(force=True)
-        user = task['user']
-        ds = task['dataset']
-        md = task['md']
+        req = request.get_json(force=True)
+        globUser = req['user']
 
-        # TODO: Check if dataset with name ds exists & create if not
-        # TODO: Add md to ds metadata as user
+        userMap = config['clowder']['user_map']
+        clowderUser = userMap[globUser]['clowder_user']
+        clowderPass = userMap[globUser]['clowder_pass']
+        sess = requests.Session()
+        sess.auth = (clowderUser, clowderPass)
+
+        dsid = fetchDatasetByName(req['dataset'], sess)
+        sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata", data=req['md'])
 
         return 201
 
@@ -232,6 +272,8 @@ class MetadataLoader(restful.Resource):
 api.add_resource(GlobusMonitor, '/tasks')
 # Check to see if Globus id is finished
 api.add_resource(GlobusTask, '/tasks/<string:globusID>')
+# Add metadata to dataset
+api.add_resource(MetadataLoader, '/metadata')
 
 # ----------------------------------------------------------
 # SERVICE COMPONENTS
@@ -284,8 +326,11 @@ def globusMonitorLoop():
                 # Update task parameters
                 task['status'] = globusStatus
                 task['completed'] = str(datetime.datetime.now())
-                for f in task['files']:
-                    f['path'] = os.path.join(config['globus']['incoming_files_path'], f["name"])
+                for ds in task['contents']:
+                    if 'files' in ds:
+                        for f in task['contents'][ds]['files']:
+                            # TODO: Handle nesting of folders somehow
+                            f['path'] = os.path.join(config['globus']['incoming_files_path'], f["name"])
 
                 # Notify Clowder to process file if transfer successful
                 if globusStatus == "SUCCEEDED":
@@ -316,34 +361,31 @@ def notifyClowderOfCompletedTask(task):
         sess = requests.Session()
         sess.auth = (clowderUser, clowderPass)
 
-        # TODO: How to determine appropriate space/collection to associate dataset with?
+        print("NOTIFY")
+        print(task)
+        # TODO: figure out this loop - should be over datasets, then files
+        for fobj in task['contents']['files']:
+            # Create dataset if necessary
+            currFile = task['contents']['files'][fobj]
+            dsid = fetchDatasetByName(currFile['dataset'], sess)
 
-        # Create dataset using globus ID
-        # TODO: Check if this exists first
-        print("......creating dataset "+task['dataset'])
-        ds = sess.post(clowderHost+"/api/datasets/createempty", headers={"Content-Type": "application/json"},
-                  data='{"name": "%s"}' % task['dataset'])
-
-
-        if ds.status_code == 200:
-            dsid = ds.json()['id']
-
-            # TODO: Assign metadata to dataset level if available
-            if "md" in task:
-                #md = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata", data=task["md"])
-                pass
+            # Assign dataset-level metadata if available
+            if "md" in task['contents'][ds]:
+                sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata", data=task['contents'][ds]['md'])
 
             # Add local files to dataset by path
-            for f in task['files']:
+            for f in task['contents'][ds]['files']:
                 print("......adding file "+f['name'])
                 # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
-                (content, header) = encode_multipart_formdata([("file",'{"path":"%s", "md":%s}' % (f['path'], json.dumps(f['md'])))])
+                (content, header) = encode_multipart_formdata([
+                    ("file",'{"path":"%s", "md":%s}' % (f['path'],
+                                                        json.dumps(f['md'] if 'md' in f else {})))
+                ])
                 fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid, data=content, headers={'Content-Type':header})
 
                 if fi.status_code != 200:
                     print("[ERROR] cannot upload file ("+str(fi.status_code)+")")
-        else:
-            print("[ERROR] cannot create dataset ("+str(ds.status_code)+")")
+
     else:
         print("[ERROR] cannot find clowder user credentials for globus user "+globUser)
 

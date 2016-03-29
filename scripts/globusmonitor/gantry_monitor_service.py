@@ -27,23 +27,31 @@ config = {}
 configFile = "config_gantry.json"
 
 """pendingTransfers tracks files prepped for transfer, by dataset:
-{"dataset": {
-    "files": {
-        "filename1": {"name": "filename1", "md": {}},
-        "filename2": {...},
-        ...
+{
+    "dataset": {
+        "files": {
+            "filename1": {
+                "name": "filename1",
+                "md": {},
+                "md_name": "name_of_metadata_file"
+                "md_path": "folder_containing_metadata_file"},
+            "filename2": {...},
+            ...
+        },
+        "md": {},
+        "md_path": "folder_containing_metadata.json"
     },
-    "md": {}
-}"""
+    "dataset2": {...},
+...}"""
 pendingTransfers = {}
 
 """activeTasks tracks Globus transfers is of the format:
-{"dataset": {
+{"globus_id": {
     "globus_id":                globus job ID of upload
-    "dataset":                  name of dataset that will be created in Clowder
     "files":        [{          list of files included in task, each with
             "path": "file1",        ...file path, which is updated with path-on-disk once completed
-            "md": {}                ...metadata to be associated with that file
+            "md": {},               ...metadata to be associated with that file
+            "dataset":              ...dataset file belongs to
         }, {...}, ...],
     "md":                       metadata to be associated with dataset
     "started":                  timestamp when task was sent to Globus
@@ -118,18 +126,6 @@ def writeCompletedTransferToDisk(transfer):
     f.write(json.dumps(transfer))
     f.close()
 
-"""Return full path to completed logfile for a given task id if it exists, otherwise None"""
-def getCompletedTransferLogPath(taskID):
-    completedPath = config['gantry']['completed_path']
-
-    treeLv1 = os.path.join(completedPath, taskID[:2])
-    treeLv2 = os.path.join(treeLv1, taskID[2:4])
-    treeLv3 = os.path.join(treeLv2, taskID[4:6])
-    treeLv4 = os.path.join(treeLv3, taskID[6:8])
-    fullPath = os.path.join(treeLv4, taskID+".json")
-
-    return fullPath
-
 # ----------------------------------------------------------
 # SERVICE COMPONENTS
 # ----------------------------------------------------------
@@ -162,26 +158,35 @@ def getGantryFilesForTransfer(gantryDir):
     transferQueue = {}
 
     for root, dirs, files in os.walk(gantryDir):
-        # /sensorname/YYYY-MM-DD/YYMMDD_HHMMSS/ = "sensorname YYMMDD_HHMMSS"
+        # gantryDir/sensorname/YYYY-MM-DD/YYMMDD_HHMMSS/
+        #       datasetID = "sensorname YYMMDD_HHMMSS"
         pathParts = root.split("/")
-        datasetID = pathParts[-3]+" "+pathParts[-1]
+        if len(pathParts) >= 3:
+            datasetID = pathParts[-3]+" "+pathParts[-1]
+        else:
+            datasetID = pathParts[-1]
 
-        # Don't process this dataset again if it's already being transferred
-        if datasetID not in activeTasks:
-            foundFiles = subprocess.check_output(["find", root, "-mmin", "+15", "-type", "f", "-print"]).split("\n")
+        # TODO: Implement simple API that will let MAC script tell us which files are done
+        foundFiles = subprocess.check_output(["find", root, "-mmin", "+15", "-type", "f", "-print"]).split("\n")
 
+        for f in foundFiles:
+            filename = f.replace(root,"")
             # Check whether file is already queued for transfer
-            for f in foundFiles:
-                filename = f.replace(root,"")
-                if f != "" and (filename not in pendingTransfers[datasetID]['files']):
-                    if filename.find("metadata") == -1 and filename[0] != ".":
-                        transferQueue[datasetID]['files'][filename] = {
-                            "name": filename,
-                            "md": {} # TODO: remove support for per-file metadata?
-                        }
-                    elif filename.find("metadata") > -1:
-                        # Found a metadata file, assume it is for dataset
-                        transferQueue[datasetID]['md'] = loadJsonFile(f)
+            if f != "" and filename not in pendingTransfers[datasetID]['files']:
+                if filename.find("metadata") == -1 and filename[0] != ".":
+                    # TODO: Check for .json file with same name as current file - assume metadata if so
+                    transferQueue[datasetID]['files'][filename] = {
+                        "name": filename,
+                        "path": root,
+                        "dataset": datasetID
+                        # "md": {}, only include md key if present
+                        # "md_name": "" metadata filename
+                        # "md_path": "" metadata folder
+                    }
+                elif filename.find("metadata") > -1:
+                    # Found a metadata file, assume it is for dataset
+                    transferQueue[datasetID]['md'] = loadJsonFile(f)
+                    transferQueue[datasetID]['md_path'] = root
 
     return transferQueue
 
@@ -189,63 +194,62 @@ def getGantryFilesForTransfer(gantryDir):
 def initializeGlobusTransfers():
     submissionID = generateGlobusSubmissionID()
 
-    # Each globus task corresponds to an eventual Clowder dataset
-    for ds in pendingTransfers:
-        # TODO: how to determine a whole dataset is ready?
+    # Prepare transfer object
+    transferObj = Transfer(submissionID,
+                           config['globus']['source_endpoint_id'],
+                           config['globus']['destination_endpoint_id'])
 
+    for ds in pendingTransfers:
         if "files" in pendingTransfers[ds]:
-            # Prepare transfer object
-            transferObj = Transfer(submissionID,
-                                   config['globus']['source_endpoint_id'],
-                                   config['globus']['destination_endpoint_id'],
-                                   label=ds)
+            # Add files from each dataset
             for f in pendingTransfers[ds]['files']:
                 src_path = os.path.join(config['gantry']['incoming_files_path'], f["name"])
                 dest_path = os.path.join(config['globus']['destination_path'], f["name"])
                 transferObj.add_item(src_path, dest_path)
-
-            # Send transfer to Globus
-            try:
-                api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-                status_code, status_message, transfer_data = api.transfer(transferObj)
-            except APIError:
-                # Try refreshing auth token and retrying
-                generateAuthToken()
-                api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-                status_code, status_message, transfer_data = api.transfer(transferObj)
-
-            # Notify NCSA monitor of new task, and add to activeTasks for logging
-            if status_code == 200 or status_code == 202:
-                globusID = transfer_data['task_id']
-                notifyMonitorOfNewTransfer(globusID, ds, pendingTransfers[ds]['files'])
-
-                activeTasks[ds] = {
-                    "globus_id": globusID,
-                    "dataset": ds,
-                    "files": pendingTransfers[ds]['files]'],
-                    "started": str(datetime.datetime.now()),
-                    "status": "IN PROGRESS"
-                }
-                writeTasksToDisk(config['gantry']['active_path'], activeTasks)
-
-                del pendingTransfers[ds]
-                writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
-            else:
-                print("[ERROR] globus initialization failed for "+ds+" ("+status_code+": "+status_message+")")
         elif "md" in pendingTransfers[ds]:
-            # We have metadata for a dataset, but no files. Just send metadata.
+            # We have metadata for a dataset, but no files. Just send metadata separately.
             sendMetadataToMonitor(ds, pendingTransfers[ds]['md'])
 
+    # Send transfer to Globus
+    try:
+        api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+        status_code, status_message, transfer_data = api.transfer(transferObj)
+    except APIError:
+        # Try refreshing auth token and retrying
+        generateAuthToken()
+        api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+        status_code, status_message, transfer_data = api.transfer(transferObj)
+
+    # Notify NCSA monitor of new task, and add to activeTasks for logging
+    if status_code == 200 or status_code == 202:
+        globusID = transfer_data['task_id']
+
+        # TODO: Harden this a bit - what happens if we crash at various points?
+        activeTasks[globusID] = {
+            "globus_id": globusID,
+            "files": pendingTransfers,
+            "started": str(datetime.datetime.now()),
+            "status": "IN PROGRESS"
+        }
+        writeTasksToDisk(config['gantry']['active_path'], activeTasks)
+
+        notifyMonitorOfNewTransfer(globusID, pendingTransfers)
+
+        pendingTransfers = {}
+        writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
+    else:
+        print("[ERROR] globus initialization failed for "+ds+" ("+status_code+": "+status_message+")")
+
+
 """Send message to NCSA Globus monitor API that a new task has begun"""
-def notifyMonitorOfNewTransfer(globusID, datasetName, fileObj):
+def notifyMonitorOfNewTransfer(globusID, contents):
     sess = requests.Session()
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
     sess.post(config['api']['host']+"/tasks", data=json.dumps({
         "user": config['globus']['username'],
         "globus_id": globusID,
-        "dataset": datasetName,
-        "files": fileObj
+        "contents": contents
     }))
 
 """Send message to NCSA Globus monitor API with metadata for a dataset, without other files"""
@@ -275,9 +279,9 @@ def getTransferStatusFromMonitor(globusID):
 """Continually monitor gantry directory for new files to transmit"""
 def gantryMonitorLoop():
     # Prepare timers for tracking how often different refreshes are executed
-    gantryWait = config['gantry']['file_check_frequency']
-    apiWait = config['api']['api_check_frequency']
-    authWait = config['api']['authentication_refresh_frequency_secs']
+    gantryWait = config['gantry']['file_check_frequency'] # look for new files to send
+    apiWait = config['api']['api_check_frequency'] # check status of sent files
+    authWait = config['api']['authentication_refresh_frequency_secs'] # renew globus auth
 
     while True:
         time.sleep(1)
@@ -298,9 +302,8 @@ def gantryMonitorLoop():
         if apiWait <= 0:
             # Use copy of task list so it doesn't change during iteration
             currentActiveTasks = copy.copy(activeTasks)
-            for datasetID in currentActiveTasks:
-                task = activeTasks[datasetID]
-                globusID = task['globus_id']
+            for globusID in currentActiveTasks:
+                task = activeTasks[globusID]
 
                 globusStatus = getTransferStatusFromMonitor(globusID)
                 if globusStatus in ["SUCCEEDED", "FAILED"]:
@@ -310,15 +313,24 @@ def gantryMonitorLoop():
 
                     # Write out results log
                     writeCompletedTransferToDisk(task)
-                    # Move file to staging area for deletion
-                    if globusStatus == "SUCCEEDED":
-                        gantryDir = config['gantry']['incoming_files_path']
-                        deleteDir = config['gantry']['deletion_queue']
-                        for f in task['files']:
-                            shutil.move(os.path.join(gantryDir, f['name']),
-                                        os.path.join(deleteDir, f['name']))
 
-                    del activeTasks[datasetID]
+                    # Move files (and metadata files if needed) to staging area for deletion
+                    if globusStatus == "SUCCEEDED":
+                        deleteDir = config['gantry']['deletion_queue']
+                        if 'files' in task:
+                            for f in task['files']:
+                                shutil.move(os.path.join(f['path'], f['name']),
+                                            os.path.join(deleteDir, f['name']))
+                                if 'md'in f:
+                                    shutil.move(os.path.join(f['md_path'], f['md_name']),
+                                                os.path.join(deleteDir, f['md_name']),)
+                        if 'md' in task:
+                            shutil.move(os.path.join(f['md_path'], "metadata.json"),
+                                        os.path.join(deleteDir, "metadata.json"),)
+
+                        # TODO: Crawl and remove empty directories?
+
+                    del activeTasks[globusID]
                     writeTasksToDisk(config['gantry']['active_path'], activeTasks)
 
             # Reset timer to check NCSA api for transfer updates again
@@ -335,13 +347,9 @@ if __name__ == '__main__':
     config = loadJsonFile(configFile)
     generateAuthToken()
 
-    # Load any previous active/pending transfers, and purge pending of any active ones
+    # Load any previous active/pending transfers
     activeTasks = loadTasksFromDisk(config['gantry']['active_path'])
     pendingTransfers = loadTasksFromDisk(config['gantry']['pending_path'])
-    currentPendingTasks = copy.copy(pendingTransfers)
-    for ds in currentPendingTasks:
-        if ds in activeTasks:
-            del pendingTransfers[ds]
 
     # Create thread for service to begin monitoring
     print("*** Service now monitoring gantry directory ***")
