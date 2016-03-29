@@ -215,6 +215,19 @@ class GlobusTask(restful.Resource):
             writeActiveTasksToDisk()
             return 204
 
+class MetadataLoader(restful.Resource):
+    @requires_auth
+    def post(self):
+        task = request.get_json(force=True)
+        user = task['user']
+        ds = task['dataset']
+        md = task['md']
+
+        # TODO: Check if dataset with name ds exists & create if not
+        # TODO: Add md to ds metadata as user
+
+        return 201
+
 # Add a new Globus id that should be monitored
 api.add_resource(GlobusMonitor, '/tasks')
 # Check to see if Globus id is finished
@@ -306,13 +319,21 @@ def notifyClowderOfCompletedTask(task):
         # TODO: How to determine appropriate space/collection to associate dataset with?
 
         # Create dataset using globus ID
+        # TODO: Check if this exists first
         print("......creating dataset "+task['dataset'])
         ds = sess.post(clowderHost+"/api/datasets/createempty", headers={"Content-Type": "application/json"},
                   data='{"name": "%s"}' % task['dataset'])
 
+
         if ds.status_code == 200:
-            # Add local files to dataset by path
             dsid = ds.json()['id']
+
+            # TODO: Assign metadata to dataset level if available
+            if "md" in task:
+                #md = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata", data=task["md"])
+                pass
+
+            # Add local files to dataset by path
             for f in task['files']:
                 print("......adding file "+f['name'])
                 # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data

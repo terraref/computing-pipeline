@@ -45,6 +45,7 @@ pendingTransfers = {}
             "path": "file1",        ...file path, which is updated with path-on-disk once completed
             "md": {}                ...metadata to be associated with that file
         }, {...}, ...],
+    "md":                       metadata to be associated with dataset
     "started":                  timestamp when task was sent to Globus
     "completed":                timestamp when task was completed (including errors and cancelled tasks)
     "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
@@ -161,7 +162,9 @@ def getGantryFilesForTransfer(gantryDir):
     transferQueue = {}
 
     for root, dirs, files in os.walk(gantryDir):
-        datasetID = root.split("/")[-1]
+        # /sensorname/YYYY-MM-DD/YYMMDD_HHMMSS/ = "sensorname YYMMDD_HHMMSS"
+        pathParts = root.split("/")
+        datasetID = pathParts[-3]+" "+pathParts[-1]
 
         # Don't process this dataset again if it's already being transferred
         if datasetID not in activeTasks:
@@ -169,15 +172,15 @@ def getGantryFilesForTransfer(gantryDir):
 
             # Check whether file is already queued for transfer
             for f in foundFiles:
-                rootName = f.split("/")[-1]
-                if f != "" and (rootName not in pendingTransfers[datasetID]['files']):
-                    if rootName.find(".json") == -1 and rootName[0] != ".":
-                        transferQueue[datasetID]['files'][rootName] = {
-                            "name": rootName,
+                filename = f.replace(root,"")
+                if f != "" and (filename not in pendingTransfers[datasetID]['files']):
+                    if filename.find("metadata") == -1 and filename[0] != ".":
+                        transferQueue[datasetID]['files'][filename] = {
+                            "name": filename,
                             "md": {} # TODO: remove support for per-file metadata?
                         }
-                    elif rootName.find(".json") > -1:
-                        # Found a json file, consider it dataset metadata
+                    elif filename.find("metadata") > -1:
+                        # Found a metadata file, assume it is for dataset
                         transferQueue[datasetID]['md'] = loadJsonFile(f)
 
     return transferQueue
@@ -189,46 +192,49 @@ def initializeGlobusTransfers():
     # Each globus task corresponds to an eventual Clowder dataset
     for ds in pendingTransfers:
         # TODO: how to determine a whole dataset is ready?
-        # TODO: If we have dataset at time t, assume done if we have time t+1
 
-        # Prepare transfer object
-        transferObj = Transfer(submissionID,
-                               config['globus']['source_endpoint_id'],
-                               config['globus']['destination_endpoint_id'],
-                               label=ds)
-        for f in pendingTransfers[ds]['files']:
-            src_path = os.path.join(config['gantry']['incoming_files_path'], f["name"])
-            dest_path = os.path.join(config['globus']['destination_path'], f["name"]))
-            transferObj.add_item(src_path, dest_path)
+        if "files" in pendingTransfers[ds]:
+            # Prepare transfer object
+            transferObj = Transfer(submissionID,
+                                   config['globus']['source_endpoint_id'],
+                                   config['globus']['destination_endpoint_id'],
+                                   label=ds)
+            for f in pendingTransfers[ds]['files']:
+                src_path = os.path.join(config['gantry']['incoming_files_path'], f["name"])
+                dest_path = os.path.join(config['globus']['destination_path'], f["name"])
+                transferObj.add_item(src_path, dest_path)
 
-        # Send transfer to Globus
-        try:
-            api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-            status_code, status_message, transfer_data = api.transfer(transferObj)
-        except APIError:
-            # Try refreshing auth token and retrying
-            generateAuthToken()
-            api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-            status_code, status_message, transfer_data = api.transfer(transferObj)
+            # Send transfer to Globus
+            try:
+                api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+                status_code, status_message, transfer_data = api.transfer(transferObj)
+            except APIError:
+                # Try refreshing auth token and retrying
+                generateAuthToken()
+                api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+                status_code, status_message, transfer_data = api.transfer(transferObj)
 
-        # Notify NCSA monitor of new task, and add to activeTasks for logging
-        if status_code == 200 or status_code == 202:
-            globusID = transfer_data['task_id']
-            notifyMonitorOfNewTransfer(globusID, ds, pendingTransfers[ds]['files'])
+            # Notify NCSA monitor of new task, and add to activeTasks for logging
+            if status_code == 200 or status_code == 202:
+                globusID = transfer_data['task_id']
+                notifyMonitorOfNewTransfer(globusID, ds, pendingTransfers[ds]['files'])
 
-            activeTasks[ds] = {
-                "globus_id": globusID,
-                "dataset": ds,
-                "files": pendingTransfers[ds]['files]'],
-                "started": str(datetime.datetime.now()),
-                "status": "IN PROGRESS"
-            }
-            writeTasksToDisk(config['gantry']['active_path'], activeTasks)
+                activeTasks[ds] = {
+                    "globus_id": globusID,
+                    "dataset": ds,
+                    "files": pendingTransfers[ds]['files]'],
+                    "started": str(datetime.datetime.now()),
+                    "status": "IN PROGRESS"
+                }
+                writeTasksToDisk(config['gantry']['active_path'], activeTasks)
 
-            del pendingTransfers[ds]
-            writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
-        else:
-            print("[ERROR] globus initialization failed for "+ds+" ("+status_code+": "+status_message+")")
+                del pendingTransfers[ds]
+                writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
+            else:
+                print("[ERROR] globus initialization failed for "+ds+" ("+status_code+": "+status_message+")")
+        elif "md" in pendingTransfers[ds]:
+            # We have metadata for a dataset, but no files. Just send metadata.
+            sendMetadataToMonitor(ds, pendingTransfers[ds]['md'])
 
 """Send message to NCSA Globus monitor API that a new task has begun"""
 def notifyMonitorOfNewTransfer(globusID, datasetName, fileObj):
@@ -241,6 +247,20 @@ def notifyMonitorOfNewTransfer(globusID, datasetName, fileObj):
         "dataset": datasetName,
         "files": fileObj
     }))
+
+"""Send message to NCSA Globus monitor API with metadata for a dataset, without other files"""
+def sendMetadataToMonitor(datasetName, metadata):
+    sess = requests.Session()
+    sess.auth = (config['globus']['username'], config['globus']['password'])
+
+    # Check with Globus monitor rather than Globus itself, to make sure file was handled properly before deleting from src
+    status = sess.post(config['api']['host']+"/metadata", data=json.dumps({
+        "user": config['globus']['username'],
+        "dataset": datasetName,
+        "md": metadata
+    }))
+
+    return status
 
 """Contact NCSA Globus monitor API to check whether task was completed successfully"""
 def getTransferStatusFromMonitor(globusID):
