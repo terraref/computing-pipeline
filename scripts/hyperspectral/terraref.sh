@@ -463,16 +463,18 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     printf "2D  : ${att_fl}\n"
     printf "3D  : ${d23_fl}\n"
     hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
-    bnd_nbr=`grep 'bands' ${hdr_fl} | cut -d ' ' -f 3`
+    # Strip invisible and vexing DOS ^M characters from line with tr
+    bnd_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+    xdm_nbr=$(grep '^samples' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+    ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
     if [ $? -ne 0 ]; then
-	printf "${spt_nm}: ERROR Failed to find 'bands' in ${hdr_fl}. Debug grep command.\n"
+	printf "${spt_nm}: ERROR Failed to find bnd_nbr in ${hdr_fl}. Debug grep command.\n"
 	exit 1
     fi # !err
     if [ ${dbg_lvl} -ge 1 ]; then
-	echo "dbg: diagnosed band number bnd_nbr = ${bnd_nbr}"
+	echo "dbg: diagnosed band number bnd_nbr = ${bnd_nbr} (nothing invisible afterward)"
     fi # !dbg
-#    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s *bnd_nbr=${bnd_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${att_fl} ${d23_fl}"
-    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s bnd_nbr=926 -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${att_fl} ${d23_fl}"
+    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*bnd_nbr=${bnd_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${att_fl} ${d23_fl}"
     in_fl=${d23_fl}
     
     # Block 5 Loop 2: Execute and/or echo commands
