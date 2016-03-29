@@ -1,9 +1,10 @@
 {
   "gantry": {
     "incoming_files_path": "/home/gantry/data",
-    "pending_path": "pending_transfers.json",
-    "active_path": "active_tasks.json",
-    "completed_path": "completed",
+    "active_path": "active_tasks_gantry.json",
+    "pending_path": "pending_transfers_gantry.json",
+    "completed_path": "completed_gantry",
+    "deletion_queue": "/home/gantry/deleteme",
     "file_check_frequency": 120
   },
   "globus": {

@@ -171,6 +171,7 @@ class GlobusMonitor(restful.Resource):
             activeTasks[task['globus_id']] = {
                 "user": taskUser,
                 "globus_id": task['globus_id'],
+                "dataset": task['dataset'],
                 "files": filesObj,
                 "received": str(datetime.datetime.now()),
                 "completed": None,
@@ -305,9 +306,9 @@ def notifyClowderOfCompletedTask(task):
         # TODO: How to determine appropriate space/collection to associate dataset with?
 
         # Create dataset using globus ID
-        print("......creating dataset "+task['globus_id'])
+        print("......creating dataset "+task['dataset'])
         ds = sess.post(clowderHost+"/api/datasets/createempty", headers={"Content-Type": "application/json"},
-                  data='{"name": "%s"}' % task['globus_id'])
+                  data='{"name": "%s"}' % task['dataset'])
 
         if ds.status_code == 200:
             # Add local files to dataset by path
