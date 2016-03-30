@@ -1,7 +1,19 @@
 # TERRA-REF Computing Pipeline
 
-The computing pipeline is a data storage and computing system that provides researchers with access to all of the ‘raw’ data and derived plant phenotype
-___
+The computing pipeline is a data storage and computing system that provides researchers with access to all of the ‘raw’ data and derived plant phenotypes.
+
+### Computing Pipeline Development Team
+
+| Role | Name |
+|---|---|
+| Lead | [David LeBauer](https://github.com/dlebauer) | 
+| Danforth Lead | [Noah Fahlgren](https://github.com/nfahlgren) | 
+| Storage Architect | [JD Maloney](https://github.com/jdmaloney) | 
+| Senior Programmer | [Rob Kooper](https://github.com/robkooper) |
+| CyberGIS Senior Programmer |  [Yan Liu](https://github.com/yanliu-chn) | 
+| ISDA Research Programmer |  [Max Burnette](https://github.com/max-zilla) |
+| Image Compression, UCI | [Charlie Zender](https://github.com/czender)| 
+| NDS Research Programmer | [Dora Cai](https://github.com/doracai)|
 
 ### Contact:
 
@@ -18,27 +30,11 @@ ___
 * [GitHub Issues](https://github.com/terraref/reference-data/issues)
 * [Chat Room](https://gitter.im/terraref/reference-data)
 
-___
-Computing Pipeline Development Team
 
-| Role | Name |
-|---|---|
-| Lead | [David LeBauer](https://github.com/dlebauer) | 
-| Danforth Lead | [Noah Fahlgren](https://github.com/nfahlgren) | 
-| Storage Architect | [JD Maloney](https://github.com/jdmaloney) | 
-| Senior Programmer | [Rob Kooper](https://github.com/robkooper) |
-| CyberGIS Senior Programmer |  [Yan Liu](https://github.com/yanliu-chn) | 
-| ISDA Research Programmer |  [Max Burnette](https://github.com/max-zilla) |
-| Image Compression, UCI | [Charlie Zender](https://github.com/czender)| 
-| NDS Research Programmer | [Dora Cai](https://github.com/doracai)|
+### License 
 
+Project wide - if any code or data do not have clear terms of reuse, please request that the author provide one. We use [UI NCSA Open Source License](https://opensource.org/licenses/NCSA), by default and also recommend [MIT](https://opensource.org/licenses/MIT) and [BSD](https://opensource.org/licenses/BSD-2-Clause)*
 
-___
-*Project wide - if any code or data do not have clear terms of reuse, please request that the author provide one. We use [UI NCSA Open Source License](https://opensource.org/licenses/NCSA), by default and also recommend [MIT](https://opensource.org/licenses/MIT) and [BSD](https://opensource.org/licenses/BSD-2-Clause)*
-
-
-
-___
 <a href="http://creativecommons.org/licenses/by/4.0/" rel=
     "license"><img alt="Creative Commons License" src=
     "https://i.creativecommons.org/l/by/4.0/88x31.png" style=
