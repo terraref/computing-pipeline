@@ -25,7 +25,7 @@ Computing Pipeline Development Team
 
 
 ___
-*Project wide - if any code or data do not have clear terms of reuse, please request that the author provide one. We use [UI NCSA Open Source License](https://opensource.org/licenses/NCSA), by default and also recommend [MIT[(https://opensource.org/licenses/MIT) and [BSD](https://opensource.org/licenses/BSD-2-Clause)*
+*Project wide - if any code or data do not have clear terms of reuse, please request that the author provide one. We use [UI NCSA Open Source License](https://opensource.org/licenses/NCSA), by default and also recommend [MIT](https://opensource.org/licenses/MIT) and [BSD](https://opensource.org/licenses/BSD-2-Clause)*
 
 
 
