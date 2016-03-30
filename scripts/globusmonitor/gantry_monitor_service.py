@@ -20,6 +20,8 @@
 
 import os, shutil, json, time, datetime, thread, copy, subprocess
 import requests
+from flask import Flask, request, Response
+from flask.ext import restful
 from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIError, goauth
 
 
@@ -54,6 +56,9 @@ pendingTransfers = {}
     "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
 }, {...}, {...}, ...}"""
 activeTasks = {}
+
+app = Flask(__name__)
+api = restful.Api(app)
 
 # ----------------------------------------------------------
 # SHARED UTILS
@@ -130,6 +135,56 @@ def moveLocalFile(srcPath, destPath, filename):
     shutil.move(os.path.join(srcPath, filename),
                 os.path.join(destPath, filename))
 
+"""Clear out any datasets from pendingTransfers without files or metadata"""
+def cleanPendingTransfers():
+    toRemove = []
+    for ds in pendingTransfers:
+        keep = False
+        if 'files' in pendingTransfers[ds]:
+            keep = pendingTransfers[ds]['files'] != {}
+        if 'md' in pendingTransfers[ds]:
+            keep = pendingTransfers[ds]['md'] != {}
+        if not keep:
+            toRemove.append(ds)
+
+    for ds in toRemove:
+        del pendingTransfers[ds]
+
+# ----------------------------------------------------------
+# API COMPONENTS
+# ----------------------------------------------------------
+"""Add metadata to a dataset without requiring files"""
+class TransferQueue(restful.Resource):
+
+    def post(self):
+        req = request.get_json(force=True)
+        f = req['path']
+
+        gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
+        pathParts = gantryDirPath.split("/")
+        filename = pathParts[-1]
+        sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
+        timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
+        datasetID = sensorname +" "+timestamp
+        gantryDirPath = gantryDirPath.replace(filename, "")
+
+        pendingTransfers.update({
+            datasetID: {
+                 "files": {
+                     filename: {
+                         "name": filename,
+                         "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath
+                     }
+                 }
+            }
+        })
+        print("[API] queued for transfer: "+f)
+
+        return 201
+
+# Add a new file that is ready for the next transfer
+api.add_resource(TransferQueue, '/files')
+
 # ----------------------------------------------------------
 # SERVICE COMPONENTS
 # ----------------------------------------------------------
@@ -192,7 +247,7 @@ def getGantryFilesForTransfer(gantryDir):
                 # TODO: Check for .json file with same name as current file - assume metadata if so
                 transferQueue[datasetID]['files'][filename] = {
                     "name": filename,
-                    "path": gantryDirPath[1:] # remove leading /
+                    "path": gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
                     # "md": {}, only include md key if present
                     # "md_name": "" metadata filename
                     # "md_path": "" metadata folder
@@ -270,7 +325,7 @@ def notifyMonitorOfNewTransfer(globusID, contents):
     sess = requests.Session()
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
-    sess.post(config['api']['host']+"/tasks", data=json.dumps({
+    sess.post(config['ncsa_api']['host']+"/tasks", data=json.dumps({
         "user": config['globus']['username'],
         "globus_id": globusID,
         "contents": contents
@@ -282,7 +337,7 @@ def sendMetadataToMonitor(datasetName, metadata):
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
     # Check with Globus monitor rather than Globus itself, to make sure file was handled properly before deleting from src
-    status = sess.post(config['api']['host']+"/metadata", data=json.dumps({
+    status = sess.post(config['ncsa_api']['host']+"/metadata", data=json.dumps({
         "user": config['globus']['username'],
         "dataset": datasetName,
         "md": metadata
@@ -296,7 +351,7 @@ def getTransferStatusFromMonitor(globusID):
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
     # Check with Globus monitor rather than Globus itself, to make sure file was handled properly before deleting from src
-    st = sess.get(config['api']['host']+"/tasks/"+globusID)
+    st = sess.get(config['ncsa_api']['host']+"/tasks/"+globusID)
 
     if st.status_code == 200:
         return json.loads(st.text)['status']
@@ -320,7 +375,7 @@ def filenameInActiveTasks(filename):
 def gantryMonitorLoop():
     # Prepare timers for tracking how often different refreshes are executed
     gantryWait = config['gantry']['file_check_frequency'] # look for new files to send
-    apiWait = config['api']['api_check_frequency'] # check status of sent files
+    apiWait = config['ncsa_api']['api_check_frequency'] # check status of sent files
     authWait = config['globus']['authentication_refresh_frequency_secs'] # renew globus auth
 
     while True:
@@ -331,10 +386,12 @@ def gantryMonitorLoop():
 
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if gantryWait <= 0:
-            pendingTransfers.update(
-                    getGantryFilesForTransfer(config['gantry']['incoming_files_path']))
-            #writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
-            if pendingTransfers != {}: initializeGlobusTransfers()
+            #pendingTransfers.update(
+            #        getGantryFilesForTransfer(config['gantry']['incoming_files_path']))
+            cleanPendingTransfers()
+            if pendingTransfers != {}:
+                writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
+                initializeGlobusTransfers()
             # Reset wait to check gantry incoming directory again
             gantryWait = config['gantry']['file_check_frequency']
 
@@ -377,12 +434,12 @@ def gantryMonitorLoop():
                     writeTasksToDisk(config['gantry']['active_path'], activeTasks)
 
             # Reset timer to check NCSA api for transfer updates again
-            apiWait = config['api']['api_check_frequency']
+            apiWait = config['ncsa_api']['api_check_frequency']
 
         # Refresh Globus auth tokens
         if authWait <= 0:
             generateAuthToken()
-            authWait = config['api']['authentication_refresh_frequency_secs']
+            authWait = config['globus']['authentication_refresh_frequency_secs']
 
 
 if __name__ == '__main__':
@@ -396,4 +453,8 @@ if __name__ == '__main__':
 
     # Create thread for service to begin monitoring
     print("*** Service now monitoring gantry directory ***")
-    gantryMonitorLoop()
+    thread.start_new_thread(gantryMonitorLoop, ())
+
+    # Create thread for API to begin listening - requires valid Globus user/pass
+    print("API now listening on port "+config['api']['port'])
+    app.run(host="0.0.0.0", port=int(config['api']['port']), debug=False)

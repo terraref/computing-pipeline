@@ -50,7 +50,6 @@ activeTasks = {}
 app = Flask(__name__)
 api = restful.Api(app)
 
-
 # ----------------------------------------------------------
 # SHARED UTILS
 # ----------------------------------------------------------
@@ -122,7 +121,10 @@ def writeCompletedTaskToDisk(task):
 
 """Find dataset id if dataset exists, creating if necessary"""
 def fetchDatasetByName(datasetName, sess):
-    # TODO: Check if this exists first
+    # TODO: Check if this exists first - how?
+    #   Need a lookup table for datasetName -> clowder UUID in completed files?
+    #   Use collection/getDatasets and look at ds names there?
+
     print("......creating dataset "+datasetName)
     ds = sess.post(config['clowder']['host']+"/api/datasets/createempty", headers={"Content-Type": "application/json"},
                    data='{"name": "%s"}' % datasetName)
@@ -178,27 +180,10 @@ class GlobusMonitor(restful.Resource):
         if taskUser in config['globus']['valid_users']:
             print("[TASK] now monitoring task from "+taskUser+": "+task['globus_id'])
 
-            # Convert object structure from gantry into one we want (i.e. without gantry paths)
-            contents = {}
-            for ds in task['contents']:
-                contents[ds] = {}
-                if 'md' in task['contents'][ds]:
-                    contents[ds]['md'] = task['contents'][ds]['md']
-                if 'files' in task['contents'][ds]:
-                    contents[ds]['files'] = {}
-                    for f in task['contents'][ds]['files']:
-                        fdata = task['contents'][ds]['files'][f]
-                        contents[ds]['files'][fdata['name']] = {
-                            "name": fdata['name'],
-                            "path": fdata['path']
-                        }
-                        if 'md' in fdata:
-                            contents[ds]['files'][fdata['name']]['md'] = fdata['md']
-
             activeTasks[task['globus_id']] = {
                 "user": taskUser,
                 "globus_id": task['globus_id'],
-                "contents": contents,
+                "contents": task['contents'],
                 "received": str(datetime.datetime.now()),
                 "completed": None,
                 "status": "IN PROGRESS"
@@ -256,9 +241,15 @@ class MetadataLoader(restful.Resource):
         sess.auth = (clowderUser, clowderPass)
 
         dsid = fetchDatasetByName(req['dataset'], sess)
-        sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata", data=req['md'])
+        print("......adding metadata to dataset "+dsid)
+        dsmd = sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata",
+                         headers={'Content-Type':'application/json'},
+                         data=json.dumps(req['md']))
 
-        return 201
+        if dsmd.status_code != 200:
+            print("[ERROR] cannot add metadata ("+str(dsmd.status_code)+")")
+
+        return dsmd.status_code
 
 # Add a new Globus id that should be monitored
 api.add_resource(GlobusMonitor, '/tasks')
@@ -322,7 +313,6 @@ def globusMonitorLoop():
                     if 'files' in task['contents'][ds]:
                         for f in task['contents'][ds]['files']:
                             fobj = task['contents'][ds]['files'][f]
-                            # TODO: Handle nesting of folders somehow
                             fobj['path'] = os.path.join(config['globus']['incoming_files_path'], fobj['path'], fobj["name"])
 
                 # Notify Clowder to process file if transfer successful
@@ -354,7 +344,6 @@ def notifyClowderOfCompletedTask(task):
         sess = requests.Session()
         sess.auth = (clowderUser, clowderPass)
 
-        # TODO: figure out this loop - should be over datasets, then files
         for ds in task['contents']:
             dsid = fetchDatasetByName(ds, sess)
 

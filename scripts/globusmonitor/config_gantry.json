@@ -15,8 +15,11 @@
     "destination_path": "/~/globus",
     "authentication_refresh_frequency_secs": 43200
   },
-  "api": {
+  "ncsa_api": {
     "host": "http://localhost:5454",
-    "api_check_frequency": 60
+    "api_check_frequency": 180
+  },
+  "api": {
+    "port": "5455"
   }
 }
