@@ -181,18 +181,19 @@ class GlobusMonitor(restful.Resource):
             # Convert object structure from gantry into one we want (i.e. without gantry paths)
             contents = {}
             for ds in task['contents']:
-                print("..."+ds)
                 contents[ds] = {}
                 if 'md' in task['contents'][ds]:
                     contents[ds]['md'] = task['contents'][ds]['md']
                 if 'files' in task['contents'][ds]:
                     contents[ds]['files'] = {}
                     for f in task['contents'][ds]['files']:
-                        print("......"+f)
                         fdata = task['contents'][ds]['files'][f]
                         contents[ds]['files'][fdata['name']] = {
                             "name": fdata['name'],
+                            "path": fdata['path']
                         }
+                        if 'md' in fdata:
+                            contents[ds]['files'][fdata['name']]['md'] = fdata['md']
 
             activeTasks[task['globus_id']] = {
                 "user": taskUser,
@@ -318,8 +319,11 @@ def globusMonitorLoop():
                 task['status'] = globusStatus
                 task['completed'] = str(datetime.datetime.now())
                 for ds in task['contents']:
+                    if 'files' in task['contents'][ds]:
                         for f in task['contents'][ds]['files']:
+                            fobj = task['contents'][ds]['files'][f]
                             # TODO: Handle nesting of folders somehow
+                            fobj['path'] = os.path.join(config['globus']['incoming_files_path'], fobj['path'], fobj["name"])
 
                 # Notify Clowder to process file if transfer successful
                 if globusStatus == "SUCCEEDED":
@@ -351,15 +355,29 @@ def notifyClowderOfCompletedTask(task):
         sess.auth = (clowderUser, clowderPass)
 
         # TODO: figure out this loop - should be over datasets, then files
+        for ds in task['contents']:
+            dsid = fetchDatasetByName(ds, sess)
 
             # Assign dataset-level metadata if available
             if "md" in task['contents'][ds]:
+                print("......adding metadata to dataset "+ds)
+                dsmd = sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata",
+                          headers={'Content-Type':'application/json'},
+                          data=json.dumps(task['contents'][ds]['md']))
+
+                if dsmd.status_code != 200:
+                    print("[ERROR] cannot add metadata ("+str(dsmd.status_code)+")")
 
             # Add local files to dataset by path
             for f in task['contents'][ds]['files']:
+                fobj = task['contents'][ds]['files'][f]
+                print("......adding file "+fobj['name']+" to "+ds)
                 # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
                 (content, header) = encode_multipart_formdata([
+                    ("file",'{"path":"%s"%s}' % (fobj['path'],
+                                        ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else ""))
                 ])
+
                 fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid, data=content, headers={'Content-Type':header})
 
                 if fi.status_code != 200:
