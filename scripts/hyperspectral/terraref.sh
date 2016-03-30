@@ -474,6 +474,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     if [ ${dbg_lvl} -ge 1 ]; then
 	echo "dbg: diagnosed band number bnd_nbr = ${bnd_nbr} (nothing invisible afterward)"
     fi # !dbg
+#    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncks -4 -O -D 73 --trr_wxy=${bnd_nbr},${xdm_nbr},${ydm_nbr} ${att_fl} ${d23_fl}"
     cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*bnd_nbr=${bnd_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${att_fl} ${d23_fl}"
     in_fl=${d23_fl}
     
