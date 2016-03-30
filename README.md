@@ -5,7 +5,7 @@ The computing pipeline is a data storage and computing system that provides rese
 ### Contact:
 
 * [Website](https://terraref.ncsa.illinois.edu)
-* [email](mailto:dlebauer@illinois.edu)
+* email: dlebauer@illinois.edu
 * [GitHub Issues](https://github.com/terraref/computing-pipeline/issues)
 * [Chat Room](https://gitter.im/terraref/computing-pipeline)
 
