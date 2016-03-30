@@ -2,36 +2,21 @@
 
 The computing pipeline is a data storage and computing system that provides researchers with access to all of the ‘raw’ data and derived plant phenotypes.
 
-### Computing Pipeline Development Team
-
-| Role | Name |
-|---|---|
-| Lead | [David LeBauer](https://github.com/dlebauer) | 
-| Danforth Lead | [Noah Fahlgren](https://github.com/nfahlgren) | 
-| Storage Architect | [JD Maloney](https://github.com/jdmaloney) | 
-| Senior Programmer | [Rob Kooper](https://github.com/robkooper) |
-| CyberGIS Senior Programmer |  [Yan Liu](https://github.com/yanliu-chn) | 
-| ISDA Research Programmer |  [Max Burnette](https://github.com/max-zilla) |
-| Image Compression, UCI | [Charlie Zender](https://github.com/czender)| 
-| NDS Research Programmer | [Dora Cai](https://github.com/doracai)|
-
 ### Contact:
 
 * [Website](https://terraref.ncsa.illinois.edu)
 * [email](mailto:dlebauer@illinois.edu)
-
-#### Computing Pipeline
-
 * [GitHub Issues](https://github.com/terraref/computing-pipeline/issues)
 * [Chat Room](https://gitter.im/terraref/computing-pipeline)
 
-#### Reference Data Products
+
+To provide input on reference data products and support for existing standards and software, please visit the [Reference Data GitHub repository](https://github.com/terraref/reference-data).
 
 * [GitHub Issues](https://github.com/terraref/reference-data/issues)
 * [Chat Room](https://gitter.im/terraref/reference-data)
 
 
-### License 
+### Terms of Use 
 
 Project wide - if any code or data do not have clear terms of reuse, please request that the author provide one. We use [UI NCSA Open Source License](https://opensource.org/licenses/NCSA), by default and also recommend [MIT](https://opensource.org/licenses/MIT) and [BSD](https://opensource.org/licenses/BSD-2-Clause)*
 
