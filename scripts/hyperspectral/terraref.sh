@@ -93,6 +93,7 @@ gdl_flg='No' # [sng] GDAL translate raw data to netCDF
 jsn_flg='Yes' # [sng] Parse metadata from JSON to netCDF
 mrg_flg='Yes' # [sng] Merge JSON metadata with data
 n34_flg='Yes' # [sng] Convert netCDF3 to netCDF4
+pdq_flg='No' # [sng] Compress and/or pack data
 rip_flg='Yes' # [sng] Move to final resting place
 trn_flg='Yes' # [sng] Translate flag
 xpt_flg='No' # [sng] Experimental flag
@@ -101,6 +102,7 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     # Print usage
     printf "\nComplete documentation for ${fnt_bld}${spt_nm}${fnt_nrm} at https://github.com/terraref/computing-pipeline\n\n"
     printf "${fnt_rvr}Basic usage:${fnt_nrm} ${fnt_bld}$spt_nm -i in_fl -o out_fl${fnt_nrm}\n\n"
+    echo "${fnt_rvr}-c${fnt_nrm} ${fnt_bld}dfl_lvl${fnt_nrm}  Compression deflate level (default ${fnt_bld}${dfl_lvl}${fnt_nrm})"
     echo "${fnt_rvr}-d${fnt_nrm} ${fnt_bld}dbg_lvl${fnt_nrm}  Debugging level (default ${fnt_bld}${dbg_lvl}${fnt_nrm})"
     echo "${fnt_rvr}-g${fnt_nrm} ${fnt_bld}gdl_flg${fnt_nrm}  GDAL translates ENVI to netCDF (default ${fnt_bld}${gdl_flg}${fnt_nrm})"
     echo "${fnt_rvr}-I${fnt_nrm} ${fnt_bld}drc_in${fnt_nrm}   Input directory (empty means none) (default ${fnt_bld}${drc_in}${fnt_nrm})"
@@ -136,6 +138,7 @@ fi # !arg_nbr
 cmd_ln="${spt_nm} ${@}"
 while getopts :d:gI:i:j:n:O:o:p:U:u:x OPT; do
     case ${OPT} in
+	c) dfl_lvl=${OPTARG} ;; # Compression deflate level
 	d) dbg_lvl=${OPTARG} ;; # Debugging level
 	g) gdl_flg='Yes' ;; # GDAL translate
 	I) drc_in=${OPTARG} ;; # Input directory
@@ -181,6 +184,7 @@ d23_fl="${drc_tmp}/terraref_tmp_d23.nc" # [sng] 2D->3D file
 jsn_fl="${drc_tmp}/terraref_tmp_jsn.nc" # [sng] JSON file
 mrg_fl="${drc_tmp}/terraref_tmp_mrg.nc" # [sng] Merge file
 n34_fl="${drc_tmp}/terraref_tmp_n34.nc" # [sng] netCDF3->netCDF4 file
+pdq_fl="${drc_tmp}/terraref_tmp_pdq.nc" # [sng] Compress/pack file
 tmp_fl="${drc_tmp}/${tmp_fl}" # [sng] Temporary output file
 trn_fl="${drc_tmp}/terraref_tmp_trn.nc" # [sng] Translate file
 
@@ -200,9 +204,13 @@ d23_fl=${d23_fl}${unq_sfx}
 jsn_fl=${jsn_fl}${unq_sfx}
 mrg_fl=${mrg_fl}${unq_sfx}
 n34_fl=${n34_fl}${unq_sfx}
+pdq_fl=${pdq_fl}${unq_sfx}
 tmp_fl=${tmp_fl}${unq_sfx}
 trn_fl=${trn_fl}${unq_sfx}
 
+if [ -n "${dfl_lvl}" ]; then
+    pdq_flg='Yes'
+fi # !dfl_lvl
 if [ -z "${drc_in}" ]; then
     drc_in="${drc_pwd}"
 else # !drc_in
@@ -498,6 +506,27 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    fi # !err
 	fi # !dbg
     fi # !mrg_flg
+
+    # Compress and/or pack final data file
+    if [ "${pdq_flg}" = 'Yes' ]; then
+	pdq_in=${mrg_out}
+	pdq_out=${pdq_fl}
+	printf "pdq(in)  : ${pdq_in}\n"
+	printf "pdq(out) : ${pdq_out}\n"
+	pdq_fl=${n34_fl}
+	cmd_pdq[${fl_idx}]="ncpdq -P -L ${dfl_lvl} ${pdq_in} ${pdq_out}"
+	in_fl=${pdq_out}
+	if [ ${dbg_lvl} -ge 1 ]; then
+	    echo ${cmd_pdq[${fl_idx}]}
+	fi # !dbg
+	if [ ${dbg_lvl} -ne 2 ]; then
+	    eval ${cmd_pdq[${fl_idx}]}
+	    if [ $? -ne 0 ] || [ ! -f ${pdq_out} ]; then
+		printf "${spt_nm}: ERROR Failed to compress and/or pack data. Debug this:\n${cmd_pdq[${fl_idx}]}\n"
+		exit 1
+	    fi # !err
+	fi # !dbg
+    fi # !pdq_flg
 
     # Move file to final resting place
     if [ "${rip_flg}" = 'Yes' ]; then
