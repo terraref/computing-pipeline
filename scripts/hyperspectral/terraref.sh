@@ -89,16 +89,20 @@ out_fl=${in_fl/_raw/.nc4} # [sng] Output file name
 # Default workflow stages
 att_flg='Yes' # [sng] Add workflow-specific metadata
 d23_flg='Yes' # [sng] Convert 2D->3D
+gdl_flg='No' # [sng] GDAL translate raw data to netCDF
 jsn_flg='Yes' # [sng] Parse metadata from JSON to netCDF
 mrg_flg='Yes' # [sng] Merge JSON metadata with data
 n34_flg='Yes' # [sng] Convert netCDF3 to netCDF4
-trn_flg='Yes' # [sng] Translate raw data to netCDF
+rip_flg='Yes' # [sng] Move to final resting place
+trn_flg='Yes' # [sng] Translate flag
+xpt_flg='No' # [sng] Experimental flag
 
 function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_nm{} syntax
     # Print usage
     printf "\nComplete documentation for ${fnt_bld}${spt_nm}${fnt_nrm} at https://github.com/terraref/computing-pipeline\n\n"
     printf "${fnt_rvr}Basic usage:${fnt_nrm} ${fnt_bld}$spt_nm -i in_fl -o out_fl${fnt_nrm}\n\n"
     echo "${fnt_rvr}-d${fnt_nrm} ${fnt_bld}dbg_lvl${fnt_nrm}  Debugging level (default ${fnt_bld}${dbg_lvl}${fnt_nrm})"
+    echo "${fnt_rvr}-g${fnt_nrm} ${fnt_bld}gdl_flg${fnt_nrm}  GDAL translates ENVI to netCDF (default ${fnt_bld}${gdl_flg}${fnt_nrm})"
     echo "${fnt_rvr}-I${fnt_nrm} ${fnt_bld}drc_in${fnt_nrm}   Input directory (empty means none) (default ${fnt_bld}${drc_in}${fnt_nrm})"
     echo "${fnt_rvr}-i${fnt_nrm} ${fnt_bld}in_fl${fnt_nrm}    Input filename (default ${fnt_bld}${in_fl}${fnt_nrm})"
     echo "${fnt_rvr}-j${fnt_nrm} ${fnt_bld}job_nbr${fnt_nrm}  Job simultaneity for parallelism (default ${fnt_bld}${job_nbr}${fnt_nrm})"
@@ -106,8 +110,8 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     echo "${fnt_rvr}-O${fnt_nrm} ${fnt_bld}drc_out${fnt_nrm}  Output directory (default ${fnt_bld}${drc_out}${fnt_nrm})"
     echo "${fnt_rvr}-o${fnt_nrm} ${fnt_bld}out_fl${fnt_nrm}   Output-file (empty copies Input filename) (default ${fnt_bld}${out_fl}${fnt_nrm})"
     echo "${fnt_rvr}-p${fnt_nrm} ${fnt_bld}par_typ${fnt_nrm}  Parallelism type (default ${fnt_bld}${par_typ}${fnt_nrm})"
-    echo "${fnt_rvr}-t${fnt_nrm} ${fnt_bld}trn_flg${fnt_nrm}  Translate ENVI to netCDF with gdal (default ${fnt_bld}${trn_flg}${fnt_nrm})"
     echo "${fnt_rvr}-u${fnt_nrm} ${fnt_bld}unq_sfx${fnt_nrm}  Unique suffix (prevents intermediate files from sharing names) (default ${fnt_bld}${unq_sfx}${fnt_nrm})"
+    echo "${fnt_rvr}-x${fnt_nrm} ${fnt_bld}xpt_flg${fnt_nrm}  Experimental (default ${fnt_bld}${xpt_flg}${fnt_nrm})"
     printf "\n"
     printf "Examples: ${fnt_bld}$spt_nm -i ${in_xmp} -o ${out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -I ${drc_in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
@@ -130,9 +134,10 @@ fi # !arg_nbr
 # http://stackoverflow.com/questions/402377/using-getopts-in-bash-shell-script-to-get-long-and-short-command-line-options
 # http://tuxtweaks.com/2014/05/bash-getopts
 cmd_ln="${spt_nm} ${@}"
-while getopts :d:I:i:j:n:O:o:p:tU:u: OPT; do
+while getopts :d:gI:i:j:n:O:o:p:U:u:x OPT; do
     case ${OPT} in
 	d) dbg_lvl=${OPTARG} ;; # Debugging level
+	g) gdl_flg='Yes' ;; # GDAL translate
 	I) drc_in=${OPTARG} ;; # Input directory
 	i) in_fl=${OPTARG} ;; # Input file
 	j) job_usr=${OPTARG} ;; # Job simultaneity
@@ -140,9 +145,9 @@ while getopts :d:I:i:j:n:O:o:p:tU:u: OPT; do
 	O) drc_usr=${OPTARG} ;; # Output directory
 	o) out_fl=${OPTARG} ;; # Output file
 	p) par_typ=${OPTARG} ;; # Parallelism type
-	t) trn_flg='No' ;; # Translate flag
 	U) tmp_usr=${OPTARG} ;; # Temporary directory
 	u) unq_usr=${OPTARG} ;; # Unique suffix
+	x) xpt_flg='Yes' ;; # EXperimental
 	\?) # Unrecognized option
 	    printf "\nERROR: Option ${fnt_bld}-$OPTARG${fnt_nrm} not allowed"
 	    fnc_usg_prn ;;
@@ -398,9 +403,26 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	trn_out="${trn_fl}"
 	printf "trn(in)  : ${trn_in}\n"
 	printf "trn(out) : ${trn_out}\n"
-#	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 4 input by outputting NC_FLOAT
-	cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 12 input by outputting NC_USHORT
-	hst_att="`date`: ${cmd_ln};${cmd_trn[${fl_idx}]}"
+	if [ "${gdl_flg}" = 'Yes' ]; then
+	    #	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 4 input by outputting NC_FLOAT
+	    cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 12 input by outputting NC_USHORT
+	    hst_att="`date`: ${cmd_ln};${cmd_trn[${fl_idx}]}"
+	else # !GDAL
+	    hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
+	    # Strip invisible and vexing DOS ^M characters from line with tr
+	    bnd_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	    xdm_nbr=$(grep '^samples' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	    ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	    if [ $? -ne 0 ]; then
+		printf "${spt_nm}: ERROR Failed to find bnd_nbr in ${hdr_fl}. Debug grep command.\n"
+		exit 1
+	    fi # !err
+	    if [ ${dbg_lvl} -ge 1 ]; then
+		echo "dbg: diagnosed band number bnd_nbr = ${bnd_nbr} (nothing invisible afterward)"
+	    fi # !dbg
+	    cmd_trn[${fl_idx}]="ncks -O -L 1 --trr_wxy=${bnd_nbr},${xdm_nbr},${ydm_nbr} --trr_in=${trn_in} ~/nco/data/in.nc ${trn_out}"
+	    hst_att="`date`: ${cmd_ln}"
+	fi # !GDAL
 	att_in="${trn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_trn[${fl_idx}]}
@@ -414,7 +436,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	fi # !dbg
     else # !trn_flg
 	att_in=${fl_in[$fl_idx]/_raw/_raw.nc}
-	hst_att="`date`: ${cmd_ln};Skipped translation by GDAL"
+	hst_att="`date`: ${cmd_ln};Skipped translation step"
     fi # !trn_flg
     
     # Add workflow-specific metadata
@@ -422,7 +444,8 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	att_out="${att_fl}"
 	printf "att(in)  : ${att_in}\n"
 	printf "att(out) : ${att_out}\n"
-	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" -a \"GDAL_Band_.?,global,d,,\" --gaa history='${hst_att}' ${att_in} ${att_out}"
+#	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" -a \"GDAL_Band_.?,global,d,,\" --gaa history='${hst_att}' ${att_in} ${att_out}"
+	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" --gaa history='${hst_att}' ${att_in} ${att_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_att[${fl_idx}]}
 	fi # !dbg
@@ -441,99 +464,148 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	jsn_out="${jsn_fl}"
 	printf "jsn(in)  : ${jsn_in}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
-	cmd_jsn[${fl_idx}]="python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${jsn_in} ${jsn_fl}"
-	in_fl=${jsn_fl}
+	cmd_jsn[${fl_idx}]="python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${jsn_in} ${jsn_out}"
+	in_fl=${jsn_out}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_jsn[${fl_idx}]}
 	fi # !dbg
 	if [ ${dbg_lvl} -ne 2 ]; then
 	    eval ${cmd_jsn[${fl_idx}]}
-	    if [ $? -ne 0 ] || [ ! -f ${jsn_fl} ]; then
+	    if [ $? -ne 0 ] || [ ! -f ${jsn_out} ]; then
 		printf "${spt_nm}: ERROR Failed to parse JSON metadata. Debug this:\n${cmd_jsn[${fl_idx}]}\n"
 		exit 1
 	    fi # !err
 	fi # !dbg
     fi # !jsn_flg
 
-    # Block 5: Convert 2D->3D
-    # Combine 2D TR image data into single 3D variable
-    # Until then image is split into 926 (SWIR) or 955 (VNIR) variables, each the raster of one band
-    # Requires NCO version 4.5.6-alpha05 or newer
-    # fxm: currently this step is slow, and may need to be rewritten to dedicated routine
-    printf "2D  : ${att_fl}\n"
-    printf "3D  : ${d23_fl}\n"
-    hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
-    # Strip invisible and vexing DOS ^M characters from line with tr
-    bnd_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
-    xdm_nbr=$(grep '^samples' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
-    ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
-    if [ $? -ne 0 ]; then
-	printf "${spt_nm}: ERROR Failed to find bnd_nbr in ${hdr_fl}. Debug grep command.\n"
-	exit 1
-    fi # !err
-    if [ ${dbg_lvl} -ge 1 ]; then
-	echo "dbg: diagnosed band number bnd_nbr = ${bnd_nbr} (nothing invisible afterward)"
-    fi # !dbg
-#    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncks -4 -O -D 73 --trr_wxy=${bnd_nbr},${xdm_nbr},${ydm_nbr} ${att_fl} ${d23_fl}"
-    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*bnd_nbr=${bnd_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${att_fl} ${d23_fl}"
-    in_fl=${d23_fl}
-    
-    # Block 5 Loop 2: Execute and/or echo commands
-    if [ ${dbg_lvl} -ge 1 ]; then
-	echo ${cmd_d23[${fl_idx}]}
-    fi # !dbg
-    if [ ${dbg_lvl} -ne 2 ]; then
-	if [ -z "${par_opt}" ]; then
-	    eval ${cmd_d23[${fl_idx}]}
-	    if [ $? -ne 0 ] || [ ! -f ${d23_fl} ]; then
-		printf "${spt_nm}: ERROR Failed to convert 2D->3D. cmd_d23[${fl_idx}] failed. Debug this:\n${cmd_d23[${fl_idx}]}\n"
+    # Merge JSON metadata with data
+    if [ "${mrg_flg}" = 'Yes' ]; then
+	mrg_in=${jsn_out}
+	mrg_out=${att_fl}
+	printf "mrg(in)  : ${mrg_in}\n"
+	printf "mrg(out) : ${mrg_out}\n"
+	mrg_fl=${n34_fl}
+	cmd_mrg[${fl_idx}]="ncks -A ${mrg_in} ${mrg_out}"
+	in_fl=${mrg_out}
+	if [ ${dbg_lvl} -ge 1 ]; then
+	    echo ${cmd_mrg[${fl_idx}]}
+	fi # !dbg
+	if [ ${dbg_lvl} -ne 2 ]; then
+	    eval ${cmd_mrg[${fl_idx}]}
+	    if [ $? -ne 0 ] || [ ! -f ${mrg_out} ]; then
+		printf "${spt_nm}: ERROR Failed to merge JSON metadata with data file. Debug this:\n${cmd_mrg[${fl_idx}]}\n"
 		exit 1
 	    fi # !err
-	else # !par_typ
-	    eval ${cmd_d23[${fl_idx}]} ${par_opt}
-	    d23_pid[${fl_idx}]=$!
-	fi # !par_typ
-    fi # !dbg
+	fi # !dbg
+    fi # !mrg_flg
 
-    # Block 6: Wait
-    # Parallel processing (both Background and MPI) spawn simultaneous processes in batches of ${job_nbr}
-    # Once ${job_nbr} jobs are running, wait() for all to finish before issuing another batch
+    # Move file to final resting place
+    if [ "${rip_flg}" = 'Yes' ]; then
+	rip_in=${mrg_out}
+	rip_out=${out_fl}
+	printf "rip(in)  : ${rip_in}\n"
+	printf "rip(out) : ${rip_out}\n"
+	cmd_rip[${fl_idx}]="mv ${rip_in} ${rip_out}"
+	if [ ${dbg_lvl} -ge 1 ]; then
+	    echo ${cmd_rip[${fl_idx}]}
+	fi # !dbg
+	if [ ${dbg_lvl} -ne 2 ]; then
+	    eval ${cmd_rip[${fl_idx}]}
+	    if [ $? -ne 0 ] || [ ! -f ${rip_out} ]; then
+		printf "${spt_nm}: ERROR Failed to move file to final resting place. Debug this:\n${cmd_rip[${fl_idx}]}\n"
+		exit 1
+	    fi # !err
+	fi # !dbg
+    fi # !rip_flg
+
+    # 20160330: Entire block made obsolete by ncks conversion capability
+    # Keep in terraref.sh until wavelength capability re-implemented
+    if [ 0 -eq 1 ]; then
+	# Block 5: Convert 2D->3D
+	# Combine 2D TR image data into single 3D variable
+	# Until then image is split into up to 926 (SWIR) or 955 (VNIR) variables, each a one-band raster
+	# Requires NCO version 4.5.6-alpha05 or newer
+	# fxm: currently this step is slow, and may need to be rewritten to dedicated routine
+	d23_in=${att_fl}
+	d23_out=${d23_fl}
+	printf "2D  : ${d23_in}\n"
+	printf "3D  : ${d23_out}\n"
+	hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
+	# Strip invisible and vexing DOS ^M characters from line with tr
+	bnd_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	xdm_nbr=$(grep '^samples' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	if [ $? -ne 0 ]; then
+	    printf "${spt_nm}: ERROR Failed to find bnd_nbr in ${hdr_fl}. Debug grep command.\n"
+	    exit 1
+	fi # !err
+	if [ ${dbg_lvl} -ge 1 ]; then
+	    echo "dbg: diagnosed band number bnd_nbr = ${bnd_nbr} (nothing invisible afterward)"
+	fi # !dbg
+	#    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncks -4 -O -D 73 --trr_wxy=${bnd_nbr},${xdm_nbr},${ydm_nbr} ${d23_in} ${d23_out}"
+	cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*bnd_nbr=${bnd_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${d23_in} ${d23_out}"
+	in_fl=${d23_out}
+	
+	# Block 5 Loop 2: Execute and/or echo commands
+	if [ ${dbg_lvl} -ge 1 ]; then
+	    echo ${cmd_d23[${fl_idx}]}
+	fi # !dbg
+	if [ ${dbg_lvl} -ne 2 ]; then
+	    if [ -z "${par_opt}" ]; then
+		eval ${cmd_d23[${fl_idx}]}
+		if [ $? -ne 0 ] || [ ! -f ${d23_out} ]; then
+		    printf "${spt_nm}: ERROR Failed to convert 2D->3D. cmd_d23[${fl_idx}] failed. Debug this:\n${cmd_d23[${fl_idx}]}\n"
+		    exit 1
+		fi # !err
+	    else # !par_typ
+		eval ${cmd_d23[${fl_idx}]} ${par_opt}
+		d23_pid[${fl_idx}]=$!
+	    fi # !par_typ
+	fi # !dbg
+	
+	# Block 6: Wait
+	# Parallel processing (both Background and MPI) spawn simultaneous processes in batches of ${job_nbr}
+	# Once ${job_nbr} jobs are running, wait() for all to finish before issuing another batch
+	if [ -n "${par_opt}" ]; then
+	    let bch_idx=$((fl_idx / job_nbr))
+	    let bch_flg=$(((fl_idx+1) % job_nbr))
+	    if [ ${bch_flg} -eq 0 ]; then
+		if [ ${dbg_lvl} -ge 1 ]; then
+		    printf "${spt_nm}: Waiting for batch ${bch_idx} to finish at fl_idx = ${fl_idx}...\n"
+		fi # !dbg
+		for ((pid_idx=${idx_srt};pid_idx<=${idx_end};pid_idx++)); do
+		    wait ${d23_pid[${pid_idx}]}
+		    if [ $? -ne 0 ]; then
+			printf "${spt_nm}: ERROR Failed to convert 2D->3D. cmd_d23[${pid_idx}] failed. Debug this:\n${cmd_d23[${pid_idx}]}\n"
+			exit 1
+		    fi # !err
+		done # !pid_idx
+		let idx_srt=$((idx_srt + job_nbr))
+		let idx_end=$((idx_end + job_nbr))
+	    fi # !bch_flg
+	fi # !par_typ
+    fi # !0
+    
+done # !fl_idx
+
+# 20160330: Entire block made obsolete by ncks conversion capability
+# Keep in terraref.sh until wavelength capability re-implemented
+if [ 0 -eq 1 ]; then
+    # Parallel mode will often exit loop after a partial batch, wait() for remaining jobs to finish
     if [ -n "${par_opt}" ]; then
-	let bch_idx=$((fl_idx / job_nbr))
-	let bch_flg=$(((fl_idx+1) % job_nbr))
-	if [ ${bch_flg} -eq 0 ]; then
-	    if [ ${dbg_lvl} -ge 1 ]; then
-		printf "${spt_nm}: Waiting for batch ${bch_idx} to finish at fl_idx = ${fl_idx}...\n"
-	    fi # !dbg
-	    for ((pid_idx=${idx_srt};pid_idx<=${idx_end};pid_idx++)); do
+	let bch_flg=$((fl_nbr % job_nbr))
+	if [ ${bch_flg} -ne 0 ]; then
+	    let bch_idx=$((bch_idx+1))
+	    printf "${spt_nm}: Waiting for (partial) batch ${bch_idx} to finish...\n"
+	    for ((pid_idx=${idx_srt};pid_idx<${fl_nbr};pid_idx++)); do
 		wait ${d23_pid[${pid_idx}]}
 		if [ $? -ne 0 ]; then
 		    printf "${spt_nm}: ERROR Failed to convert 2D->3D. cmd_d23[${pid_idx}] failed. Debug this:\n${cmd_d23[${pid_idx}]}\n"
 		    exit 1
 		fi # !err
 	    done # !pid_idx
-	    let idx_srt=$((idx_srt + job_nbr))
-	    let idx_end=$((idx_end + job_nbr))
 	fi # !bch_flg
     fi # !par_typ
-    
-done # !fl_idx
-
-# Parallel mode will often exit loop after a partial batch, wait() for remaining jobs to finish
-if [ -n "${par_opt}" ]; then
-    let bch_flg=$((fl_nbr % job_nbr))
-    if [ ${bch_flg} -ne 0 ]; then
-	let bch_idx=$((bch_idx+1))
-	printf "${spt_nm}: Waiting for (partial) batch ${bch_idx} to finish...\n"
-	for ((pid_idx=${idx_srt};pid_idx<${fl_nbr};pid_idx++)); do
-	    wait ${d23_pid[${pid_idx}]}
-	    if [ $? -ne 0 ]; then
-		printf "${spt_nm}: ERROR Failed to convert 2D->3D. cmd_d23[${pid_idx}] failed. Debug this:\n${cmd_d23[${pid_idx}]}\n"
-		exit 1
-	    fi # !err
-	done # !pid_idx
-    fi # !bch_flg
-fi # !par_typ
 
 # Final loop, in serial mode, to finish processing
 for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
@@ -564,17 +636,18 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 
     # Convert netCDF3 to netCDF4
     if [ "${n34_flg}" = 'Yes' ]; then
-	printf "n34(in)  : ${d23_fl}\n"
-	printf "n34(out) : ${out_fl}\n"
-	n34_fl=${out_fl}
-	cmd_n34[${fl_idx}]="ncks -O -4 ${d23_fl} ${n34_fl}"
+	n34_in=${d23_out}
+	n34_out=${out_fl}
+	printf "n34(in)  : ${n34_in}\n"
+	printf "n34(out) : ${n34_out}\n"
+	cmd_n34[${fl_idx}]="ncks -O -4 ${n34_in} ${n34_out}"
 	in_fl=${n34_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_n34[${fl_idx}]}
 	fi # !dbg
 	if [ ${dbg_lvl} -ne 2 ]; then
 	    eval ${cmd_n34[${fl_idx}]}
-	    if [ $? -ne 0 ] || [ ! -f ${n34_fl} ]; then
+	    if [ $? -ne 0 ] || [ ! -f ${n34_out} ]; then
 		printf "${spt_nm}: ERROR Failed to convert netCDF3 to netCDF4. Debug this:\n${cmd_n34[${fl_idx}]}\n"
 		exit 1
 	    fi # !err
@@ -583,10 +656,12 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     
     # Merge JSON metadata with data
     if [ "${mrg_flg}" = 'Yes' ]; then
-	printf "mrg(in)  : ${jsn_fl}\n"
-	printf "mrg(out) : ${n34_fl}\n"
+	mrg_in=${jsn_out}
+	mrg_out=${n34_out}
+	printf "mrg(in)  : ${mrg_in}\n"
+	printf "mrg(out) : ${mrg_out}\n"
 	mrg_fl=${n34_fl}
-	cmd_mrg[${fl_idx}]="ncks -A ${jsn_fl} ${mrg_fl}"
+	cmd_mrg[${fl_idx}]="ncks -A ${mrg_in} ${mrg_out}"
 	in_fl=${mrg_fl}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_mrg[${fl_idx}]}
@@ -601,6 +676,8 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     fi # !mrg_flg
 
 done # !fl_idx
+
+fi # !0
 
 if [ "${cln_flg}" = 'Yes' ]; then
     printf "Cleaning-up intermediate files...\n"

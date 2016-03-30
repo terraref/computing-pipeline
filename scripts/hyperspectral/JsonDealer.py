@@ -2,7 +2,7 @@
 
 '''
 Created on Feb 5, 2016
-This module will parse the json provided by LemnaTec and output a formatted netCDF file
+This module parses JSON provided by LemnaTec and outputs a formatted netCDF4 file
 
 @author: jeromemao
 ----------------------------------------------------------------------------------------
@@ -17,9 +17,8 @@ filePath2      is users' expected output location
 Example:
 python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/test_metadata.nc4
 ----------------------------------------------------------------------------------------
-It is version-independent, which means users can run it with either Python 2 or 3 
-(depend on the version of netCDF4). 
-Thanks for the advice from Professor Zender and sample data from Mr.LeBauer.
+This script is version-independent, and works with both Python 2 and 3, depending on the netCDF4 module version
+Thanks for the advice from Professor Zender and sample data from Dr. LeBauer.
 ----------------------------------------------------------------------------------------
 '''
 
@@ -97,13 +96,12 @@ class DataContainer(object):
 
 def _fileExistingCheck(filePath, dataContainer):
    '''
-   This method will check wheter the filePath has the same variable name as the dataContainer has. If so, 
-   user will decide whether skip or overwrite it (no append, 
-   since netCDF does not support the repeating variable names)
+   This method checks whether filePath has same variable name as dataContainer. 
+   If so, user decides whether skip or overwrite it (no append, since netCDF does not support the repeating variable names)
 
    Private to module members
    '''
-   userPrompt = 'Similar output had already existed; would you like to skip it or overwrite? (S, O)'
+   userPrompt = 'Output file already exists; skip it or overwrite? (S, O)'
 
    if os.path.exists(filePath):
       netCDFHandler = Dataset(filePath,'r',format='NETCDF4')
@@ -128,8 +126,8 @@ def _fileExistingCheck(filePath, dataContainer):
 
 def _isDigit(string):
    '''
-   This method will check whether the string can be convert to int or float
-   Similar to .isdight method in built-in string class, but python's will not check whether it is a float
+   This method checks whether string can convert to int or float
+   Similar to .isdigit method in built-in string class, but Python's will not check whether it is a float
 
    Private to module members
    '''
@@ -142,7 +140,7 @@ def _isDigit(string):
 
 def _replaceIllegalChar(string):
    '''
-   This method will replace spaces (' '), slashes('/')
+   This method replaces spaces (' '), slashes('/')
 
    Private to module members
    '''
@@ -158,7 +156,7 @@ def _replaceIllegalChar(string):
 
 def _spliter(string):
    '''
-   This method will parse the string to a group of long names, short names and values
+   This method parses the string to a group of long names, short names and values
    Position and Velocity variables will be specially treated
 
    Private to module members
@@ -188,7 +186,7 @@ def _spliter(string):
 
 def _filteringTheHeadings(target):
    '''
-   A hook for json module to filter and process the useful data
+   Hook for JSON module to filter and process useful data
 
    Private to module members
    '''
@@ -198,7 +196,7 @@ def _filteringTheHeadings(target):
 
 def jsonHandler(jsonFile):
    '''
-   pass the json object to built-in json module
+   pass JSON object to built-in JSON module
    '''
    rawData = str()
 
@@ -216,5 +214,4 @@ if __name__ == '__main__':
 
    testCase = jsonHandler(fileInput)
    testCase.writeToNetCDF(fileOutput)
-    
-    
+   
