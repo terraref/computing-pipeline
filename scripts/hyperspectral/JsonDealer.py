@@ -23,6 +23,7 @@ Thanks for the advice from Professor Zender and sample data from Dr. LeBauer.
 '''
 
 import json
+import time
 import sys
 import os
 import platform
@@ -62,7 +63,7 @@ class DataContainer(object):
       if param in self.__dict__:
          return self.__dict__[param]
 
-   def writeToNetCDF(self, filePath):
+   def writeToNetCDF(self, filePath, commandLine):
 
       netCDFHandler = _fileExistingCheck(filePath, self)
 
@@ -91,6 +92,9 @@ class DataContainer(object):
 
                tempVariable.assignValue(float(self.__dict__[members][submembers]))
 
+      history = netCDFHandler.createVariable("history",str)
+      history[0] = _timeStamp()+': python '+commandLine
+
       netCDFHandler.close()  
 
 
@@ -101,7 +105,7 @@ def _fileExistingCheck(filePath, dataContainer):
 
    Private to module members
    '''
-   userPrompt = 'Output file already exists; skip it or overwrite? (S, O)'
+   userPrompt = 'Output file already exists; skip it or overwrite or append? (S, O, A)'
 
    if os.path.exists(filePath):
       netCDFHandler = Dataset(filePath,'r',format='NETCDF4')
@@ -116,7 +120,7 @@ def _fileExistingCheck(filePath, dataContainer):
 
             if userChoice is 'S':
                return 0
-            elif userChoice is 'O':
+            elif userChoice is 'O' and 'A':
                os.remove(filePath)
                return Dataset(filePath,'w',format='NETCDF4')
 
@@ -194,6 +198,12 @@ def _filteringTheHeadings(target):
       return DataContainer(target)
    return target
 
+def _timeStamp():
+   '''
+   acquire the time from std time module and return a well-formatted timestamp
+   '''
+   return time.strftime("%a %b %d %H:%M:%S %Y",  time.localtime(int(time.time())))
+
 def jsonHandler(jsonFile):
    '''
    pass JSON object to built-in JSON module
@@ -213,5 +223,5 @@ if __name__ == '__main__':
    fileInput, fileOutput = sys.argv[1], sys.argv[2]
 
    testCase = jsonHandler(fileInput)
-   testCase.writeToNetCDF(fileOutput)
+   testCase.writeToNetCDF(fileOutput,fileInput+' '+fileOutput)
    
