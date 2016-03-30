@@ -2,13 +2,22 @@
 
 The computing pipeline is a data storage and computing system that provides researchers with access to all of the ‘raw’ data and derived plant phenotype
 ___
-Gitter is an instant messaging and chat room system for developers and users of GitHub repositories.
-[![Gitter](https://badges.gitter.im/terraref/computing-pipeline.svg)](https://gitter.im/terraref/computing-pipeline?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
-Huboard is a Kanban-style interface on top of the GitHub API.
-[![Huboard](http://img.shields.io/badge/Hu-Board-7965cc.svg)](https://huboard.com/terraref/computing-pipeline)
+### Contact:
 
-[Open Science Framework](https://osf.io/n532g/) is a scholarly commons to connect the entire research cycle
+* [Website](https://terraref.ncsa.illinois.edu)
+* [email](mailto:dlebauer@illinois.edu)
+
+#### Computing Pipeline
+
+* [GitHub Issues](https://github.com/terraref/computing-pipeline/issues)
+* [Chat Room](https://gitter.im/terraref/computing-pipeline)
+
+#### Reference Data Products
+
+* [GitHub Issues](https://github.com/terraref/reference-data/issues)
+* [Chat Room](https://gitter.im/terraref/reference-data)
+
 ___
 Computing Pipeline Development Team
 
