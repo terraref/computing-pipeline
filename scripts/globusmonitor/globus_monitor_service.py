@@ -32,8 +32,7 @@ configFile = "config.json"
                 "filename1": {
                     "name": "file1.txt",    ...filename
                     "path": "",             ...file path, which is updated with path-on-disk once completed
-                    "md": {},               ...metadata to be associated with that file
-                    "dataset":              ...dataset that file belongs to
+                    "md": {}                ...metadata to be associated with that file
                 },
                 "filename2": {...},
                 ...
@@ -179,8 +178,6 @@ class GlobusMonitor(restful.Resource):
         if taskUser in config['globus']['valid_users']:
             print("[TASK] now monitoring task from "+taskUser+": "+task['globus_id'])
 
-            print(task)
-
             # Convert object structure from gantry into one we want (i.e. without gantry paths)
             contents = {}
             for ds in task['contents']:
@@ -195,13 +192,7 @@ class GlobusMonitor(restful.Resource):
                         fdata = task['contents'][ds]['files'][f]
                         contents[ds]['files'][fdata['name']] = {
                             "name": fdata['name'],
-                            "path": "",
-                            "md": fdata['md'] if 'md' in fdata else {},
-                            "dataset": ds
                         }
-
-            print("!!!")
-            print(contents)
 
             activeTasks[task['globus_id']] = {
                 "user": taskUser,
@@ -327,10 +318,8 @@ def globusMonitorLoop():
                 task['status'] = globusStatus
                 task['completed'] = str(datetime.datetime.now())
                 for ds in task['contents']:
-                    if 'files' in ds:
                         for f in task['contents'][ds]['files']:
                             # TODO: Handle nesting of folders somehow
-                            f['path'] = os.path.join(config['globus']['incoming_files_path'], f["name"])
 
                 # Notify Clowder to process file if transfer successful
                 if globusStatus == "SUCCEEDED":
@@ -361,25 +350,15 @@ def notifyClowderOfCompletedTask(task):
         sess = requests.Session()
         sess.auth = (clowderUser, clowderPass)
 
-        print("NOTIFY")
-        print(task)
         # TODO: figure out this loop - should be over datasets, then files
-        for fobj in task['contents']['files']:
-            # Create dataset if necessary
-            currFile = task['contents']['files'][fobj]
-            dsid = fetchDatasetByName(currFile['dataset'], sess)
 
             # Assign dataset-level metadata if available
             if "md" in task['contents'][ds]:
-                sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata", data=task['contents'][ds]['md'])
 
             # Add local files to dataset by path
             for f in task['contents'][ds]['files']:
-                print("......adding file "+f['name'])
                 # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
                 (content, header) = encode_multipart_formdata([
-                    ("file",'{"path":"%s", "md":%s}' % (f['path'],
-                                                        json.dumps(f['md'] if 'md' in f else {})))
                 ])
                 fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid, data=content, headers={'Content-Type':header})
 

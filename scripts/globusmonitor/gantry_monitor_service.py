@@ -48,12 +48,7 @@ pendingTransfers = {}
 """activeTasks tracks Globus transfers is of the format:
 {"globus_id": {
     "globus_id":                globus job ID of upload
-    "files":        [{          list of files included in task, each with
-            "path": "file1",        ...file path, which is updated with path-on-disk once completed
-            "md": {},               ...metadata to be associated with that file
-            "dataset":              ...dataset file belongs to
-        }, {...}, ...],
-    "md":                       metadata to be associated with dataset
+    "contents": {...},          a pendingTransfers object that was sent (see above)
     "started":                  timestamp when task was sent to Globus
     "completed":                timestamp when task was completed (including errors and cancelled tasks)
     "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
@@ -126,6 +121,15 @@ def writeCompletedTransferToDisk(transfer):
     f.write(json.dumps(transfer))
     f.close()
 
+"""Move file from src to dest directory, creating dirs as needed"""
+def moveLocalFile(srcPath, destPath, filename):
+    print("...moving "+filename+" to "+destPath)
+
+    if not os.path.isdir(destPath):
+        os.makedirs(destPath)
+    shutil.move(os.path.join(srcPath, filename),
+                os.path.join(destPath, filename))
+
 # ----------------------------------------------------------
 # SERVICE COMPONENTS
 # ----------------------------------------------------------
@@ -157,41 +161,54 @@ def generateGlobusSubmissionID():
 def getGantryFilesForTransfer(gantryDir):
     transferQueue = {}
 
-    for root, dirs, files in os.walk(gantryDir):
-        # gantryDir/sensorname/YYYY-MM-DD/YYMMDD_HHMMSS/
-        #       datasetID = "sensorname YYMMDD_HHMMSS"
-        pathParts = root.split("/")
-        if len(pathParts) >= 3:
-            datasetID = pathParts[-3]+" "+pathParts[-1]
-        else:
-            datasetID = pathParts[-1]
+    # TODO: Implement simple API that will let MAC script tell us which files are done
 
-        # TODO: Implement simple API that will let MAC script tell us which files are done
-        foundFiles = subprocess.check_output(["find", root, "-mmin", "+15", "-type", "f", "-print"]).split("\n")
+    foundFiles = subprocess.check_output(["find", gantryDir, "-mmin", "+15", "-type", "f", "-print"]).split("\n")
 
-        for f in foundFiles:
-            filename = f.replace(root,"")
-            # Check whether file is already queued for transfer
-            if f != "" and filename not in pendingTransfers[datasetID]['files']:
-                if filename.find("metadata") == -1 and filename[0] != ".":
-                    # TODO: Check for .json file with same name as current file - assume metadata if so
-                    transferQueue[datasetID]['files'][filename] = {
-                        "name": filename,
-                        "path": root,
-                        "dataset": datasetID
-                        # "md": {}, only include md key if present
-                        # "md_name": "" metadata filename
-                        # "md_path": "" metadata folder
-                    }
-                elif filename.find("metadata") > -1:
-                    # Found a metadata file, assume it is for dataset
-                    transferQueue[datasetID]['md'] = loadJsonFile(f)
-                    transferQueue[datasetID]['md_path'] = root
+    for f in foundFiles:
+        # Get dataset info & path details from found file
+        gantryDirPath = f.replace(gantryDir,"")
+        pathParts = gantryDirPath.split("/")
+        filename = pathParts[-1]
+        sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
+        timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
+        datasetID = sensorname +" "+timestamp
+        gantryDirPath = gantryDirPath.replace(filename, "")
+
+        # Skip hidden/system files
+        if f == "" or filename[0] == ".":
+            continue
+
+        # Check add entry for this dataset if necessary
+        if datasetID not in pendingTransfers:
+            pendingTransfers[datasetID] = {}
+            pendingTransfers[datasetID]['files'] = {}
+        if datasetID not in transferQueue:
+            transferQueue[datasetID] = {}
+            transferQueue[datasetID]['files'] = {}
+
+        if filename not in pendingTransfers[datasetID]['files'] and not filenameInActiveTasks(filename):
+            if filename.find("metadata.json") == -1:
+                # TODO: Check for .json file with same name as current file - assume metadata if so
+                transferQueue[datasetID]['files'][filename] = {
+                    "name": filename,
+                    "path": gantryDirPath[1:] # remove leading /
+                    # "md": {}, only include md key if present
+                    # "md_name": "" metadata filename
+                    # "md_path": "" metadata folder
+                }
+            else:
+                # Found metadata.json, assume it is for dataset
+                transferQueue[datasetID]['md'] = loadJsonFile(f)
+                transferQueue[datasetID]['md_path'] = root
 
     return transferQueue
 
 """Initiate Globus transfer with batch of files and add to activeTasks"""
 def initializeGlobusTransfers():
+    global pendingTransfers
+
+    api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
     submissionID = generateGlobusSubmissionID()
 
     # Prepare transfer object
@@ -199,47 +216,54 @@ def initializeGlobusTransfers():
                            config['globus']['source_endpoint_id'],
                            config['globus']['destination_endpoint_id'])
 
+    queueLength = 0
     for ds in pendingTransfers:
         if "files" in pendingTransfers[ds]:
             # Add files from each dataset
             for f in pendingTransfers[ds]['files']:
-                src_path = os.path.join(config['gantry']['incoming_files_path'], f["name"])
-                dest_path = os.path.join(config['globus']['destination_path'], f["name"])
+                fobj = pendingTransfers[ds]['files'][f]
+                #src_path = os.path.join(config['gantry']['incoming_files_path'], fobj["path"], fobj["name"])
+                src_path = os.path.join(fobj["path"], fobj["name"])
+                dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
+                print("...transferring "+src_path+" to "+dest_path)
                 transferObj.add_item(src_path, dest_path)
+                queueLength += 1
         elif "md" in pendingTransfers[ds]:
             # We have metadata for a dataset, but no files. Just send metadata separately.
             sendMetadataToMonitor(ds, pendingTransfers[ds]['md'])
 
-    # Send transfer to Globus
-    try:
-        api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-        status_code, status_message, transfer_data = api.transfer(transferObj)
-    except APIError:
-        # Try refreshing auth token and retrying
-        generateAuthToken()
-        api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-        status_code, status_message, transfer_data = api.transfer(transferObj)
+    if queueLength > 0:
+        # Send transfer to Globus
+        print("initializing globus transfer")
+        try:
+            status_code, status_message, transfer_data = api.transfer(transferObj)
+        except APIError:
+            # Try refreshing auth token and retrying
+            generateAuthToken()
+            api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+            status_code, status_message, transfer_data = api.transfer(transferObj)
 
-    # Notify NCSA monitor of new task, and add to activeTasks for logging
-    if status_code == 200 or status_code == 202:
-        globusID = transfer_data['task_id']
+        # Notify NCSA monitor of new task, and add to activeTasks for logging
+        if status_code == 200 or status_code == 202:
+            globusID = transfer_data['task_id']
 
-        # TODO: Harden this a bit - what happens if we crash at various points?
-        activeTasks[globusID] = {
-            "globus_id": globusID,
-            "files": pendingTransfers,
-            "started": str(datetime.datetime.now()),
-            "status": "IN PROGRESS"
-        }
-        writeTasksToDisk(config['gantry']['active_path'], activeTasks)
+            print("new transfer started: "+globusID)
 
-        notifyMonitorOfNewTransfer(globusID, pendingTransfers)
+            # TODO: Harden this a bit - what happens if we crash at various points?
+            activeTasks[globusID] = {
+                "globus_id": globusID,
+                "contents": pendingTransfers,
+                "started": str(datetime.datetime.now()),
+                "status": "IN PROGRESS"
+            }
+            writeTasksToDisk(config['gantry']['active_path'], activeTasks)
 
-        pendingTransfers = {}
-        writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
-    else:
-        print("[ERROR] globus initialization failed for "+ds+" ("+status_code+": "+status_message+")")
+            notifyMonitorOfNewTransfer(globusID, pendingTransfers)
 
+            pendingTransfers = {}
+            writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
+        else:
+            print("[ERROR] globus initialization failed for "+ds+" ("+status_code+": "+status_message+")")
 
 """Send message to NCSA Globus monitor API that a new task has begun"""
 def notifyMonitorOfNewTransfer(globusID, contents):
@@ -272,16 +296,32 @@ def getTransferStatusFromMonitor(globusID):
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
     # Check with Globus monitor rather than Globus itself, to make sure file was handled properly before deleting from src
-    status = sess.get(config['api']['host']+"/tasks/"+globusID, headers={"Content-Type": "application/json"})
+    st = sess.get(config['api']['host']+"/tasks/"+globusID)
 
-    return status
+    if st.status_code == 200:
+        return json.loads(st.text)['status']
+    else:
+        print("[ERROR] monitor status check failed for task "+globusID+" ("+st.status_code+": "+st.status_message+")")
+        return "UNKNOWN"
+
+"""Return true if a file is currently part of an active transfer"""
+def filenameInActiveTasks(filename):
+    for globusID in activeTasks:
+        for ds in activeTasks[globusID]['contents']:
+            dsobj = activeTasks[globusID]['contents'][ds]
+            if 'files' in dsobj:
+                for f in dsobj['files']:
+                    if f == filename:
+                        return True
+
+    return False
 
 """Continually monitor gantry directory for new files to transmit"""
 def gantryMonitorLoop():
     # Prepare timers for tracking how often different refreshes are executed
     gantryWait = config['gantry']['file_check_frequency'] # look for new files to send
     apiWait = config['api']['api_check_frequency'] # check status of sent files
-    authWait = config['api']['authentication_refresh_frequency_secs'] # renew globus auth
+    authWait = config['globus']['authentication_refresh_frequency_secs'] # renew globus auth
 
     while True:
         time.sleep(1)
@@ -293,8 +333,8 @@ def gantryMonitorLoop():
         if gantryWait <= 0:
             pendingTransfers.update(
                     getGantryFilesForTransfer(config['gantry']['incoming_files_path']))
-            writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
-            initializeGlobusTransfers()
+            #writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
+            if pendingTransfers != {}: initializeGlobusTransfers()
             # Reset wait to check gantry incoming directory again
             gantryWait = config['gantry']['file_check_frequency']
 
@@ -317,16 +357,19 @@ def gantryMonitorLoop():
                     # Move files (and metadata files if needed) to staging area for deletion
                     if globusStatus == "SUCCEEDED":
                         deleteDir = config['gantry']['deletion_queue']
-                        if 'files' in task:
-                            for f in task['files']:
-                                shutil.move(os.path.join(f['path'], f['name']),
-                                            os.path.join(deleteDir, f['name']))
-                                if 'md'in f:
-                                    shutil.move(os.path.join(f['md_path'], f['md_name']),
-                                                os.path.join(deleteDir, f['md_name']),)
-                        if 'md' in task:
-                            shutil.move(os.path.join(f['md_path'], "metadata.json"),
-                                        os.path.join(deleteDir, "metadata.json"),)
+                        for ds in task['contents']:
+                            if 'files' in task['contents'][ds]:
+                                for f in task['contents'][ds]['files']:
+                                    fobj = task['contents'][ds]['files'][f]
+                                    moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], fobj['path']),
+                                                  os.path.join(deleteDir, fobj['path']), fobj['name'])
+                                    if 'md'in fobj:
+                                        moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], fobj['md_path']),
+                                                      os.path.join(deleteDir, fobj['md_path']), fobj['md_name'])
+                            if 'md' in task['contents'][ds]:
+                                dsobj = task['contents'][ds]
+                                moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], dsobj['md_path']),
+                                              os.path.join(deleteDir, dsobj['md_path']), "metadata.json")
 
                         # TODO: Crawl and remove empty directories?
 
