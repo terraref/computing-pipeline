@@ -39,9 +39,9 @@ esac # !HOSTNAME
 # terraref.sh $fl > ~/terraref.out 2>&1 &
 
 # Debugging and Benchmarking:
-# time terraref.sh -d 1 -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/terraref.out 2>&1 &
-# time terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
-# time terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/VNIR/2016-03-05/2016-03-05__09-46_17_450/72235cd1-35d5-480a-8443-14281ded1a63_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# terraref.sh -d 1 -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/VNIR/2016-03-05/2016-03-05__09-46_17_450/72235cd1-35d5-480a-8443-14281ded1a63_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
 
 # dbg_lvl: 0 = Quiet, print basic status during evaluation
 #          1 = Print configuration, full commands, and status to output during evaluation
@@ -403,15 +403,15 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     # http://www.exelisvis.com/docs/ENVIHeaderFiles.html
     # Dimensions: Samples, lines, bands = x,y,wavelength
     # Header file (*.hdr) codes raw data type as ENVI type 4: single-precision float, or type 12: unsigned 16-bit integer
-    # Corresponding GDAL output types are Float32 for ENVI type 4 (NC_FLOAT) or UInt16 for ENVI type 12 (NC_USHORT)
-    # Potential GDAL output types are INT16,UINT16,INT32,UINT32,Float32
-    # Writing ENVI type 4 input as NC_USHORT output save of factor of two in storage and could obviate packing (which is lossy quantization)
     if [ "${trn_flg}" = 'Yes' ]; then
 	trn_in="${in_fl}"
 	trn_out="${trn_fl}"
 	printf "trn(in)  : ${trn_in}\n"
 	printf "trn(out) : ${trn_out}\n"
 	if [ "${gdl_flg}" = 'Yes' ]; then
+	    # Corresponding GDAL output types are Float32 for ENVI type 4 (NC_FLOAT) or UInt16 for ENVI type 12 (NC_USHORT)
+	    # Potential GDAL output types are INT16,UINT16,INT32,UINT32,Float32
+	    # Writing ENVI type 4 input as NC_USHORT output save of factor of two in storage and could obviate packing (lossy quantization)
 	    #	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 4 input by outputting NC_FLOAT
 	    cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 12 input by outputting NC_USHORT
 	    hst_att="`date`: ${cmd_ln};${cmd_trn[${fl_idx}]}"
@@ -422,12 +422,10 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    xdm_nbr=$(grep '^samples' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	    ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	    if [ $? -ne 0 ]; then
-		printf "${spt_nm}: ERROR Failed to find bnd_nbr in ${hdr_fl}. Debug grep command.\n"
+		printf "${spt_nm}: ERROR Failed to find ydm_nbr in ${hdr_fl}. Debug grep command.\n"
 		exit 1
 	    fi # !err
-	    if [ ${dbg_lvl} -ge 1 ]; then
-		echo "dbg: diagnosed band number bnd_nbr = ${bnd_nbr} (nothing invisible afterward)"
-	    fi # !dbg
+	    # fxm: add var_typ_in, var_typ_out, ntl_typ_in, ntl_typ_out options
 	    cmd_trn[${fl_idx}]="ncks -O -L 1 --trr_wxy=${bnd_nbr},${xdm_nbr},${ydm_nbr} --trr_in=${trn_in} ~/nco/data/in.nc ${trn_out}"
 	    hst_att="`date`: ${cmd_ln}"
 	fi # !GDAL
@@ -719,9 +717,12 @@ date_end=$(date +"%s")
 if [ ${fl_nbr} -eq 0 ]; then
     printf "Completed pipeline at `date`.\n"
 else # !fl_nbr
-    echo "Quick plots of results from last processed file:"
+    echo "Quick views of last processed data file and its original image (if any):"
     echo "ncview  ${out_fl} &"
     echo "panoply ${out_fl} &"
+    let fl_lst_idx=${fl_nbr}-1
+    img_fl=${fl_in[${fl_lst_idx}]/_raw/_image.jpg}
+    echo "open ${img_fl}"
 fi # !fl_nbr
 date_dff=$((date_end-date_srt))
 echo "Elapsed time $((date_dff/60))m$((date_dff % 60))s"
