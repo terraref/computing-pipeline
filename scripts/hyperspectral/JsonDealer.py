@@ -73,7 +73,7 @@ class DataContainer(object):
       for members in self.__dict__:
          tempGroup = netCDFHandler.createGroup(members)
          for submembers in self.__dict__[members]:
-            if not _isDigit(self.__dict__[members][submembers]):
+            if not isDigit(self.__dict__[members][submembers]):
                setattr(tempGroup, _replaceIllegalChar(submembers), 
                         self.__dict__[members][submembers])
 
@@ -92,8 +92,7 @@ class DataContainer(object):
 
                tempVariable.assignValue(float(self.__dict__[members][submembers]))
 
-      history = netCDFHandler.createVariable("history",str)
-      history[0] = _timeStamp()+': python '+commandLine
+      netCDFHandler.history = _timeStamp()+' : python '+commandLine
 
       netCDFHandler.close()  
 
@@ -128,7 +127,7 @@ def _fileExistingCheck(filePath, dataContainer):
       return Dataset(filePath,'w',format='NETCDF4')
 
 
-def _isDigit(string):
+def isDigit(string):
    '''
    This method checks whether string can convert to int or float
    Similar to .isdigit method in built-in string class, but Python's will not check whether it is a float
