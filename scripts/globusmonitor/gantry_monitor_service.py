@@ -216,8 +216,7 @@ def generateGlobusSubmissionID():
 def getGantryFilesForTransfer(gantryDir):
     transferQueue = {}
 
-    # TODO: Implement simple API that will let MAC script tell us which files are done
-
+    # TODO: make 15 mins a parameter - e.g. every 10 mins, plus 5 minutes
     foundFiles = subprocess.check_output(["find", gantryDir, "-mmin", "+15", "-type", "f", "-print"]).split("\n")
 
     for f in foundFiles:

@@ -2,6 +2,7 @@
   "globus": {
     "incoming_files_path": "/~/globus",
     "authentication_refresh_frequency_secs": 43200,
+    "transfer_update_frequency": 120,
     "valid_users": {
       "globus_username": {
         "password": "globus_password"
@@ -20,6 +21,7 @@
         "clowder_user": "user",
         "clowder_pass": "pass"
       }
-    }
+    },
+    "dataset_map": "datasets.json"
   }
 }
