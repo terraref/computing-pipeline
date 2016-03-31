@@ -1,11 +1,10 @@
 #!/bin/bash
 
-# Purpose: Convert raw imagery from 2D floating-point raster to 3D compressed netCDF annotated with metadata
+# Purpose: Convert raw imagery from 2D raster to 3D compressed netCDF annotated with metadata
 
 # Source: https://github.com/terraref/computing-pipeline/tree/master/scripts/hyperspectral/terraref.sh
 
 # Prerequisites:
-# GDAL: sudo aptitude install gdal
 # NCO: sudo aptitude install nco
 # Python: both Python 2.X and 3.X are OK, but 3.X preferred
 # netCDF4: third-party library for Python
