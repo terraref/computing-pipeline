@@ -1,25 +1,32 @@
 {
+  "log_path": "log_gantry.txt",
+  "active_tasks_path": "active_tasks_gantry.json",
+  "pending_transfers_path": "pending_transfers_gantry.json",
+  "completed_tasks_path": "completed_gantry",
+
   "gantry": {
-    "incoming_files_path": "/home/gantry/data",
-    "active_path": "active_tasks_gantry.json",
-    "pending_path": "pending_transfers_gantry.json",
-    "completed_path": "completed_gantry",
-    "deletion_queue": "/home/gantry/deleteme",
-    "file_check_frequency": 120
+    "incoming_files_path": "/~/gantry",
+    "deletion_queue": "/~/gantry_delete",
+    "file_check_frequency_secs": 120,
+    "min_file_age_for_transfer_mins": 15
   },
+
   "globus": {
+    "destination_path": "/~/globus",
     "source_endpoint_id": "",
     "destination_endpoint_id": "",
-    "username": "",
-    "password": "",
-    "destination_path": "/~/globus",
+    "username": "globus_username",
+    "password": "globus_password",
     "authentication_refresh_frequency_secs": 43200
   },
+
   "ncsa_api": {
     "host": "http://localhost:5454",
     "api_check_frequency": 180
   },
+
   "api": {
-    "port": "5455"
+    "port": "5455",
+    "ip_address": "0.0.0.0"
   }
 }

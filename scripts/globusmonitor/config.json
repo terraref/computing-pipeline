@@ -1,19 +1,25 @@
 {
+  "log_path": "log.txt",
+  "active_tasks_path": "active_tasks.json",
+  "completed_tasks_path": "completed",
+  "dataset_map_path": "datasets.json",
+
   "globus": {
     "incoming_files_path": "/~/globus",
     "authentication_refresh_frequency_secs": 43200,
-    "transfer_update_frequency": 120,
+    "transfer_update_frequency_secs": 120,
     "valid_users": {
       "globus_username": {
         "password": "globus_password"
       }
     }
   },
+
   "api": {
-    "port": "5454"
-    "active_path": "active_tasks.json",
-    "completed_path": "completed"
+    "port": "5454",
+    "ip_address": "0.0.0.0"
   },
+
   "clowder": {
     "host": "http://localhost:9000",
     "user_map": {
@@ -21,7 +27,6 @@
         "clowder_user": "user",
         "clowder_pass": "pass"
       }
-    },
-    "dataset_map": "datasets.json"
+    }
   }
 }

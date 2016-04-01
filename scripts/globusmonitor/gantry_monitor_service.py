@@ -18,7 +18,7 @@
     queued for deletion.
 """
 
-import os, shutil, json, time, datetime, thread, copy, subprocess
+import os, shutil, json, time, datetime, thread, copy, subprocess, atexit
 import requests
 from flask import Flask, request, Response
 from flask.ext import restful
@@ -27,6 +27,7 @@ from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIErr
 
 config = {}
 configFile = "config_gantry.json"
+logFile = None
 
 """pendingTransfers tracks files prepped for transfer, by dataset:
 {
@@ -63,6 +64,20 @@ api = restful.Api(app)
 # ----------------------------------------------------------
 # SHARED UTILS
 # ----------------------------------------------------------
+def openLog():
+    global logFile
+
+    logPath = config["log_path"]
+    logFile = open(logPath, 'w')
+
+def closeLog():
+    logFile.close()
+
+"""Print log message to console and write it to log file"""
+def log(message, type="INFO"):
+    print("["+type+"] "+message)
+    logFile.write("["+type+"] "+message+"\n")
+
 """Load contents of .json file into a JSON object"""
 def loadJsonFile(filename):
     f = open(filename)
@@ -75,7 +90,7 @@ def loadTasksFromDisk(filePath):
     # Prefer to load from primary file, try to use backup if primary is missing
     if not os.path.exists(filePath):
         if os.path.exists(filePath+".backup"):
-            print("...loading tasks from "+filePath+".backup")
+            log("...loading tasks from "+filePath+".backup")
             shutil.copyfile(filePath+".backup", filePath)
         else:
             # Create an empty file if primary+backup don't exist
@@ -83,14 +98,14 @@ def loadTasksFromDisk(filePath):
             f.write("{}")
             f.close()
     else:
-        print("...loading tasks from "+filePath)
+        log("...loading tasks from "+filePath)
 
     return loadJsonFile(filePath)
 
 """Write active or pending tasks from memory into file"""
 def writeTasksToDisk(filePath, taskObj):
     # Write current file to backup location before writing current file
-    print("...writing tasks to "+filePath)
+    log("...writing tasks to "+filePath)
 
     if os.path.exists(filePath):
         shutil.move(filePath, filePath+".backup")
@@ -101,7 +116,7 @@ def writeTasksToDisk(filePath, taskObj):
 
 """Write a completed task onto disk in appropriate folder hierarchy"""
 def writeCompletedTransferToDisk(transfer):
-    completedPath = config['gantry']['completed_path']
+    completedPath = config['completed_tasks_path']
     taskID = transfer['globus_id']
 
     # e.g. TaskID "eaca1f1a-d400-11e5-975b-22000b9da45e"
@@ -121,14 +136,14 @@ def writeCompletedTransferToDisk(transfer):
 
     # Write to json file with task ID as filename
     dest = os.path.join(treeLv4, taskID+".json")
-    print("...writing completed transfer to "+dest)
+    log("...writing completed transfer to "+dest)
     f = open(dest, 'w')
     f.write(json.dumps(transfer))
     f.close()
 
 """Move file from src to dest directory, creating dirs as needed"""
 def moveLocalFile(srcPath, destPath, filename):
-    print("...moving "+filename+" to "+destPath)
+    log("...moving "+filename+" to "+destPath)
 
     if not os.path.isdir(destPath):
         os.makedirs(destPath)
@@ -191,7 +206,7 @@ class TransferQueue(restful.Resource):
                  }
             }
         })
-        print("[API] queued for transfer: "+f)
+        log("file queued for transfer: "+f)
         return 201
 
 api.add_resource(TransferQueue, '/files')
@@ -201,13 +216,13 @@ api.add_resource(TransferQueue, '/files')
 # ----------------------------------------------------------
 """Use globus goauth tool to get access token for config account"""
 def generateAuthToken():
-    print("...generating auth token for "+config['globus']['username'])
+    log("...generating auth token for "+config['globus']['username'])
     t = goauth.get_access_token(
             username=config['globus']['username'],
             password=config['globus']['password']
     ).token
     config['globus']['auth_token'] = t
-    print("......generated: "+t)
+    log("......generated: "+t)
 
 """Generate a submission ID that can be used to avoid double-submitting"""
 def generateGlobusSubmissionID():
@@ -292,7 +307,7 @@ def initializeGlobusTransfers():
                 #src_path = os.path.join(config['gantry']['incoming_files_path'], fobj["path"], fobj["name"])
                 src_path = os.path.join(fobj["path"], fobj["name"])
                 dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
-                print("...transferring "+src_path+" to "+dest_path)
+                log("...transferring "+src_path+" to "+dest_path)
                 transferObj.add_item(src_path, dest_path)
                 queueLength += 1
         elif "md" in pendingTransfers[ds]:
@@ -301,39 +316,35 @@ def initializeGlobusTransfers():
 
     if queueLength > 0:
         # Send transfer to Globus
-        print("initializing globus transfer")
         try:
             status_code, status_message, transfer_data = api.transfer(transferObj)
         except (APIError, ClientError) as e:
-            # TODO: how to handle 409 Conflict ClientError?
+            # TODO: how to handle 409 Conflict ClientError? Not sure why that arose in one situation.
             # Try refreshing auth token and retrying
             generateAuthToken()
             api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
             status_code, status_message, transfer_data = api.transfer(transferObj)
 
-
-
         # Notify NCSA monitor of new task, and add to activeTasks for logging
         if status_code == 200 or status_code == 202:
             globusID = transfer_data['task_id']
 
-            print("new transfer started: "+globusID)
+            log("new globus transfer started: "+globusID)
 
-            # TODO: Harden this a bit - what happens if we crash at various points?
             activeTasks[globusID] = {
                 "globus_id": globusID,
                 "contents": pendingTransfers,
                 "started": str(datetime.datetime.now()),
                 "status": "IN PROGRESS"
             }
-            writeTasksToDisk(config['gantry']['active_path'], activeTasks)
+            writeTasksToDisk(config['active_tasks_path'], activeTasks)
 
             notifyMonitorOfNewTransfer(globusID, pendingTransfers)
 
             pendingTransfers = {}
-            writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
+            writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         else:
-            print("[ERROR] globus initialization failed for "+ds+" ("+status_code+": "+status_message+")")
+            log("globus initialization failed for "+ds+" ("+status_code+": "+status_message+")", "ERROR")
 
 """Send message to NCSA Globus monitor API that a new task has begun"""
 def notifyMonitorOfNewTransfer(globusID, contents):
@@ -371,7 +382,7 @@ def getTransferStatusFromMonitor(globusID):
     if st.status_code == 200:
         return json.loads(st.text)['status']
     else:
-        print("[ERROR] monitor status check failed for task "+globusID+" ("+st.status_code+": "+st.status_message+")")
+        log("monitor status check failed for task "+globusID+" ("+st.status_code+": "+st.status_message+")", "ERROR")
         return "UNKNOWN"
 
 """Continually monitor gantry directory for new files to transmit"""
@@ -393,7 +404,7 @@ def gantryMonitorLoop():
             #        getGantryFilesForTransfer(config['gantry']['incoming_files_path']))
             cleanPendingTransfers()
             if pendingTransfers != {}:
-                writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
+                writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
                 initializeGlobusTransfers()
             # Reset wait to check gantry incoming directory again
             gantryWait = config['gantry']['file_check_frequency_secs']
@@ -407,7 +418,7 @@ def gantryMonitorLoop():
 
                 globusStatus = getTransferStatusFromMonitor(globusID)
                 if globusStatus in ["SUCCEEDED", "FAILED"]:
-                    print("[TASK] status update for "+globusID+": "+globusStatus)
+                    log("status update received for "+globusID+": "+globusStatus)
                     task['status'] = globusStatus
                     task['completed'] = str(datetime.datetime.now())
 
@@ -432,11 +443,11 @@ def gantryMonitorLoop():
                                               os.path.join(deleteDir, dsobj['md_path']), "metadata.json")
 
                         # Crawl and remove empty directories
-                        print("...removing empty directories in "+config['gantry']['incoming_files_path'])
+                        log("...removing empty directories in "+config['gantry']['incoming_files_path'])
                         subprocess.call(["find", config['gantry']['incoming_files_path'], "-type", "d", "-empty", "-delete"])
 
                     del activeTasks[globusID]
-                    writeTasksToDisk(config['gantry']['active_path'], activeTasks)
+                    writeTasksToDisk(config['active_tasks_path'], activeTasks)
 
             # Reset timer to check NCSA api for transfer updates again
             apiWait = config['ncsa_api']['api_check_frequency']
@@ -447,18 +458,25 @@ def gantryMonitorLoop():
             authWait = config['globus']['authentication_refresh_frequency_secs']
 
 if __name__ == '__main__':
+
+
     print("...loading configuration from "+configFile)
     config = loadJsonFile(configFile)
+    openLog()
+    atexit.register(closeLog)
     generateAuthToken()
 
+    # TODO: Crash checks - are we writing enough logs at the right times to recover no matter when?
+    # TODO: How to handle big errors, e.g. NCSA API not responding? admin email notification?
+
     # Load any previous active/pending transfers
-    activeTasks = loadTasksFromDisk(config['gantry']['active_path'])
-    pendingTransfers = loadTasksFromDisk(config['gantry']['pending_path'])
+    activeTasks = loadTasksFromDisk(config['active_tasks_path'])
+    pendingTransfers = loadTasksFromDisk(config['pending_transfers_path'])
 
     # Create thread for service to begin monitoring
-    print("*** Service now monitoring gantry directory ***")
+    log("*** Service now monitoring gantry directory ***")
     thread.start_new_thread(gantryMonitorLoop, ())
 
     # Create thread for API to begin listening - requires valid Globus user/pass
-    print("API now listening on port "+config['api']['port'])
-    app.run(host="0.0.0.0", port=int(config['api']['port']), debug=False)
+    log("*** API now listening on "+config['api']['ip_address']+":"+config['api']['port']+" ***")
+    app.run(host=config['api']['ip_address'], port=int(config['api']['port']), debug=False)

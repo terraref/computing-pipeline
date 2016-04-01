@@ -8,7 +8,7 @@
     succeeded or failed, and notify Clowder accordingly.
 """
 
-import os, shutil, json, time, datetime, thread, copy
+import os, shutil, json, time, datetime, thread, copy, atexit
 import requests
 from requests.packages.urllib3.filepost import encode_multipart_formdata
 from functools import wraps
@@ -20,6 +20,7 @@ from globusonline.transfer.api_client import TransferAPIClient, APIError, Client
 
 config = {}
 configFile = "config.json"
+logFile = None
 
 """activeTasks tracks which Globus IDs are being monitored, and is of the format:
 {"globus_id": {
@@ -61,6 +62,20 @@ api = restful.Api(app)
 # ----------------------------------------------------------
 # SHARED UTILS
 # ----------------------------------------------------------
+def openLog():
+    global logFile
+
+    logPath = config["log_path"]
+    logFile = open(logPath, 'w')
+
+def closeLog():
+    logFile.close()
+
+"""Print log message to console and write it to log file"""
+def log(message, type="INFO"):
+    print("["+type+"] "+message)
+    logFile.write("["+type+"] "+message+"\n")
+
 """Load contents of .json file into a JSON object"""
 def loadJsonFile(filename):
     f = open(filename)
@@ -69,11 +84,11 @@ def loadJsonFile(filename):
     return jsonObj
 
 """Load object into memory from a log file, checking for .backup if main file does not exist"""
-def loadLoggingDataFromDisk(logPath):
+def loadDataFromDisk(logPath):
     # Prefer to load from primary file, try to use backup if primary is missing
     if not os.path.exists(logPath):
         if os.path.exists(logPath+".backup"):
-            print("...loading data from "+logPath+".backup")
+            log("...loading data from "+logPath+".backup")
             shutil.copyfile(logPath+".backup", logPath)
         else:
             # Create an empty file if primary+backup don't exist
@@ -81,13 +96,13 @@ def loadLoggingDataFromDisk(logPath):
             f.write("{}")
             f.close()
     else:
-        print("...loading data from "+logPath)
+        log("...loading data from "+logPath)
 
     return loadJsonFile(logPath)
 
 """Save object into a log file from memory, moving existing file to .backup if it exists"""
-def writeLoggingDataToDisk(logPath, logData):
-    print("...writing data to "+logPath)
+def writeDataToDisk(logPath, logData):
+    log("...writing data to "+logPath)
 
     # Move existing copy to .backup if it exists
     if os.path.exists(logPath):
@@ -99,7 +114,7 @@ def writeLoggingDataToDisk(logPath, logData):
 
 """Write a completed task onto disk in appropriate folder hierarchy"""
 def writeCompletedTaskToDisk(task):
-    completedPath = config['api']['completed_path']
+    completedPath = config['completed_tasks_path']
     taskID = task['globus_id']
 
     # e.g. TaskID "eaca1f1a-d400-11e5-975b-22000b9da45e"
@@ -119,7 +134,7 @@ def writeCompletedTaskToDisk(task):
 
     # Write to json file with task ID as filename
     dest = os.path.join(treeLv4, taskID+".json")
-    print("...writing completed task to "+dest)
+    log("...writing completed task to "+dest)
     f = open(dest, 'w')
     f.write(json.dumps(task))
     f.close()
@@ -127,7 +142,7 @@ def writeCompletedTaskToDisk(task):
 """Find dataset id if dataset exists, creating if necessary"""
 def fetchDatasetByName(datasetName, requestsSession):
     if datasetName not in datasetMap:
-        print("......creating dataset "+datasetName)
+        log("......creating dataset "+datasetName)
         ds = requestsSession.post(config['clowder']['host']+"/api/datasets/createempty",
                                   headers={"Content-Type": "application/json"},
                                   data='{"name": "%s"}' % datasetName)
@@ -135,15 +150,21 @@ def fetchDatasetByName(datasetName, requestsSession):
         if ds.status_code == 200:
             dsid = ds.json()['id']
             datasetMap[datasetName] = dsid
-            writeLoggingDataToDisk(config['clowder']['dataset_map'], datasetMap)
+            writeDataToDisk(config['dataset_map_path'], datasetMap)
             return dsid
         else:
-            # TODO: Handle errors more gracefully
-            print("[ERROR] cannot create dataset ("+str(ds.status_code)+")")
+            log("cannot create dataset ("+str(ds.status_code)+")", "ERROR")
             return ""
     else:
-        # TODO: Check if this actually still exists before just assuming it's still there
-        return datasetMap[datasetName]
+        # We have a record of it, but check that it still exists before returning the ID
+        dsid = datasetMap[datasetName]
+        ds = requestsSession.get(config['clowder']['host']+"api/datasets/"+dsid)
+        if ds.status_code == 200:
+            return dsid
+        else:
+            # Could not find dataset so we'll just delete the record and create a new one
+            del datasetMap[datasetName]
+            return fetchDatasetByName(datasetName, requestsSession)
 
 # ----------------------------------------------------------
 # API COMPONENTS
@@ -188,7 +209,7 @@ class GlobusMonitor(restful.Resource):
 
         # Add to active list if globus username is known, and write log to disk
         if taskUser in config['globus']['valid_users']:
-            print("[TASK] now monitoring task from "+taskUser+": "+task['globus_id'])
+            log("now monitoring task from "+taskUser+": "+task['globus_id'])
 
             activeTasks[task['globus_id']] = {
                 "user": taskUser,
@@ -198,9 +219,11 @@ class GlobusMonitor(restful.Resource):
                 "completed": None,
                 "status": "IN PROGRESS"
             }
-            writeLoggingDataToDisk(config['api']['active_path'], activeTasks)
+            writeDataToDisk(config['active_tasks_path'], activeTasks)
 
-        return 201
+            return 201
+        else:
+            return "Task user not in list of authorized submitters", 401
 
 """ /tasks/<globusID>
 GET details of a particular globus task, or DELETE a globus task from monitoring"""
@@ -212,7 +235,7 @@ class GlobusTask(restful.Resource):
         # TODO: Should this require same Globus credentials as 'owner' of task?
         if globusID not in activeTasks:
             # If not in active list, check for record of completed task
-            logPath = os.path.join(config['api']['completed_path'], globusID[:2], globusID[2:4], globusID[4:6], globusID[6:8], globusID+".json")
+            logPath = os.path.join(config['completed_tasks_path'], globusID[:2], globusID[2:4], globusID[4:6], globusID[6:8], globusID+".json")
             if os.path.exists(logPath):
                 return loadJsonFile(logPath), 200
             else:
@@ -234,7 +257,7 @@ class GlobusTask(restful.Resource):
 
             writeCompletedTaskToDisk(task)
             del activeTasks[task['globus_id']]
-            writeLoggingDataToDisk(config['api']['active_path'], activeTasks)
+            writeDataToDisk(config['active_tasks_path'], activeTasks)
             return 204
 
 """ /metadata
@@ -252,13 +275,13 @@ class MetadataLoader(restful.Resource):
         sess.auth = (clowderUser, clowderPass)
 
         dsid = fetchDatasetByName(req['dataset'], sess)
-        print("......adding metadata to dataset "+dsid)
+        log("......adding metadata to dataset "+dsid)
         dsmd = sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata",
                          headers={'Content-Type':'application/json'},
                          data=json.dumps(req['md']))
 
         if dsmd.status_code != 200:
-            print("[ERROR] cannot add dataset metadata ("+str(dsmd.status_code)+")")
+            log("cannot add dataset metadata ("+str(dsmd.status_code)+")", "ERROR")
 
         return dsmd.status_code
 
@@ -272,7 +295,7 @@ api.add_resource(MetadataLoader, '/metadata')
 """Use globus goauth tool to get access tokens for valid accounts"""
 def generateAuthTokens():
     for validUser in config['globus']['valid_users']:
-        print("...generating auth token for "+validUser)
+        log("...generating auth token for "+validUser)
         config['globus']['valid_users'][validUser]['auth_token'] = goauth.get_access_token(
                 username=validUser,
                 password=config['globus']['valid_users'][validUser]['password']
@@ -303,7 +326,7 @@ def notifyClowderOfCompletedTask(task):
     userMap = config['clowder']['user_map']
 
     if globUser in userMap:
-        print("...notifying Clowder of task completion: "+task['globus_id'])
+        log("...notifying Clowder of task completion: "+task['globus_id'])
         clowderHost = config['clowder']['host']
         clowderUser = userMap[globUser]['clowder_user']
         clowderPass = userMap[globUser]['clowder_pass']
@@ -316,18 +339,17 @@ def notifyClowderOfCompletedTask(task):
 
             # Assign dataset-level metadata if provided
             if "md" in task['contents'][ds]:
-                print("......adding metadata to dataset "+ds)
+                log("......adding metadata to dataset "+ds)
                 dsmd = sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata",
                           headers={'Content-Type':'application/json'},
                           data=json.dumps(task['contents'][ds]['md']))
                 if dsmd.status_code != 200:
-                    print("[ERROR] cannot add dataset metadata ("+str(dsmd.status_code)+")")
+                    log("cannot add dataset metadata ("+str(dsmd.status_code)+")", "ERROR")
 
             # Add local files to dataset by path
             for f in task['contents'][ds]['files']:
                 fobj = task['contents'][ds]['files'][f]
-                print("......adding file '"+fobj['name']+"' to "+ds)
-                print(fobj['path'])
+                log("......adding file '"+fobj['path']+"/"+fobj['name']+"' to "+ds)
                 # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
                 (content, header) = encode_multipart_formdata([
                     ("file",'{"path":"%s"%s}' % (
@@ -337,12 +359,12 @@ def notifyClowderOfCompletedTask(task):
 
                 fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid, data=content, headers={'Content-Type':header})
                 if fi.status_code != 200:
-                    print("[ERROR] cannot upload file ("+str(fi.status_code)+")")
+                    log("cannot upload file ("+str(fi.status_code)+")", "ERROR")
                 else:
                     activeTasks[task['globus_id']]['contents'][ds]['files'][f]['clowder_id'] = json.loads(fi.text)['id']
 
     else:
-        print("[ERROR] cannot find clowder user credentials for Globus user "+globUser)
+        log("cannot find clowder user credentials for Globus user "+globUser, "ERROR")
 
 """Continually check Globus API for task updates"""
 def globusMonitorLoop():
@@ -362,7 +384,7 @@ def globusMonitorLoop():
                 globusStatus = getGlobusStatus(task)
 
                 if globusStatus in ["SUCCEEDED", "FAILED"]:
-                    print("[TASK] status update for "+globusID+": "+globusStatus)
+                    log("status update for "+globusID+": "+globusStatus)
 
                     # Update task parameters
                     task['status'] = globusStatus
@@ -380,7 +402,7 @@ def globusMonitorLoop():
                     # Write out results file, then delete from active list and write log file
                     writeCompletedTaskToDisk(task)
                     del activeTasks[globusID]
-                    writeLoggingDataToDisk(config['api']['active_path'], activeTasks)
+                    writeDataToDisk(config['active_tasks_path'], activeTasks)
             globWait = 0
 
         # Refresh auth tokens periodically
@@ -391,14 +413,19 @@ def globusMonitorLoop():
 if __name__ == '__main__':
     print("...loading configuration from "+configFile)
     config = loadJsonFile(configFile)
-    datasetMap = loadLoggingDataFromDisk(config['clowder']['dataset_map'])
-    activeTasks = loadLoggingDataFromDisk(config['api']['active_path'])
+    openLog()
+    atexit.register(closeLog)
+
+    datasetMap = loadDataFromDisk(config['dataset_map_path'])
+    activeTasks = loadDataFromDisk(config['active_tasks_path'])
     generateAuthTokens()
+
+    # TODO: Crash checks - are we writing enough logs at the right times to recover no matter when?
 
     # Create thread for service to begin monitoring
     thread.start_new_thread(globusMonitorLoop, ())
-    print("*** Service now monitoring Globus tasks ***")
+    log("*** Service now monitoring Globus tasks ***")
 
     # Create thread for API to begin listening - requires valid Globus user/pass
-    print("API now listening on port "+config['api']['port'])
-    app.run(host="0.0.0.0", port=int(config['api']['port']), debug=False)
+    log("*** API now listening on "+config['api']['ip_address']+":"+config['api']['port']+" ***")
+    app.run(host=config['api']['ip_address'], port=int(config['api']['port']), debug=False)
