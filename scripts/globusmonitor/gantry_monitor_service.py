@@ -22,7 +22,7 @@ import os, shutil, json, time, datetime, thread, copy, subprocess
 import requests
 from flask import Flask, request, Response
 from flask.ext import restful
-from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIError, goauth
+from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIError, ClientError, goauth
 
 
 config = {}
@@ -150,10 +150,23 @@ def cleanPendingTransfers():
     for ds in toRemove:
         del pendingTransfers[ds]
 
+"""Return true if a file is currently part of an active transfer"""
+def filenameInActiveTasks(filename):
+    for globusID in activeTasks:
+        for ds in activeTasks[globusID]['contents']:
+            dsobj = activeTasks[globusID]['contents'][ds]
+            if 'files' in dsobj:
+                for f in dsobj['files']:
+                    if f == filename:
+                        return True
+
+    return False
+
 # ----------------------------------------------------------
 # API COMPONENTS
 # ----------------------------------------------------------
-"""Add metadata to a dataset without requiring files"""
+""" /files
+Add a file to the transfer queue manually so it can be sent to NCSA Globus"""
 class TransferQueue(restful.Resource):
 
     def post(self):
@@ -179,10 +192,8 @@ class TransferQueue(restful.Resource):
             }
         })
         print("[API] queued for transfer: "+f)
-
         return 201
 
-# Add a new file that is ready for the next transfer
 api.add_resource(TransferQueue, '/files')
 
 # ----------------------------------------------------------
@@ -191,17 +202,19 @@ api.add_resource(TransferQueue, '/files')
 """Use globus goauth tool to get access token for config account"""
 def generateAuthToken():
     print("...generating auth token for "+config['globus']['username'])
-    config['globus']['auth_token'] = goauth.get_access_token(
+    t = goauth.get_access_token(
             username=config['globus']['username'],
             password=config['globus']['password']
-        ).token
+    ).token
+    config['globus']['auth_token'] = t
+    print("......generated: "+t)
 
 """Generate a submission ID that can be used to avoid double-submitting"""
 def generateGlobusSubmissionID():
     try:
         api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
         status_code, status_message, submission_id = api.submission_id()
-    except APIError:
+    except (APIError, ClientError) as e:
         # Try refreshing auth token and retrying
         generateAuthToken()
         api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
@@ -216,8 +229,8 @@ def generateGlobusSubmissionID():
 def getGantryFilesForTransfer(gantryDir):
     transferQueue = {}
 
-    # TODO: make 15 mins a parameter - e.g. every 10 mins, plus 5 minutes
-    foundFiles = subprocess.check_output(["find", gantryDir, "-mmin", "+15", "-type", "f", "-print"]).split("\n")
+    fileAge = config['gantry']['min_file_age_for_transfer_mins']
+    foundFiles = subprocess.check_output(["find", gantryDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
 
     for f in foundFiles:
         # Get dataset info & path details from found file
@@ -291,11 +304,14 @@ def initializeGlobusTransfers():
         print("initializing globus transfer")
         try:
             status_code, status_message, transfer_data = api.transfer(transferObj)
-        except APIError:
+        except (APIError, ClientError) as e:
+            # TODO: how to handle 409 Conflict ClientError?
             # Try refreshing auth token and retrying
             generateAuthToken()
             api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
             status_code, status_message, transfer_data = api.transfer(transferObj)
+
+
 
         # Notify NCSA monitor of new task, and add to activeTasks for logging
         if status_code == 200 or status_code == 202:
@@ -358,22 +374,10 @@ def getTransferStatusFromMonitor(globusID):
         print("[ERROR] monitor status check failed for task "+globusID+" ("+st.status_code+": "+st.status_message+")")
         return "UNKNOWN"
 
-"""Return true if a file is currently part of an active transfer"""
-def filenameInActiveTasks(filename):
-    for globusID in activeTasks:
-        for ds in activeTasks[globusID]['contents']:
-            dsobj = activeTasks[globusID]['contents'][ds]
-            if 'files' in dsobj:
-                for f in dsobj['files']:
-                    if f == filename:
-                        return True
-
-    return False
-
 """Continually monitor gantry directory for new files to transmit"""
 def gantryMonitorLoop():
     # Prepare timers for tracking how often different refreshes are executed
-    gantryWait = config['gantry']['file_check_frequency'] # look for new files to send
+    gantryWait = config['gantry']['file_check_frequency_secs'] # look for new files to send
     apiWait = config['ncsa_api']['api_check_frequency'] # check status of sent files
     authWait = config['globus']['authentication_refresh_frequency_secs'] # renew globus auth
 
@@ -392,7 +396,7 @@ def gantryMonitorLoop():
                 writeTasksToDisk(config['gantry']['pending_path'], pendingTransfers)
                 initializeGlobusTransfers()
             # Reset wait to check gantry incoming directory again
-            gantryWait = config['gantry']['file_check_frequency']
+            gantryWait = config['gantry']['file_check_frequency_secs']
 
         # Check with NCSA Globus monitor API for completed transfers
         if apiWait <= 0:
@@ -427,7 +431,9 @@ def gantryMonitorLoop():
                                 moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], dsobj['md_path']),
                                               os.path.join(deleteDir, dsobj['md_path']), "metadata.json")
 
-                        # TODO: Crawl and remove empty directories?
+                        # Crawl and remove empty directories
+                        print("...removing empty directories in "+config['gantry']['incoming_files_path'])
+                        subprocess.call(["find", config['gantry']['incoming_files_path'], "-type", "d", "-empty", "-delete"])
 
                     del activeTasks[globusID]
                     writeTasksToDisk(config['gantry']['active_path'], activeTasks)
@@ -439,7 +445,6 @@ def gantryMonitorLoop():
         if authWait <= 0:
             generateAuthToken()
             authWait = config['globus']['authentication_refresh_frequency_secs']
-
 
 if __name__ == '__main__':
     print("...loading configuration from "+configFile)
