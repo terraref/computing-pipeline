@@ -5,8 +5,8 @@
 # Source: https://github.com/terraref/computing-pipeline/tree/master/scripts/hyperspectral/terraref.sh
 
 # Prerequisites:
-# NCO version 4.5.6-beta01 (dated 20160401) or later
-# Python: both Python 2.X and 3.X are OK, but 3.X preferred
+# NCO version 4.6.0 (dated 20160401) or later
+# Python: Python 2.X or 3.X (preferred)
 # netCDF4: third-party netCDF library for Python
 
 # In Anaconda:
@@ -579,7 +579,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	# Block 5: Convert 2D->3D
 	# Combine 2D TR image data into single 3D variable
 	# Until then image is split into up to 926 (SWIR) or 955 (VNIR) variables, each a one-band raster
-	# Requires NCO version 4.5.6-alpha05 or newer
+	# Requires NCO version 4.6.0 or newer
 	# fxm: currently this step is slow, and may need to be rewritten to dedicated routine
 	d23_in=${att_fl}
 	d23_out="${d23_fl}.fl${idx_prn}.tmp"
