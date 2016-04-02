@@ -63,9 +63,9 @@ cln_flg='Yes' # [flg] Clean-up (remove) intermediate files before exiting
 dbg_lvl=0 # [nbr] Debugging level
 dfl_lvl='' # [nbr] [enm] Deflate level [0..9]
 drc_in='' # [sng] Input file directory
-drc_in_xmp='~/drc_in' # [sng] Input file directory for examples
+drc_in_xmp='drc_in' # [sng] Input file directory for examples
 drc_out="${drc_pwd}" # [sng] Output file directory
-drc_out_xmp="~/drc_out" # [sng] Output file directory for examples
+drc_out_xmp="drc_out" # [sng] Output file directory for examples
 drc_tmp="${TMPDIR%/}" # [sng] Temporary file directory
 gaa_sng="--gaa terraref_script=${spt_nm} --gaa terraref_hostname=${HOSTNAME} --gaa terraref_version=${nco_version}" # [sng] Global attributes to add
 hdr_pad='1000' # [B] Pad at end of header section
@@ -84,7 +84,7 @@ out_xmp='test.nc4' # [sng] Output file for examples
 par_typ='bck' # [sng] Parallelism type
 tmp_fl='terraref_tmp.nc' # [sng] Temporary output file
 typ_out='NC_USHORT' # [enm] netCDF output type
-unq_sfx=".pid${spt_pid}.tmp" # [sng] Unique suffix
+unq_sfx=".pid${spt_pid}" # [sng] Unique suffix
 
 # Derived defaults
 out_fl=${in_fl/_raw/.nc} # [sng] Output file name
@@ -122,15 +122,16 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     echo "${fnt_rvr}-x${fnt_nrm} ${fnt_bld}xpt_flg${fnt_nrm}  Experimental (default ${fnt_bld}${xpt_flg}${fnt_nrm})"
     printf "\n"
     printf "Examples: ${fnt_bld}$spt_nm -i ${in_xmp} -o ${out_xmp} ${fnt_nrm}\n"
-    printf "          ${fnt_bld}$spt_nm -I ${drc_in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
+    printf "Examples: ${fnt_bld}$spt_nm -I ${drc_in_xmp} ${fnt_nrm}\n"
+    printf "          ${fnt_bld}$spt_nm -I ${drc_in_xmp} -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
-    printf "          ${fnt_bld}ls \${DATA}/terraref/*_raw | $spt_nm -O ~/rgr ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -t NC_FLOAT -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -c 2 -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -N bil -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
-    printf "CZ Debug: ${spt_nm} -i \${DATA}/terraref/whiteReference_raw -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
+    printf "CZ Debug: ${fnt_bld}ls \${DATA}/terraref/*_raw | $spt_nm -O ~/rgr ${fnt_nrm}\n"
+    printf "          ${spt_nm} -i \${DATA}/terraref/whiteReference_raw -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I \${DATA}/terraref -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
-    printf "          ${spt_nm} -I \${DATA}/terraref ~/terraref.out 2>&1 &\n"
+    printf "          ${spt_nm} -I \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I /projects/arpae/terraref/raw_data/lemnatec_field -O /projects/arpae/terraref/outputs/lemnatec_field > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -i \${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -i \${DATA}/terraref/MovingSensor/VNIR/2016-03-05/2016-03-05__09-46_17_450/72235cd1-35d5-480a-8443-14281ded1a63_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &\n"
@@ -425,7 +426,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     # Header file (*.hdr) codes raw data type as ENVI type 4: single-precision float, or type 12: unsigned 16-bit integer
     if [ "${trn_flg}" = 'Yes' ]; then
 	trn_in="${in_fl}"
-	trn_out="${trn_fl/.tmp/.fl${idx_prn}.tmp}"
+	trn_out="${trn_fl}.fl${idx_prn}.tmp"
 	printf "trn(in)  : ${trn_in}\n"
 	printf "trn(out) : ${trn_out}\n"
 	if [ "${gdl_flg}" = 'Yes' ]; then
@@ -470,7 +471,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     
     # Add workflow-specific metadata
     if [ "${att_flg}" = 'Yes' ]; then
-	att_out="${att_fl/.tmp/.fl${idx_prn}.tmp}"
+	att_out="${att_fl}.fl${idx_prn}.tmp"
 	printf "att(in)  : ${att_in}\n"
 	printf "att(out) : ${att_out}\n"
 #	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" -a \"GDAL_Band_.?,global,d,,\" --gaa history='${hst_att}' ${att_in} ${att_out}"
@@ -490,7 +491,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     # Parse metadata from JSON to netCDF (sensor location, instrument configuration)
     if [ "${jsn_flg}" = 'Yes' ]; then
 	jsn_in="${fl_in[${fl_idx}]/_raw/_metadata.json}"
-	jsn_out="${jsn_fl/.tmp/.fl${idx_prn}.tmp}"
+	jsn_out="${jsn_fl}.fl${idx_prn}.tmp"
 	printf "jsn(in)  : ${jsn_in}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
 	cmd_jsn[${fl_idx}]="python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${jsn_in} ${jsn_out}"
@@ -531,7 +532,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     # Compress and/or pack final data file
     if [ "${cmp_flg}" = 'Yes' ]; then
 	cmp_in=${mrg_out}
-	cmp_out="${cmp_fl/.tmp/.fl${idx_prn}.tmp}"
+	cmp_out="${cmp_fl}.fl${idx_prn}.tmp"
 	printf "cmp(in)  : ${cmp_in}\n"
 	printf "cmp(out) : ${cmp_out}\n"
 	cmp_fl=${n34_fl}
@@ -581,7 +582,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	# Requires NCO version 4.5.6-alpha05 or newer
 	# fxm: currently this step is slow, and may need to be rewritten to dedicated routine
 	d23_in=${att_fl}
-	d23_out="${d23_fl/.tmp/.fl${idx_prn}.tmp}"
+	d23_out="${d23_fl}.fl${idx_prn}.tmp"
 	printf "2D  : ${d23_in}\n"
 	printf "3D  : ${d23_out}\n"
 	hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
@@ -735,9 +736,7 @@ fi # !0
 
 if [ "${cln_flg}" = 'Yes' ]; then
     printf "Cleaning-up intermediate files...\n"
-    # fxm these all should be unique names
-    #    /bin/rm -f ${att_fl} ${d23_fl} ${jsn_fl} ${mrg_fl} ${n34_fl} ${tmp_fl} ${trn_fl}
-    /bin/rm -f ${att_fl} ${d23_fl} ${jsn_fl} ${tmp_fl} ${trn_fl}
+    /bin/rm -f ${att_fl}.fl*.tmp ${cmp_fl}.fl*.tmp ${d23_fl}.fl*.tmp ${jsn_fl}.fl*.tmp ${mrg_fl}.fl*.tmp ${tmp_fl}.fl*.tmp ${trn_fl}.fl*.tmp
 fi # !cln_flg
 
 date_end=$(date +"%s")
