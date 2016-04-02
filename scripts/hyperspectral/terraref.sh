@@ -61,25 +61,29 @@ fnt_rvr=`tput smso` # Reverse
 # Defaults for command-line options and some derived variables
 cln_flg='Yes' # [flg] Clean-up (remove) intermediate files before exiting
 dbg_lvl=0 # [nbr] Debugging level
+dfl_lvl='' # [nbr] [enm] Deflate level [0..9]
 drc_in='' # [sng] Input file directory
 drc_in_xmp='~/drc_in' # [sng] Input file directory for examples
 drc_out="${drc_pwd}" # [sng] Output file directory
 drc_out_xmp="~/drc_out" # [sng] Output file directory for examples
-drc_tmp='' # [sng] Temporary file directory
+drc_tmp="${TMPDIR%/}" # [sng] Temporary file directory
 gaa_sng="--gaa terraref_script=${spt_nm} --gaa terraref_hostname=${HOSTNAME} --gaa terraref_version=${nco_version}" # [sng] Global attributes to add
 hdr_pad='1000' # [B] Pad at end of header section
-in_fl='whiteReference_raw' # [sng] Input file stub
+in_fl='' # [sng] Input file stub
 in_xmp='test_raw' # [sng] Input file for examples
 fl_nbr=0 # [nbr] Number of files
 job_nbr=2 # [nbr] Job simultaneity for parallelism
 mpi_flg='No' # [sng] Parallelize over nodes
 mtd_mk='Yes' # [sng] Process metadata
-nd_nbr=1 # [nbr] Number of nodes
-out_fl='whiteReference.nc4' # [sng] Output file name
-out_xmp='test.nc4' # [sng] Output file for examples
 nco_opt='-O --no_tmp_fl' # [sng] NCO defaults (e.g., '-O -6 -t 1')
 nco_usr='' # [sng] NCO user-configurable options (e.g., '-D 1')
+nd_nbr=1 # [nbr] Number of nodes
+ntl_out='bsq' # [enm] Interleave-type of output
+out_fl='' # [sng] Output file name
+out_xmp='test.nc4' # [sng] Output file for examples
+par_typ='bck' # [sng] Parallelism type
 tmp_fl='terraref_tmp.nc' # [sng] Temporary output file
+typ_out='NC_USHORT' # [enm] netCDF output type
 unq_sfx=".pid${spt_pid}.tmp" # [sng] Unique suffix
 
 # Derived defaults
@@ -101,22 +105,29 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     # Print usage
     printf "\nComplete documentation for ${fnt_bld}${spt_nm}${fnt_nrm} at https://github.com/terraref/computing-pipeline\n\n"
     printf "${fnt_rvr}Basic usage:${fnt_nrm} ${fnt_bld}$spt_nm -i in_fl -o out_fl${fnt_nrm}\n\n"
-    echo "${fnt_rvr}-c${fnt_nrm} ${fnt_bld}dfl_lvl${fnt_nrm}  Compression deflate level (default ${fnt_bld}${dfl_lvl}${fnt_nrm})"
+    echo "${fnt_rvr}-c${fnt_nrm} ${fnt_bld}dfl_lvl${fnt_nrm}  Compression level [0..9] (empty means none) (default ${fnt_bld}${dfl_lvl}${fnt_nrm})"
     echo "${fnt_rvr}-d${fnt_nrm} ${fnt_bld}dbg_lvl${fnt_nrm}  Debugging level (default ${fnt_bld}${dbg_lvl}${fnt_nrm})"
     echo "${fnt_rvr}-g${fnt_nrm} ${fnt_bld}gdl_flg${fnt_nrm}  GDAL translates ENVI to netCDF (default ${fnt_bld}${gdl_flg}${fnt_nrm})"
     echo "${fnt_rvr}-I${fnt_nrm} ${fnt_bld}drc_in${fnt_nrm}   Input directory (empty means none) (default ${fnt_bld}${drc_in}${fnt_nrm})"
-    echo "${fnt_rvr}-i${fnt_nrm} ${fnt_bld}in_fl${fnt_nrm}    Input filename (default ${fnt_bld}${in_fl}${fnt_nrm})"
+    echo "${fnt_rvr}-i${fnt_nrm} ${fnt_bld}in_fl${fnt_nrm}    Input filename (required) (default ${fnt_bld}${in_fl}${fnt_nrm})"
     echo "${fnt_rvr}-j${fnt_nrm} ${fnt_bld}job_nbr${fnt_nrm}  Job simultaneity for parallelism (default ${fnt_bld}${job_nbr}${fnt_nrm})"
     echo "${fnt_rvr}-n${fnt_nrm} ${fnt_bld}nco_opt${fnt_nrm}  NCO options (empty means none) (default ${fnt_bld}${nco_opt}${fnt_nrm})"
+    echo "${fnt_rvr}-N${fnt_nrm} ${fnt_bld}ntl_out${fnt_nrm}  Interleave-type of output (default ${fnt_bld}${ntl_out}${fnt_nrm})"
     echo "${fnt_rvr}-O${fnt_nrm} ${fnt_bld}drc_out${fnt_nrm}  Output directory (default ${fnt_bld}${drc_out}${fnt_nrm})"
-    echo "${fnt_rvr}-o${fnt_nrm} ${fnt_bld}out_fl${fnt_nrm}   Output-file (empty copies Input filename) (default ${fnt_bld}${out_fl}${fnt_nrm})"
+    echo "${fnt_rvr}-o${fnt_nrm} ${fnt_bld}out_fl${fnt_nrm}   Output-file (empty derives from Input filename) (default ${fnt_bld}${out_fl}${fnt_nrm})"
     echo "${fnt_rvr}-p${fnt_nrm} ${fnt_bld}par_typ${fnt_nrm}  Parallelism type (default ${fnt_bld}${par_typ}${fnt_nrm})"
+    echo "${fnt_rvr}-t${fnt_nrm} ${fnt_bld}typ_out${fnt_nrm}  Type of netCDF output (default ${fnt_bld}${typ_out}${fnt_nrm})"
+    echo "${fnt_rvr}-T${fnt_nrm} ${fnt_bld}drc_tmp${fnt_nrm}  Temporary directory (default ${fnt_bld}${drc_tmp}${fnt_nrm})"
     echo "${fnt_rvr}-u${fnt_nrm} ${fnt_bld}unq_sfx${fnt_nrm}  Unique suffix (prevents intermediate files from sharing names) (default ${fnt_bld}${unq_sfx}${fnt_nrm})"
     echo "${fnt_rvr}-x${fnt_nrm} ${fnt_bld}xpt_flg${fnt_nrm}  Experimental (default ${fnt_bld}${xpt_flg}${fnt_nrm})"
     printf "\n"
     printf "Examples: ${fnt_bld}$spt_nm -i ${in_xmp} -o ${out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -I ${drc_in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
+    printf "          ${fnt_bld}$spt_nm -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}ls *_raw | $spt_nm -O ${drc_out_xmp} ${fnt_nrm}\n"
+    printf "          ${fnt_bld}$spt_nm -t NC_FLOAT -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
+    printf "          ${fnt_bld}$spt_nm -c 2 -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
+    printf "          ${fnt_bld}$spt_nm -N bil -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "CZ Debug: ${spt_nm} -i \${DATA}/terraref/whiteReference_raw -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I \${DATA}/terraref -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I /projects/arpae/terraref/raw_data/lemnatec_field -O /projects/arpae/terraref/outputs/lemnatec_field > ~/terraref.out 2>&1 &\n"
@@ -135,7 +146,7 @@ fi # !arg_nbr
 # http://stackoverflow.com/questions/402377/using-getopts-in-bash-shell-script-to-get-long-and-short-command-line-options
 # http://tuxtweaks.com/2014/05/bash-getopts
 cmd_ln="${spt_nm} ${@}"
-while getopts :d:gI:i:j:n:O:o:p:U:u:x OPT; do
+while getopts c:d:gI:i:j:N:n:O:o:p:T:t:u:x OPT; do
     case ${OPT} in
 	c) dfl_lvl=${OPTARG} ;; # Compression deflate level
 	d) dbg_lvl=${OPTARG} ;; # Debugging level
@@ -144,10 +155,12 @@ while getopts :d:gI:i:j:n:O:o:p:U:u:x OPT; do
 	i) in_fl=${OPTARG} ;; # Input file
 	j) job_usr=${OPTARG} ;; # Job simultaneity
 	n) nco_usr=${OPTARG} ;; # NCO options
+	N) ntl_out=${OPTARG} ;; # Interleave-type
 	O) drc_usr=${OPTARG} ;; # Output directory
 	o) out_fl=${OPTARG} ;; # Output file
 	p) par_typ=${OPTARG} ;; # Parallelism type
-	U) tmp_usr=${OPTARG} ;; # Temporary directory
+	t) typ_out=${OPTARG} ;; # Type of netCDF output
+	T) tmp_usr=${OPTARG} ;; # Temporary directory
 	u) unq_usr=${OPTARG} ;; # Unique suffix
 	x) xpt_flg='Yes' ;; # EXperimental
 	\?) # Unrecognized option
@@ -167,16 +180,15 @@ fi # ${2}
 
 # Derived variables
 if [ -n "${drc_usr}" ]; then
-    drc_out="${drc_usr}"
+    drc_out="${drc_usr%/}"
 else
     if [ -n "${out_fl}" ]; then
 	drc_out="$(dirname ${out_fl})"
     fi # !out_fl
 fi # !drc_usr
 if [ -n "${tmp_usr}" ]; then
-	drc_tmp=${tmp_usr}
-else
-	drc_tmp=${drc_out}
+    # Fancy %/ syntax removes trailing slash (e.g., from $TMPDIR)
+    drc_tmp=${tmp_usr%/}
 fi # !out_fl
 att_fl="${drc_tmp}/terraref_tmp_att.nc" # [sng] ncatted file
 d23_fl="${drc_tmp}/terraref_tmp_d23.nc" # [sng] 2D->3D file
@@ -208,7 +220,9 @@ tmp_fl=${tmp_fl}${unq_sfx}
 trn_fl=${trn_fl}${unq_sfx}
 
 if [ -n "${dfl_lvl}" ]; then
-    pdq_flg='Yes'
+    if [ ${dfl_lvl} -gt 0 ]; then
+	pdq_flg='Yes'
+    fi # !dfl_lvl
 fi # !dfl_lvl
 if [ -z "${drc_in}" ]; then
     drc_in="${drc_pwd}"
@@ -258,16 +272,21 @@ else # !in_fl
     # ls *_raw | terraref.sh -D 1 -O ~/rgr
     if [ -t 0 ]; then 
 	if [ "${drc_in_usr_flg}" = 'Yes' ]; then
-	    for fl in "${drc_in}"/*.hdr ; do
+	    for fl in "${drc_in}"/*_raw ; do
 		if [ -f "${fl}" ]; then
 		    fl_in[${fl_nbr}]=${fl}
 		    let fl_nbr=${fl_nbr}+1
 		fi # !file
 	    done
+	    if [ "${fl_nbr}" -eq 0 ]; then 
+		echo "ERROR: Input directory specified with -I contains no *_raw files"
+		echo "HINT: Pipe file list to script via stdin with, e.g., 'ls *_raw | ${spt_nm}'"
+		exit 1
+	    fi # !fl_nbr
 	else # !drc_in
 	    if [ "${mtd_mk}" != 'Yes' ]; then 
-		echo "ERROR: Must specify input file with -i or with stdin"
-		echo "HINT: Pipe file list to script via stdin with, e.g., 'ls *.hdr | ${spt_nm}'"
+		echo "ERROR: Must specify input file with -i, with stdin, or directory of *_raw files with -I"
+		echo "HINT: Pipe file list to script via stdin with, e.g., 'ls *_raw | ${spt_nm}'"
 		exit 1
 	    fi # !mtd_mk
 	fi # !drc_in
@@ -415,17 +434,24 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 12 input by outputting NC_USHORT
 	    hst_att="`date`: ${cmd_ln};${cmd_trn[${fl_idx}]}"
 	else # !GDAL
+	    # Collect metadata necessary to process image from header
 	    hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
-	    # Strip invisible and vexing DOS ^M characters from line with tr
-	    bnd_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	    # Strip invisible, vexing DOS ^M characters from line with tr
+	    wvl_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	    xdm_nbr=$(grep '^samples' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	    ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	    ntl_in=$(grep '^interleave' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	    typ_in_ENVI=$(grep '^data type' ${hdr_fl} | cut -d ' ' -f 4 | tr -d '\015')
+	    case "${typ_in_ENVI}" in
+		4 ) typ_in='NC_FLOAT' ; ;;
+		12 ) typ_in='NC_USHORT' ; ;;
+		* ) printf "${spt_nm}: ERROR Unknown typ_in in ${hdr_fl}. Debug grep command.\n" ; exit 1 ; ;; # Other
+	    esac # !typ_in_ENVI
 	    if [ $? -ne 0 ]; then
 		printf "${spt_nm}: ERROR Failed to find ydm_nbr in ${hdr_fl}. Debug grep command.\n"
 		exit 1
 	    fi # !err
-	    # fxm: add var_typ_in, var_typ_out, ntl_typ_in, ntl_typ_out options
-	    cmd_trn[${fl_idx}]="ncks -O -L 1 --trr_wxy=${bnd_nbr},${xdm_nbr},${ydm_nbr} --trr_in=${trn_in} ~/nco/data/in.nc ${trn_out}"
+	    cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ~/nco/data/in.nc ${trn_out}"
 	    hst_att="`date`: ${cmd_ln}"
 	fi # !GDAL
 	att_in="${trn_out}"
@@ -511,7 +537,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	printf "pdq(in)  : ${pdq_in}\n"
 	printf "pdq(out) : ${pdq_out}\n"
 	pdq_fl=${n34_fl}
-	cmd_pdq[${fl_idx}]="ncpdq -P -L ${dfl_lvl} ${pdq_in} ${pdq_out}"
+	cmd_pdq[${fl_idx}]="ncks -L ${dfl_lvl} ${pdq_in} ${pdq_out}"
 	in_fl=${pdq_out}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_pdq[${fl_idx}]}
@@ -523,11 +549,15 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 		exit 1
 	    fi # !err
 	fi # !dbg
+    else # !pdq_flg
+	rip_in=${mrg_out}
     fi # !pdq_flg
 
     # Move file to final resting place
     if [ "${rip_flg}" = 'Yes' ]; then
-	rip_in=${mrg_out}
+	if [ -z "${rip_in}" ]; then
+	    rip_in=${pdq_out}
+	fi # !rip_in
 	rip_out=${out_fl}
 	printf "rip(in)  : ${rip_in}\n"
 	printf "rip(out) : ${rip_out}\n"
@@ -558,18 +588,18 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	printf "3D  : ${d23_out}\n"
 	hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
 	# Strip invisible and vexing DOS ^M characters from line with tr
-	bnd_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	wvl_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	xdm_nbr=$(grep '^samples' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	if [ $? -ne 0 ]; then
-	    printf "${spt_nm}: ERROR Failed to find bnd_nbr in ${hdr_fl}. Debug grep command.\n"
+	    printf "${spt_nm}: ERROR Failed to find wvl_nbr in ${hdr_fl}. Debug grep command.\n"
 	    exit 1
 	fi # !err
 	if [ ${dbg_lvl} -ge 1 ]; then
-	    echo "dbg: diagnosed band number bnd_nbr = ${bnd_nbr} (nothing invisible afterward)"
+	    echo "dbg: diagnosed band number wvl_nbr = ${wvl_nbr} (nothing invisible afterward)"
 	fi # !dbg
-	#    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncks -4 -O -D 73 --trr_wxy=${bnd_nbr},${xdm_nbr},${ydm_nbr} ${d23_in} ${d23_out}"
-	cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*bnd_nbr=${bnd_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${d23_in} ${d23_out}"
+	#    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncks -4 -O -D 73 --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} ${d23_in} ${d23_out}"
+	cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*wvl_nbr=${wvl_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${d23_in} ${d23_out}"
 	in_fl=${d23_out}
 	
 	# Block 5 Loop 2: Execute and/or echo commands
