@@ -87,7 +87,7 @@ typ_out='NC_USHORT' # [enm] netCDF output type
 unq_sfx=".pid${spt_pid}.tmp" # [sng] Unique suffix
 
 # Derived defaults
-out_fl=${in_fl/_raw/.nc4} # [sng] Output file name
+out_fl=${in_fl/_raw/.nc} # [sng] Output file name
 
 # Default workflow stages
 att_flg='Yes' # [sng] Add workflow-specific metadata
@@ -124,7 +124,7 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     printf "Examples: ${fnt_bld}$spt_nm -i ${in_xmp} -o ${out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -I ${drc_in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
-    printf "          ${fnt_bld}ls \${DATA}/terraref/*_raw | $spt_nm -O \${TMPDIR} ${fnt_nrm}\n"
+    printf "          ${fnt_bld}ls \${DATA}/terraref/*_raw | $spt_nm -O ~/rgr ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -t NC_FLOAT -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -c 2 -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -N bil -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
@@ -409,6 +409,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	fi # !drc_usr
     else # !out_usr_flg
 	out_fl="${drc_out}/$(basename ${in_fl})"
+	out_fl=${out_fl/_raw/.nc}
     fi # !out_fl
     if [ "${in_fl}" = "${out_fl}" ]; then
 	echo "ERROR: Input file = Output file = ${in_fl}"
