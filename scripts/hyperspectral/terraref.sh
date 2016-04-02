@@ -5,9 +5,9 @@
 # Source: https://github.com/terraref/computing-pipeline/tree/master/scripts/hyperspectral/terraref.sh
 
 # Prerequisites:
-# NCO: sudo aptitude install nco
+# NCO version 4.5.6-beta01 (dated 20160401) or later
 # Python: both Python 2.X and 3.X are OK, but 3.X preferred
-# netCDF4: third-party library for Python
+# netCDF4: third-party netCDF library for Python
 
 # In Anaconda:
 # conda install netCDF4
@@ -208,7 +208,7 @@ if [ -n "${unq_usr}" ]; then
 	if [ "${unq_usr}" != 'none' ] && [ "${unq_usr}" != 'nil' ]; then
 	    unq_sfx="${unq_usr}"
 	else # !unq_usr
-	    unq_sfx=""
+	    unq_sfx=''
 	fi # !unq_usr
     fi # !unq_usr
 fi # !unq_sfx
