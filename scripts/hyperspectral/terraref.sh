@@ -91,12 +91,12 @@ out_fl=${in_fl/_raw/.nc4} # [sng] Output file name
 
 # Default workflow stages
 att_flg='Yes' # [sng] Add workflow-specific metadata
+cmp_flg='No' # [sng] Compress and/or pack data
 d23_flg='Yes' # [sng] Convert 2D->3D
 gdl_flg='No' # [sng] GDAL translate raw data to netCDF
 jsn_flg='Yes' # [sng] Parse metadata from JSON to netCDF
 mrg_flg='Yes' # [sng] Merge JSON metadata with data
 n34_flg='Yes' # [sng] Convert netCDF3 to netCDF4
-pdq_flg='No' # [sng] Compress and/or pack data
 rip_flg='Yes' # [sng] Move to final resting place
 trn_flg='Yes' # [sng] Translate flag
 xpt_flg='No' # [sng] Experimental flag
@@ -124,12 +124,13 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     printf "Examples: ${fnt_bld}$spt_nm -i ${in_xmp} -o ${out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -I ${drc_in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
-    printf "          ${fnt_bld}ls *_raw | $spt_nm -O ${drc_out_xmp} ${fnt_nrm}\n"
+    printf "          ${fnt_bld}ls \${DATA}/terraref/*_raw | $spt_nm -O \${TMPDIR} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -t NC_FLOAT -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -c 2 -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "          ${fnt_bld}$spt_nm -N bil -i ${in_xmp} -O ${drc_out_xmp} ${fnt_nrm}\n"
     printf "CZ Debug: ${spt_nm} -i \${DATA}/terraref/whiteReference_raw -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I \${DATA}/terraref -O \${DATA}/terraref > ~/terraref.out 2>&1 &\n"
+    printf "          ${spt_nm} -I \${DATA}/terraref ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -I /projects/arpae/terraref/raw_data/lemnatec_field -O /projects/arpae/terraref/outputs/lemnatec_field > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -i \${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &\n"
     printf "          ${spt_nm} -i \${DATA}/terraref/MovingSensor/VNIR/2016-03-05/2016-03-05__09-46_17_450/72235cd1-35d5-480a-8443-14281ded1a63_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &\n"
@@ -191,11 +192,11 @@ if [ -n "${tmp_usr}" ]; then
     drc_tmp=${tmp_usr%/}
 fi # !out_fl
 att_fl="${drc_tmp}/terraref_tmp_att.nc" # [sng] ncatted file
+cmp_fl="${drc_tmp}/terraref_tmp_cmp.nc" # [sng] Compress/pack file
 d23_fl="${drc_tmp}/terraref_tmp_d23.nc" # [sng] 2D->3D file
 jsn_fl="${drc_tmp}/terraref_tmp_jsn.nc" # [sng] JSON file
 mrg_fl="${drc_tmp}/terraref_tmp_mrg.nc" # [sng] Merge file
 n34_fl="${drc_tmp}/terraref_tmp_n34.nc" # [sng] netCDF3->netCDF4 file
-pdq_fl="${drc_tmp}/terraref_tmp_pdq.nc" # [sng] Compress/pack file
 tmp_fl="${drc_tmp}/${tmp_fl}" # [sng] Temporary output file
 trn_fl="${drc_tmp}/terraref_tmp_trn.nc" # [sng] Translate file
 
@@ -211,17 +212,17 @@ if [ -n "${unq_usr}" ]; then
     fi # !unq_usr
 fi # !unq_sfx
 att_fl=${att_fl}${unq_sfx}
+cmp_fl=${cmp_fl}${unq_sfx}
 d23_fl=${d23_fl}${unq_sfx}
 jsn_fl=${jsn_fl}${unq_sfx}
 mrg_fl=${mrg_fl}${unq_sfx}
 n34_fl=${n34_fl}${unq_sfx}
-pdq_fl=${pdq_fl}${unq_sfx}
 tmp_fl=${tmp_fl}${unq_sfx}
 trn_fl=${trn_fl}${unq_sfx}
 
 if [ -n "${dfl_lvl}" ]; then
     if [ ${dfl_lvl} -gt 0 ]; then
-	pdq_flg='Yes'
+	cmp_flg='Yes'
     fi # !dfl_lvl
 fi # !dfl_lvl
 if [ -z "${drc_in}" ]; then
@@ -423,7 +424,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     # Header file (*.hdr) codes raw data type as ENVI type 4: single-precision float, or type 12: unsigned 16-bit integer
     if [ "${trn_flg}" = 'Yes' ]; then
 	trn_in="${in_fl}"
-	trn_out="${trn_fl}"
+	trn_out="${trn_fl/.tmp/.fl${idx_prn}.tmp}"
 	printf "trn(in)  : ${trn_in}\n"
 	printf "trn(out) : ${trn_out}\n"
 	if [ "${gdl_flg}" = 'Yes' ]; then
@@ -447,10 +448,6 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 		12 ) typ_in='NC_USHORT' ; ;;
 		* ) printf "${spt_nm}: ERROR Unknown typ_in in ${hdr_fl}. Debug grep command.\n" ; exit 1 ; ;; # Other
 	    esac # !typ_in_ENVI
-	    if [ $? -ne 0 ]; then
-		printf "${spt_nm}: ERROR Failed to find ydm_nbr in ${hdr_fl}. Debug grep command.\n"
-		exit 1
-	    fi # !err
 	    cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ~/nco/data/in.nc ${trn_out}"
 	    hst_att="`date`: ${cmd_ln}"
 	fi # !GDAL
@@ -472,7 +469,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     
     # Add workflow-specific metadata
     if [ "${att_flg}" = 'Yes' ]; then
-	att_out="${att_fl}"
+	att_out="${att_fl/.tmp/.fl${idx_prn}.tmp}"
 	printf "att(in)  : ${att_in}\n"
 	printf "att(out) : ${att_out}\n"
 #	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" -a \"GDAL_Band_.?,global,d,,\" --gaa history='${hst_att}' ${att_in} ${att_out}"
@@ -492,7 +489,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     # Parse metadata from JSON to netCDF (sensor location, instrument configuration)
     if [ "${jsn_flg}" = 'Yes' ]; then
 	jsn_in="${fl_in[${fl_idx}]/_raw/_metadata.json}"
-	jsn_out="${jsn_fl}"
+	jsn_out="${jsn_fl/.tmp/.fl${idx_prn}.tmp}"
 	printf "jsn(in)  : ${jsn_in}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
 	cmd_jsn[${fl_idx}]="python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${jsn_in} ${jsn_out}"
@@ -512,7 +509,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     # Merge JSON metadata with data
     if [ "${mrg_flg}" = 'Yes' ]; then
 	mrg_in=${jsn_out}
-	mrg_out=${att_fl}
+	mrg_out=${att_out}
 	printf "mrg(in)  : ${mrg_in}\n"
 	printf "mrg(out) : ${mrg_out}\n"
 	mrg_fl=${n34_fl}
@@ -531,32 +528,32 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     fi # !mrg_flg
 
     # Compress and/or pack final data file
-    if [ "${pdq_flg}" = 'Yes' ]; then
-	pdq_in=${mrg_out}
-	pdq_out=${pdq_fl}
-	printf "pdq(in)  : ${pdq_in}\n"
-	printf "pdq(out) : ${pdq_out}\n"
-	pdq_fl=${n34_fl}
-	cmd_pdq[${fl_idx}]="ncks -L ${dfl_lvl} ${pdq_in} ${pdq_out}"
-	in_fl=${pdq_out}
+    if [ "${cmp_flg}" = 'Yes' ]; then
+	cmp_in=${mrg_out}
+	cmp_out="${cmp_fl/.tmp/.fl${idx_prn}.tmp}"
+	printf "cmp(in)  : ${cmp_in}\n"
+	printf "cmp(out) : ${cmp_out}\n"
+	cmp_fl=${n34_fl}
+	cmd_cmp[${fl_idx}]="ncks -L ${dfl_lvl} ${cmp_in} ${cmp_out}"
+	in_fl=${cmp_out}
 	if [ ${dbg_lvl} -ge 1 ]; then
-	    echo ${cmd_pdq[${fl_idx}]}
+	    echo ${cmd_cmp[${fl_idx}]}
 	fi # !dbg
 	if [ ${dbg_lvl} -ne 2 ]; then
-	    eval ${cmd_pdq[${fl_idx}]}
-	    if [ $? -ne 0 ] || [ ! -f ${pdq_out} ]; then
-		printf "${spt_nm}: ERROR Failed to compress and/or pack data. Debug this:\n${cmd_pdq[${fl_idx}]}\n"
+	    eval ${cmd_cmp[${fl_idx}]}
+	    if [ $? -ne 0 ] || [ ! -f ${cmp_out} ]; then
+		printf "${spt_nm}: ERROR Failed to compress and/or pack data. Debug this:\n${cmd_cmp[${fl_idx}]}\n"
 		exit 1
 	    fi # !err
 	fi # !dbg
-    else # !pdq_flg
+    else # !cmp_flg
 	rip_in=${mrg_out}
-    fi # !pdq_flg
+    fi # !cmp_flg
 
     # Move file to final resting place
     if [ "${rip_flg}" = 'Yes' ]; then
 	if [ -z "${rip_in}" ]; then
-	    rip_in=${pdq_out}
+	    rip_in=${cmp_out}
 	fi # !rip_in
 	rip_out=${out_fl}
 	printf "rip(in)  : ${rip_in}\n"
@@ -583,7 +580,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	# Requires NCO version 4.5.6-alpha05 or newer
 	# fxm: currently this step is slow, and may need to be rewritten to dedicated routine
 	d23_in=${att_fl}
-	d23_out=${d23_fl}
+	d23_out="${d23_fl/.tmp/.fl${idx_prn}.tmp}"
 	printf "2D  : ${d23_in}\n"
 	printf "3D  : ${d23_out}\n"
 	hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
