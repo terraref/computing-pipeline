@@ -1,16 +1,17 @@
 {
-  "log_path": "log.txt",
-  "active_tasks_path": "active_tasks.json",
-  "completed_tasks_path": "completed",
-  "dataset_map_path": "datasets.json",
+  "log_path": "home/globusmonitor/log/log.txt",
+  "active_tasks_path": "home/globusmonitor/log/active_tasks.json",
+  "completed_tasks_path": "home/globusmonitor/log/completed",
+  "dataset_map_path": "home/globusmonitor/log/datasets.json",
 
   "globus": {
-    "incoming_files_path": "/~/globus",
+    "incoming_files_path": "/home/globus",
     "authentication_refresh_frequency_secs": 43200,
     "transfer_update_frequency_secs": 120,
     "valid_users": {
       "globus_username": {
-        "password": "globus_password"
+        "password": "globus_password",
+        "endpoint_id": ""
       }
     }
   },

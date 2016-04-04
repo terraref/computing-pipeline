@@ -1,12 +1,12 @@
 {
-  "log_path": "log.txt",
-  "active_tasks_path": "active_tasks.json",
-  "pending_transfers_path": "pending_transfers.json",
-  "completed_tasks_path": "completed",
+  "log_path": "/home/gantrymonitor/log/log.txt",
+  "active_tasks_path": "/home/gantrymonitor/log/active_tasks.json",
+  "pending_transfers_path": "/home/gantrymonitor/log/pending_transfers.json",
+  "completed_tasks_path": "/home/gantrymonitor/log/completed",
 
   "gantry": {
-    "incoming_files_path": "/~/gantry",
-    "deletion_queue": "/~/gantry_delete",
+    "incoming_files_path": "/home/gantry",
+    "deletion_queue": "/home/gantry_delete",
     "file_check_frequency_secs": 120,
     "min_file_age_for_transfer_mins": 15
   },

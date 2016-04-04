@@ -8,7 +8,7 @@
     succeeded or failed, and notify Clowder accordingly.
 """
 
-import os, shutil, json, time, datetime, thread, copy, atexit
+import os, shutil, json, time, datetime, thread, copy, atexit, collections
 import requests
 from requests.packages.urllib3.filepost import encode_multipart_formdata
 from functools import wraps
@@ -17,9 +17,9 @@ from flask.ext import restful
 from flask_restful import reqparse, abort, Api, Resource
 from globusonline.transfer.api_client import TransferAPIClient, APIError, ClientError, goauth
 
+rootPath = "/home/globusmonitor/"
 
 config = {}
-configFile = "config.json"
 logFile = None
 
 """activeTasks tracks which Globus IDs are being monitored, and is of the format:
@@ -70,6 +70,20 @@ def openLog():
 
 def closeLog():
     logFile.close()
+
+"""Nested update of python dictionaries for config parsing"""
+def updateNestedDict(existing, new):
+    # Adapted from http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+    for k, v in new.iteritems():
+        if isinstance(existing, collections.Mapping):
+            if isinstance(v, collections.Mapping):
+                r = updateNestedDict(existing.get(k, {}), v)
+                existing[k] = r
+            else:
+                existing[k] = new[k]
+        else:
+            existing = {k: new[k]}
+    return existing
 
 """Print log message to console and write it to log file"""
 def log(message, type="INFO"):
@@ -411,8 +425,13 @@ def globusMonitorLoop():
             authWait = 0
 
 if __name__ == '__main__':
-    print("...loading configuration from "+configFile)
-    config = loadJsonFile(configFile)
+    # Try to load custom config file, falling back to default values where not overridden
+    config = loadJsonFile(rootPath+"config_default.json")
+    if os.path.exists(rootPath+"config_custom.json"):
+        print("...loading configuration from config_custom.json")
+        config = updateNestedDict(config, loadJsonFile(rootPath+"config_custom.json"))
+    else:
+        print("...no custom configuration file found. using default values")
     openLog()
     atexit.register(closeLog)
 
@@ -427,5 +446,6 @@ if __name__ == '__main__':
     log("*** Service now monitoring Globus tasks ***")
 
     # Create thread for API to begin listening - requires valid Globus user/pass
-    log("*** API now listening on "+config['api']['ip_address']+":"+config['api']['port']+" ***")
-    app.run(host=config['api']['ip_address'], port=int(config['api']['port']), debug=False)
+    apiPort = os.getenv('MONITOR_API_PORT', config['api']['port'])
+    log("*** API now listening on "+config['api']['ip_address']+":"+apiPort+" ***")
+    app.run(host=config['api']['ip_address'], port=int(apiPort), debug=False)
