@@ -8,12 +8,7 @@
     "incoming_files_path": "/home/globus",
     "authentication_refresh_frequency_secs": 43200,
     "transfer_update_frequency_secs": 120,
-    "valid_users": {
-      "globus_username": {
-        "password": "globus_password",
-        "endpoint_id": ""
-      }
-    }
+    "valid_users": {}
   },
 
   "api": {
@@ -23,11 +18,6 @@
 
   "clowder": {
     "host": "http://localhost:9000",
-    "user_map": {
-      "globus_username": {
-        "clowder_user": "user",
-        "clowder_pass": "pass"
-      }
-    }
+    "user_map": {}
   }
 }

@@ -10,7 +10,7 @@
 
 import os, shutil, json, time, datetime, thread, copy, atexit, collections
 import requests
-from requests.packages.urllib3.filepost import encode_multipart_formdata
+from urllib3.filepost import encode_multipart_formdata
 from functools import wraps
 from flask import Flask, request, Response
 from flask.ext import restful
@@ -19,6 +19,28 @@ from globusonline.transfer.api_client import TransferAPIClient, APIError, Client
 
 rootPath = "/home/globusmonitor/"
 
+"""
+Config file has 2 important entries which do not have default values:
+{
+    "globus": {
+*** (1) The valid_users sub-object describes which users can submit jobs ***
+        "valid_users": {
+            <globus username>: {
+                "password": <globus password>,
+                "endpoint_id": <globus endpoint ID corresponding to user>
+            }
+        }
+    },
+    "clowder": {
+        "user_map": {
+*** (2) The user_map sub-object maps a Globus user to the Clowder credentials that upload that user's files. ***
+            <globus username>: {
+                "clowder_user": <clowder username>
+                "clowder_pass": <clowder password>
+            }
+        }
+    }
+"""
 config = {}
 logFile = None
 
