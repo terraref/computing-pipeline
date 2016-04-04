@@ -1,8 +1,8 @@
 {
-  "log_path": "log_gantry.txt",
-  "active_tasks_path": "active_tasks_gantry.json",
-  "pending_transfers_path": "pending_transfers_gantry.json",
-  "completed_tasks_path": "completed_gantry",
+  "log_path": "log.txt",
+  "active_tasks_path": "active_tasks.json",
+  "pending_transfers_path": "pending_transfers.json",
+  "completed_tasks_path": "completed",
 
   "gantry": {
     "incoming_files_path": "/~/gantry",

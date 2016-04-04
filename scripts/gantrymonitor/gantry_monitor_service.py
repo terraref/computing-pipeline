@@ -26,7 +26,7 @@ from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIErr
 
 
 config = {}
-configFile = "config_gantry.json"
+configFile = "config.json"
 logFile = None
 
 """pendingTransfers tracks files prepped for transfer, by dataset:
