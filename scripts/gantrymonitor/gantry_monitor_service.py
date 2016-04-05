@@ -299,7 +299,7 @@ def getGantryFilesForTransfer(gantryDir):
             else:
                 # Found metadata.json, assume it is for dataset
                 transferQueue[datasetID]['md'] = loadJsonFile(f)
-                transferQueue[datasetID]['md_path'] = root
+                transferQueue[datasetID]['md_path'] = gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
 
     return transferQueue
 
