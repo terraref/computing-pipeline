@@ -7,6 +7,7 @@
   "gantry": {
     "incoming_files_path": "/home/gantry",
     "deletion_queue": "/home/gantry_delete",
+    "ftp_log_path": "/var/log",
     "file_check_frequency_secs": 120,
     "min_file_age_for_transfer_mins": 15
   },

@@ -258,11 +258,9 @@ def generateGlobusSubmissionID():
 def getGantryFilesForTransfer(gantryDir):
     transferQueue = {}
 
-    # TODO: Use FTP logfile in /var/log/xferlog to find 'c' completed files and queue them
-    # grep -a on latest line stored to find the last thing I read - store timestamp, if not in current, check previous (.gz) pipe thru zcat
-
-    fileAge = config['gantry']['min_file_age_for_transfer_mins']
-    foundFiles = subprocess.check_output(["find", gantryDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
+    #fileAge = config['gantry']['min_file_age_for_transfer_mins']
+    #foundFiles = subprocess.check_output(["find", gantryDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
+    foundFiles = getTransferQueueFromLogs()
 
     for f in foundFiles:
         # Get dataset info & path details from found file
@@ -302,6 +300,71 @@ def getGantryFilesForTransfer(gantryDir):
                 transferQueue[datasetID]['md_path'] = gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
 
     return transferQueue
+
+"""Check FTP log files to determine new files that were successfully moved to staging area"""
+def getTransferQueueFromLogs():
+    transferQueue = {}
+
+    logDir = config["gantry"]["ftp_log_path"]
+    lastLine = "" # TODO: Stash in a log file
+    currLog = os.path.join(logDir, "xferlog")
+    backLog = 0
+
+    #Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
+
+    if lastLine != "":
+        foundLines = subprocess.check_output(["grep","-a",lastLine]).split("\n")
+
+    foundResumePoint = False
+    handledBackLog = True
+    while not (foundResumePoint and handledBackLog):
+        with open(currLog, 'r+') as f:
+            for line in f:
+                if line == lastLine:
+                    foundResumePoint = True
+
+                elif foundResumePoint:
+                    # We're past the last queue's line, so capture these
+                    vals = line.split(" ")
+                    if vals[-1].replace("\n","") == 'c':    # c = complete, i = incomplete
+                        path = vals[-10]
+                        pathParts = path.split("/")
+                        filename = pathParts[-1]
+                        # TODO: These indices may change depending on sensor?
+                        sensorname = pathParts[-3] if len(pathParts)>3 else "unknown_sensor"
+                        timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
+                        datasetID = sensorname+" "+timestamp
+                        transferQueue[datasetID]['files'][filename] = {
+                            "name": filename,
+                            "path": path
+                        }
+
+        # If we didn't find last line in this file, look into the previous file
+        if not foundResumePoint:
+            handledBackLog = False
+            backLog += 1
+            currLog = os.path.join(logDir, "xferlog-"+str(backLog))
+            if not os.path.exists(currLog):
+                return {} # TODO: Didn't find last line. Read entire file(s)? Check timestamps? etc.
+
+        # If we found last line in a previous file, climb back up to current file and get its contents too
+        elif backLog > 0:
+            backLog -= 1
+            currLogName = "xferlog-"+str(backLog) if backLog > 0 else "xferlog"
+            currLog = os.path.join(logDir, currLogName)
+
+        # If we found the line and handled all backlogged files, we're ready to go
+        else:
+            handledBackLog = True
+
+    return transferQueue
+
+
+    # TODO: Use FTP logfile in /var/log/xferlog to find 'c' completed files and queue them
+    # grep -a on latest line stored to find the last thing I read - store timestamp, if not in current, check previous (.gz) pipe thru zcat
+    # look in /var/log/xferlog for last line
+    # if not found, look at file n-1 until found
+    # some files will be in a g-zip archive
 
 """Initiate Globus transfer with batch of files and add to activeTasks"""
 def initializeGlobusTransfers():
