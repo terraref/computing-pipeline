@@ -230,13 +230,13 @@ api.add_resource(TransferQueue, '/files')
 # ----------------------------------------------------------
 """Use globus goauth tool to get access token for config account"""
 def generateAuthToken():
-    log("...generating auth token for "+config['globus']['username'])
+    log("generating auth token for "+config['globus']['username'])
     t = goauth.get_access_token(
             username=config['globus']['username'],
             password=config['globus']['password']
     ).token
     config['globus']['auth_token'] = t
-    log("......generated: "+t)
+    log("...generated: "+t)
 
 """Generate a submission ID that can be used to avoid double-submitting"""
 def generateGlobusSubmissionID():
@@ -257,6 +257,9 @@ def generateGlobusSubmissionID():
 """Check for files ready for transmission and return list"""
 def getGantryFilesForTransfer(gantryDir):
     transferQueue = {}
+
+    # TODO: Use FTP logfile in /var/log/xferlog to find 'c' completed files and queue them
+    # grep -a on latest line stored to find the last thing I read - store timestamp, if not in current, check previous (.gz) pipe thru zcat
 
     fileAge = config['gantry']['min_file_age_for_transfer_mins']
     foundFiles = subprocess.check_output(["find", gantryDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
@@ -306,6 +309,7 @@ def initializeGlobusTransfers():
 
     api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
     submissionID = generateGlobusSubmissionID()
+    log("initializing Globus transfer "+submissionID)
 
     # Prepare transfer object
     transferObj = Transfer(submissionID,
@@ -318,10 +322,8 @@ def initializeGlobusTransfers():
             # Add files from each dataset
             for f in pendingTransfers[ds]['files']:
                 fobj = pendingTransfers[ds]['files'][f]
-                #src_path = os.path.join(config['gantry']['incoming_files_path'], fobj["path"], fobj["name"])
-                src_path = os.path.join(fobj["path"], fobj["name"])
+                src_path = os.path.join(config['gantry']['incoming_files_path'], fobj["path"], fobj["name"])
                 dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
-                log("...transferring "+src_path+" to "+dest_path)
                 transferObj.add_item(src_path, dest_path)
                 queueLength += 1
         elif "md" in pendingTransfers[ds]:
@@ -333,7 +335,6 @@ def initializeGlobusTransfers():
         try:
             status_code, status_message, transfer_data = api.transfer(transferObj)
         except (APIError, ClientError) as e:
-            # TODO: how to handle 409 Conflict ClientError? Not sure why that arose in one situation.
             # Try refreshing auth token and retrying
             generateAuthToken()
             api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
@@ -473,10 +474,10 @@ def gantryMonitorLoop():
 
 if __name__ == '__main__':
     # Try to load custom config file, falling back to default values where not overridden
-    config = loadJsonFile(rootPath+"config_default.json")
-    if os.path.exists(rootPath+"config_custom.json"):
+    config = loadJsonFile(os.path.join(rootPath, "config_default.json"))
+    if os.path.exists(os.path.join(rootPath, "config_custom.json")):
         print("...loading configuration from config_custom.json")
-        config = updateNestedDict(config, loadJsonFile(rootPath+"config_custom.json"))
+        config = updateNestedDict(config, loadJsonFile(os.path.join(rootPath, "config_custom.json")))
     else:
         print("...no custom configuration file found. using default values")
     openLog()
