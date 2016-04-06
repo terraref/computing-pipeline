@@ -386,21 +386,22 @@ def notifyClowderOfCompletedTask(task):
                     log("cannot add dataset metadata ("+str(dsmd.status_code)+" - "+dsmd.text+")", "ERROR")
 
             # Add local files to dataset by path
-            for f in task['contents'][ds]['files']:
-                fobj = task['contents'][ds]['files'][f]
-                log("adding file '"+fobj['path']+"' to "+ds)
-                # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
-                (content, header) = encode_multipart_formdata([
-                    ("file",'{"path":"%s"%s}' % (
-                        fobj['path'],
-                        ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else ""
-                    ))])
+            if 'files' in task['contents'][ds]:
+                for f in task['contents'][ds]['files']:
+                    fobj = task['contents'][ds]['files'][f]
+                    log("adding file '"+fobj['path']+"' to "+ds)
+                    # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
+                    (content, header) = encode_multipart_formdata([
+                        ("file",'{"path":"%s"%s}' % (
+                            fobj['path'],
+                            ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else ""
+                        ))])
 
-                fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid, data=content, headers={'Content-Type':header})
-                if fi.status_code != 200:
-                    log("cannot upload file ("+str(fi.status_code)+")", "ERROR")
-                else:
-                    activeTasks[task['globus_id']]['contents'][ds]['files'][f]['clowder_id'] = json.loads(fi.text)['id']
+                    fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid, data=content, headers={'Content-Type':header})
+                    if fi.status_code != 200:
+                        log("cannot upload file ("+str(fi.status_code)+")", "ERROR")
+                    else:
+                        activeTasks[task['globus_id']]['contents'][ds]['files'][f]['clowder_id'] = json.loads(fi.text)['id']
 
     else:
         log("cannot find clowder user credentials for Globus user "+globUser, "ERROR")
