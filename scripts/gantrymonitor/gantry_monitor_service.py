@@ -193,6 +193,8 @@ def filenameInActiveTasks(filename):
 
 """Add a particular file to pendingTransfers, checking for metadata first"""
 def addFileToPendingTransfers(f):
+    global pendingTransfers
+
     gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
     pathParts = gantryDirPath.split("/")
 
@@ -203,7 +205,7 @@ def addFileToPendingTransfers(f):
     gantryDirPath = gantryDirPath.replace(filename, "")
 
     if filename.find("metadata.json") == -1:
-        pendingTransfers.update({
+        pendingTransfers = updateNestedDict(pendingTransfers, {
             datasetID: {
                 "files": {
                     filename: {
@@ -217,7 +219,8 @@ def addFileToPendingTransfers(f):
 
     else:
         # Found metadata.json, assume it is for dataset
-        pendingTransfers.update({
+        testmd = {
+        pendingTransfers = updateNestedDict(pendingTransfers, {
             datasetID: {
                 "md": loadJsonFile(f),
                 "md_path": gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
@@ -399,7 +402,6 @@ def initializeGlobusTransfers():
 
     api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
     submissionID = generateGlobusSubmissionID()
-    log("initializing Globus transfer "+submissionID)
 
     # Prepare transfer object
     transferObj = Transfer(submissionID,
@@ -434,7 +436,7 @@ def initializeGlobusTransfers():
         if status_code == 200 or status_code == 202:
             globusID = transfer_data['task_id']
 
-            log("new globus transfer started: "+globusID)
+            log("globus transfer task started: "+globusID+" ("+str(queueLength)+" files)")
 
             activeTasks[globusID] = {
                 "globus_id": globusID,
@@ -468,6 +470,7 @@ def sendMetadataToMonitor(datasetName, metadata):
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
     # Check with Globus monitor rather than Globus itself, to make sure file was handled properly before deleting from src
+    log("sending metadata for "+datasetName)
     status = sess.post(config['ncsa_api']['host']+"/metadata", data=json.dumps({
         "user": config['globus']['username'],
         "dataset": datasetName,

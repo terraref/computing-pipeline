@@ -178,7 +178,6 @@ def writeCompletedTaskToDisk(task):
 """Find dataset id if dataset exists, creating if necessary"""
 def fetchDatasetByName(datasetName, requestsSession):
     if datasetName not in datasetMap:
-        log("......creating dataset "+datasetName)
         ds = requestsSession.post(config['clowder']['host']+"/api/datasets/createempty",
                                   headers={"Content-Type": "application/json"},
                                   data='{"name": "%s"}' % datasetName)
@@ -187,6 +186,7 @@ def fetchDatasetByName(datasetName, requestsSession):
             dsid = ds.json()['id']
             datasetMap[datasetName] = dsid
             writeDataToDisk(config['dataset_map_path'], datasetMap)
+            log("created dataset "+datasetName+" ("+dsid+")")
             return dsid
         else:
             log("cannot create dataset ("+str(ds.status_code)+")", "ERROR")
@@ -194,10 +194,12 @@ def fetchDatasetByName(datasetName, requestsSession):
     else:
         # We have a record of it, but check that it still exists before returning the ID
         dsid = datasetMap[datasetName]
-        ds = requestsSession.get(config['clowder']['host']+"api/datasets/"+dsid)
+        ds = requestsSession.get(config['clowder']['host']+"/api/datasets/"+dsid)
         if ds.status_code == 200:
+            log("dataset "+datasetName+" already exists ("+dsid+")")
             return dsid
         else:
+            log("cannot find dataset "+dsid+"; creating new dataset "+datasetName)
             # Could not find dataset so we'll just delete the record and create a new one
             del datasetMap[datasetName]
             return fetchDatasetByName(datasetName, requestsSession)
@@ -311,7 +313,7 @@ class MetadataLoader(restful.Resource):
         sess.auth = (clowderUser, clowderPass)
 
         dsid = fetchDatasetByName(req['dataset'], sess)
-        log("......adding metadata to dataset "+dsid)
+        log("adding metadata to dataset "+dsid)
         dsmd = sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata",
                          headers={'Content-Type':'application/json'},
                          data=json.dumps(req['md']))
@@ -362,7 +364,7 @@ def notifyClowderOfCompletedTask(task):
     userMap = config['clowder']['user_map']
 
     if globUser in userMap:
-        log("...notifying Clowder of task completion: "+task['globus_id'])
+        log("notifying Clowder of task completion: "+task['globus_id'])
         clowderHost = config['clowder']['host']
         clowderUser = userMap[globUser]['clowder_user']
         clowderPass = userMap[globUser]['clowder_pass']
@@ -375,17 +377,18 @@ def notifyClowderOfCompletedTask(task):
 
             # Assign dataset-level metadata if provided
             if "md" in task['contents'][ds]:
-                log("......adding metadata to dataset "+ds)
+                log("adding metadata to dataset "+ds)
+                # TODO: May need to scan metadata keys - will get 500 error if periods in any field names
                 dsmd = sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata",
                           headers={'Content-Type':'application/json'},
                           data=json.dumps(task['contents'][ds]['md']))
                 if dsmd.status_code != 200:
-                    log("cannot add dataset metadata ("+str(dsmd.status_code)+")", "ERROR")
+                    log("cannot add dataset metadata ("+str(dsmd.status_code)+" - "+dsmd.text+")", "ERROR")
 
             # Add local files to dataset by path
             for f in task['contents'][ds]['files']:
                 fobj = task['contents'][ds]['files'][f]
-                log("......adding file '"+fobj['path']+"/"+fobj['name']+"' to "+ds)
+                log("adding file '"+fobj['path']+"' to "+ds)
                 # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
                 (content, header) = encode_multipart_formdata([
                     ("file",'{"path":"%s"%s}' % (
