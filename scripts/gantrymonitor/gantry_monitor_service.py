@@ -536,23 +536,24 @@ def gantryMonitorLoop():
                     # Move files (and metadata files if needed) to staging area for deletion
                     if globusStatus == "SUCCEEDED":
                         deleteDir = config['gantry']['deletion_queue']
-                        for ds in task['contents']:
-                            if 'files' in task['contents'][ds]:
-                                for f in task['contents'][ds]['files']:
-                                    fobj = task['contents'][ds]['files'][f]
-                                    moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], fobj['path']),
-                                                  os.path.join(deleteDir, fobj['path']), fobj['name'])
-                                    if 'md'in fobj:
-                                        moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], fobj['md_path']),
-                                                      os.path.join(deleteDir, fobj['md_path']), fobj['md_name'])
-                            if 'md' in task['contents'][ds]:
-                                dsobj = task['contents'][ds]
-                                moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], dsobj['md_path']),
-                                              os.path.join(deleteDir, dsobj['md_path']), "metadata.json")
+                        if deleteDir != "":
+                            for ds in task['contents']:
+                                if 'files' in task['contents'][ds]:
+                                    for f in task['contents'][ds]['files']:
+                                        fobj = task['contents'][ds]['files'][f]
+                                        moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], fobj['path']),
+                                                      os.path.join(deleteDir, fobj['path']), fobj['name'])
+                                        if 'md'in fobj:
+                                            moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], fobj['md_path']),
+                                                          os.path.join(deleteDir, fobj['md_path']), fobj['md_name'])
+                                if 'md' in task['contents'][ds]:
+                                    dsobj = task['contents'][ds]
+                                    moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], dsobj['md_path']),
+                                                  os.path.join(deleteDir, dsobj['md_path']), "metadata.json")
 
-                        # Crawl and remove empty directories
-                        log("...removing empty directories in "+config['gantry']['incoming_files_path'])
-                        subprocess.call(["find", config['gantry']['incoming_files_path'], "-type", "d", "-empty", "-delete"])
+                            # Crawl and remove empty directories
+                            log("...removing empty directories in "+config['gantry']['incoming_files_path'])
+                            subprocess.call(["find", config['gantry']['incoming_files_path'], "-type", "d", "-empty", "-delete"])
 
                     del activeTasks[globusID]
                     writeTasksToDisk(config['active_tasks_path'], activeTasks)

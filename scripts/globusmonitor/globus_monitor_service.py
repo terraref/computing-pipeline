@@ -185,8 +185,8 @@ def fetchDatasetByName(datasetName, requestsSession):
         if ds.status_code == 200:
             dsid = ds.json()['id']
             datasetMap[datasetName] = dsid
-            writeDataToDisk(config['dataset_map_path'], datasetMap)
             log("created dataset "+datasetName+" ("+dsid+")")
+            writeDataToDisk(config['dataset_map_path'], datasetMap)
             return dsid
         else:
             log("cannot create dataset ("+str(ds.status_code)+")", "ERROR")
