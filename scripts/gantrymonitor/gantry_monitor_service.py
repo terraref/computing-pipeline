@@ -200,27 +200,53 @@ class TransferQueue(restful.Resource):
 
     def post(self):
         req = request.get_json(force=True)
-        f = req['path']
 
-        gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
-        pathParts = gantryDirPath.split("/")
-        filename = pathParts[-1]
-        sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
-        timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
-        datasetID = sensorname +" "+timestamp
-        gantryDirPath = gantryDirPath.replace(filename, "")
+        # Single file path entry under 'path'
+        if 'path' in req:
+            f = req['path']
 
-        pendingTransfers.update({
-            datasetID: {
-                 "files": {
-                     filename: {
-                         "name": filename,
-                         "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath
+            gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
+            pathParts = gantryDirPath.split("/")
+            filename = pathParts[-1]
+            sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
+            timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
+            datasetID = sensorname +" "+timestamp
+            gantryDirPath = gantryDirPath.replace(filename, "")
+
+            pendingTransfers.update({
+                datasetID: {
+                     "files": {
+                         filename: {
+                             "name": filename,
+                             "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath
+                         }
                      }
-                 }
-            }
-        })
-        log("file queued for transfer: "+f)
+                }
+            })
+            log("file queued for transfer: "+f)
+
+        # Multiple file path entries under 'paths'
+        if 'paths' in req:
+            for f in req['paths']:
+                gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
+                pathParts = gantryDirPath.split("/")
+                filename = pathParts[-1]
+                sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
+                timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
+                datasetID = sensorname +" "+timestamp
+                gantryDirPath = gantryDirPath.replace(filename, "")
+
+                pendingTransfers.update({
+                    datasetID: {
+                        "files": {
+                            filename: {
+                                "name": filename,
+                                "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath
+                            }
+                        }
+                    }
+                })
+                log("file queued for transfer: "+f)
         return 201
 
 api.add_resource(TransferQueue, '/files')
@@ -306,7 +332,8 @@ def getTransferQueueFromLogs():
     transferQueue = {}
 
     logDir = config["gantry"]["ftp_log_path"]
-    lastLine = "" # TODO: Stash in a log file
+    previousLine = "" # TODO: Stash in a log file
+    lastLineRead = ""
     currLog = os.path.join(logDir, "xferlog")
     backLog = 0
 
@@ -325,6 +352,7 @@ def getTransferQueueFromLogs():
 
                 elif foundResumePoint:
                     # We're past the last queue's line, so capture these
+                    lastLineRead = line
                     vals = line.split(" ")
                     if vals[-1].replace("\n","") == 'c':    # c = complete, i = incomplete
                         path = vals[-10]
@@ -356,6 +384,8 @@ def getTransferQueueFromLogs():
         # If we found the line and handled all backlogged files, we're ready to go
         else:
             handledBackLog = True
+
+    # TODO: Write lastLineRead to a log file
 
     return transferQueue
 
