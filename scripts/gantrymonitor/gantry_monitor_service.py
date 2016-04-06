@@ -227,6 +227,8 @@ def addFileToPendingTransfers(f):
         })
         log("dataset metadata found for: "+datasetID)
 
+    writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
+
 # ----------------------------------------------------------
 # API COMPONENTS
 # ----------------------------------------------------------
