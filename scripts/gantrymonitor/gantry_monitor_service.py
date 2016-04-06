@@ -219,7 +219,6 @@ def addFileToPendingTransfers(f):
 
     else:
         # Found metadata.json, assume it is for dataset
-        testmd = {
         pendingTransfers = updateNestedDict(pendingTransfers, {
             datasetID: {
                 "md": loadJsonFile(f),
