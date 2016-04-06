@@ -227,8 +227,6 @@ def addFileToPendingTransfers(f):
         })
         log("dataset metadata found for: "+datasetID)
 
-    writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
-
 # ----------------------------------------------------------
 # API COMPONENTS
 # ----------------------------------------------------------
@@ -248,6 +246,7 @@ class TransferQueue(restful.Resource):
             for f in req['paths']:
                 addFileToPendingTransfers(f)
 
+        writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         return 201
 
 api.add_resource(TransferQueue, '/files')
