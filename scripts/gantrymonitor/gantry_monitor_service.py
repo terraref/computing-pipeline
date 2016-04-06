@@ -191,6 +191,40 @@ def filenameInActiveTasks(filename):
 
     return False
 
+"""Add a particular file to pendingTransfers, checking for metadata first"""
+def addFileToPendingTransfers(f):
+    gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
+    pathParts = gantryDirPath.split("/")
+
+    filename = pathParts[-1]
+    sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
+    timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
+    datasetID = sensorname +" "+timestamp
+    gantryDirPath = gantryDirPath.replace(filename, "")
+
+    if filename.find("metadata.json") == -1:
+        pendingTransfers.update({
+            datasetID: {
+                "files": {
+                    filename: {
+                        "name": filename,
+                        "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath
+                    }
+                }
+            }
+        })
+        log("file queued for transfer: "+f)
+
+    else:
+        # Found metadata.json, assume it is for dataset
+        pendingTransfers.update({
+            datasetID: {
+                "md": loadJsonFile(f),
+                "md_path": gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
+            }
+        })
+        log("dataset metadata found for: "+datasetID)
+
 # ----------------------------------------------------------
 # API COMPONENTS
 # ----------------------------------------------------------
@@ -203,50 +237,13 @@ class TransferQueue(restful.Resource):
 
         # Single file path entry under 'path'
         if 'path' in req:
-            f = req['path']
-
-            gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
-            pathParts = gantryDirPath.split("/")
-            filename = pathParts[-1]
-            sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
-            timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
-            datasetID = sensorname +" "+timestamp
-            gantryDirPath = gantryDirPath.replace(filename, "")
-
-            pendingTransfers.update({
-                datasetID: {
-                     "files": {
-                         filename: {
-                             "name": filename,
-                             "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath
-                         }
-                     }
-                }
-            })
-            log("file queued for transfer: "+f)
+            addFileToPendingTransfers(req['path'])
 
         # Multiple file path entries under 'paths'
         if 'paths' in req:
             for f in req['paths']:
-                gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
-                pathParts = gantryDirPath.split("/")
-                filename = pathParts[-1]
-                sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
-                timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
-                datasetID = sensorname +" "+timestamp
-                gantryDirPath = gantryDirPath.replace(filename, "")
+                addFileToPendingTransfers(f)
 
-                pendingTransfers.update({
-                    datasetID: {
-                        "files": {
-                            filename: {
-                                "name": filename,
-                                "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath
-                            }
-                        }
-                    }
-                })
-                log("file queued for transfer: "+f)
         return 201
 
 api.add_resource(TransferQueue, '/files')
