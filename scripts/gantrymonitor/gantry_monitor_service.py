@@ -18,7 +18,7 @@
     queued for deletion.
 """
 
-import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections
+import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl
 import requests
 from flask import Flask, request, Response
 from flask.ext import restful
@@ -73,6 +73,17 @@ def openLog():
 def closeLog():
     logFile.close()
 
+"""Attempt to lock a file so API and monitor don't write at once, and wait if unable"""
+def lockFile(f):
+    # From http://tilde.town/~cristo/file-locking-in-python.html
+    while True:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except BlockingIOError as e:
+            # Try again in 1/10th of a second
+            time.sleep(0.1)
+
 """Nested update of python dictionaries for config parsing"""
 def updateNestedDict(existing, new):
     # Adapted from http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
@@ -120,6 +131,8 @@ def loadTasksFromDisk(filePath):
 def writeTasksToDisk(filePath, taskObj):
     # Write current file to backup location before writing current file
     log("...writing tasks to "+filePath)
+
+    lockFile(filePath)
 
     if os.path.exists(filePath):
         shutil.move(filePath, filePath+".backup")

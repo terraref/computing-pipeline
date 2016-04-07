@@ -8,7 +8,7 @@
     succeeded or failed, and notify Clowder accordingly.
 """
 
-import os, shutil, json, time, datetime, thread, copy, atexit, collections
+import os, shutil, json, time, datetime, thread, copy, atexit, collections, fcntl
 import requests
 from urllib3.filepost import encode_multipart_formdata
 from functools import wraps
@@ -93,6 +93,17 @@ def openLog():
 def closeLog():
     logFile.close()
 
+"""Attempt to lock a file so API and monitor don't write at once, and wait if unable"""
+def lockFile(f):
+    # From http://tilde.town/~cristo/file-locking-in-python.html
+    while True:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except BlockingIOError as e:
+            # Try again in 1/10th of a second
+            time.sleep(0.1)
+
 """Nested update of python dictionaries for config parsing"""
 def updateNestedDict(existing, new):
     # Adapted from http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
@@ -139,6 +150,8 @@ def loadDataFromDisk(logPath):
 """Save object into a log file from memory, moving existing file to .backup if it exists"""
 def writeDataToDisk(logPath, logData):
     log("...writing data to "+logPath)
+
+    lockFile(logPath)
 
     # Move existing copy to .backup if it exists
     if os.path.exists(logPath):
