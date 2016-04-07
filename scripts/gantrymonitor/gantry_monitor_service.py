@@ -355,7 +355,7 @@ def getGantryFilesForTransfer(gantryDir):
     #foundFiles = subprocess.check_output(["find", gantryDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
 
     # Get list of files from FTP log
-    foundFiles = getTransferQueueFromLogs()
+    foundFiles = getNewFilesFromFTPLogs()
 
     for f in foundFiles:
         # Get dataset info & path details from found file
@@ -397,22 +397,20 @@ def getGantryFilesForTransfer(gantryDir):
     return transferQueue
 
 """Check FTP log files to determine new files that were successfully moved to staging area"""
-def getTransferQueueFromLogs():
+def getNewFilesFromFTPLogs():
     global status_lastFTPLogLine
-    transferQueue = {}
+    foundFiles = []
 
     logDir = config["gantry"]["ftp_log_path"]
 
     # Example log line:
     #Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
-    lastLine = status_lastFTPLogLine
+    lastLine = copy.copy(status_lastFTPLogLine)
     lastReadTime = parseDateFromFTPLogLine(lastLine)
 
+    # TODO: Put this whole method in a separate thread so reading log file doesn't slow down initializing pending transfers
     currLog = os.path.join(logDir, "xferlog")
     backLog = 0
-
-    #if lastLine != "":
-    #    foundLines = subprocess.check_output(["grep","-a",lastLine]).split("\n")
 
     foundResumePoint = False
     handledBackLog = True
@@ -438,20 +436,10 @@ def getTransferQueueFromLogs():
 
                 elif foundResumePoint:
                     # We're past the last queue's line, so capture these
-                    lastLineRead = line
+                    status_lastFTPLogLine = line
                     vals = line.split(" ")
                     if vals[-1].replace("\n","") == 'c':    # c = complete, i = incomplete
-                        path = vals[-10]
-                        pathParts = path.split("/")
-                        filename = pathParts[-1]
-                        # TODO: These indices may change depending on sensor?
-                        sensorname = pathParts[-3] if len(pathParts)>3 else "unknown_sensor"
-                        timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
-                        datasetID = sensorname+" "+timestamp
-                        transferQueue[datasetID]['files'][filename] = {
-                            "name": filename,
-                            "path": path
-                        }
+                        foundFiles.append(vals[-10])        # full file path
 
         # If we didn't find last line in this file, look into the previous file
         if not foundResumePoint:
@@ -479,14 +467,7 @@ def getTransferQueueFromLogs():
         else:
             handledBackLog = True
 
-    return transferQueue
-
-
-    # TODO: Use FTP logfile in /var/log/xferlog to find 'c' completed files and queue them
-    # grep -a on latest line stored to find the last thing I read - store timestamp, if not in current, check previous (.gz) pipe thru zcat
-    # look in /var/log/xferlog for last line
-    # if not found, look at file n-1 until found
-    # some files will be in a g-zip archive
+    return foundFiles
 
 """Initiate Globus transfer with batch of files and add to activeTasks"""
 def initializeGlobusTransfers():
