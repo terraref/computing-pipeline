@@ -453,9 +453,9 @@ def globusMonitorLoop():
 if __name__ == '__main__':
     # Try to load custom config file, falling back to default values where not overridden
     config = loadJsonFile(os.path.join(rootPath, "config_default.json"))
-    if os.path.exists(os.path.join(rootPath, "config_custom.json")):
+    if os.path.exists(os.path.join(rootPath, "data/config_custom.json")):
         print("...loading configuration from config_custom.json")
-        config = updateNestedDict(config, loadJsonFile(os.path.join(rootPath, "config_custom.json")))
+        config = updateNestedDict(config, loadJsonFile(os.path.join(rootPath, "data/config_custom.json")))
     else:
         print("...no custom configuration file found. using default values")
     openLog()

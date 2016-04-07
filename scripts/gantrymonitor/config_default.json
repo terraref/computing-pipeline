@@ -1,8 +1,8 @@
 {
-  "log_path": "/home/gantrymonitor/log/log.txt",
-  "active_tasks_path": "/home/gantrymonitor/log/active_tasks.json",
-  "pending_transfers_path": "/home/gantrymonitor/log/pending_transfers.json",
-  "completed_tasks_path": "/home/gantrymonitor/log/completed",
+  "log_path": "/home/gantrymonitor/data/log/log.txt",
+  "active_tasks_path": "/home/gantrymonitor/data/log/active_tasks.json",
+  "pending_transfers_path": "/home/gantrymonitor/data/log/pending_transfers.json",
+  "completed_tasks_path": "/home/gantrymonitor/data/log/completed",
 
   "gantry": {
     "incoming_files_path": "/home/gantry",

@@ -1,8 +1,8 @@
 {
-  "log_path": "home/globusmonitor/log/log.txt",
-  "active_tasks_path": "home/globusmonitor/log/active_tasks.json",
-  "completed_tasks_path": "home/globusmonitor/log/completed",
-  "dataset_map_path": "home/globusmonitor/log/datasets.json",
+  "log_path": "home/globusmonitor/data/log/log.txt",
+  "active_tasks_path": "home/globusmonitor/data/log/active_tasks.json",
+  "completed_tasks_path": "home/globusmonitor/data/log/completed",
+  "dataset_map_path": "home/globusmonitor/data/log/datasets.json",
 
   "globus": {
     "incoming_files_path": "/home/globus",
