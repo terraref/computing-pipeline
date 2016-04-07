@@ -20,6 +20,7 @@
 
 import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl
 import requests
+from io import BlockingIOError
 from flask import Flask, request, Response
 from flask.ext import restful
 from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIError, ClientError, goauth
@@ -132,12 +133,11 @@ def writeTasksToDisk(filePath, taskObj):
     # Write current file to backup location before writing current file
     log("...writing tasks to "+filePath)
 
-    lockFile(filePath)
-
     if os.path.exists(filePath):
         shutil.move(filePath, filePath+".backup")
 
     f = open(filePath, 'w')
+    lockFile(f)
     f.write(json.dumps(taskObj))
     f.close()
 

@@ -10,6 +10,7 @@
 
 import os, shutil, json, time, datetime, thread, copy, atexit, collections, fcntl
 import requests
+from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
 from functools import wraps
 from flask import Flask, request, Response
@@ -151,13 +152,12 @@ def loadDataFromDisk(logPath):
 def writeDataToDisk(logPath, logData):
     log("...writing data to "+logPath)
 
-    lockFile(logPath)
-
     # Move existing copy to .backup if it exists
     if os.path.exists(logPath):
         shutil.move(logPath, logPath+".backup")
 
     f = open(logPath, 'w')
+    lockFile(f)
     f.write(json.dumps(logData))
     f.close()
 
