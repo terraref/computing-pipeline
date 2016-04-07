@@ -336,9 +336,28 @@ class MetadataLoader(restful.Resource):
 
         return dsmd.status_code
 
+""" / status
+Return basic information about monitor for health checking"""
+class MonitorStatus(restful.Resource):
+
+    def get(self):
+        activeTaskCount = len(activeTasks)
+        datasetsCreated = len(datasetMap)
+
+        completedTasks = 0
+        for root, dirs, filelist in os.walk(config['completed_tasks_path']):
+            completedTasks += len(filelist)
+
+        return {
+                "active_task_count": activeTaskCount,
+                "datasets_created": datasetsCreated,
+                "completed_globus_tasks": completedTasks
+               }, 200
+
 api.add_resource(GlobusMonitor, '/tasks')
 api.add_resource(GlobusTask, '/tasks/<string:globusID>')
 api.add_resource(MetadataLoader, '/metadata')
+api.add_resource(MonitorStatus, '/status')
 
 # ----------------------------------------------------------
 # SERVICE COMPONENTS

@@ -262,7 +262,31 @@ class TransferQueue(restful.Resource):
         writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         return 201
 
+""" / status
+Return basic information about monitor for health checking"""
+class MonitorStatus(restful.Resource):
+
+    def get(self):
+        pendingFileCount = 0
+        for ds in pendingTransfers:
+            if 'files' in pendingTransfers[ds]:
+                for f in pendingTransfers[ds]['files']:
+                    pendingFileCount += 1
+
+        createdTasks = len(activeTasks)
+
+        completedTasks = 0
+        for root, dirs, filelist in os.walk(config['completed_tasks_path']):
+            completedTasks += len(filelist)
+
+        return {
+                "pending_file_transfers": pendingFileCount,
+                "globus_tasks_sent": createdTasks,
+                "completed_globus_tasks": completedTasks
+               }, 200
+
 api.add_resource(TransferQueue, '/files')
+api.add_resource(MonitorStatus, '/status')
 
 # ----------------------------------------------------------
 # SERVICE COMPONENTS
@@ -351,6 +375,12 @@ def getTransferQueueFromLogs():
     backLog = 0
 
     #Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
+    # compare timestamps & filenames
+    
+    # for line in iter(fileobj.readline, ''):
+    # pos = file.tell()
+    # file.seek(pos)
+    #
 
     if lastLine != "":
         foundLines = subprocess.check_output(["grep","-a",lastLine]).split("\n")
