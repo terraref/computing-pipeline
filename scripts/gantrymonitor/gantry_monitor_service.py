@@ -104,6 +104,26 @@ def log(message, type="INFO"):
     print("["+type+"] "+message)
     logFile.write("["+type+"] "+message+"\n")
 
+"""Return small JSON object with information about monitor health"""
+def getStatus():
+    pendingFileCount = 0
+    for ds in pendingTransfers:
+        if 'files' in pendingTransfers[ds]:
+            for f in pendingTransfers[ds]['files']:
+                pendingFileCount += 1
+
+    createdTasks = len(activeTasks)
+
+    completedTasks = 0
+    for root, dirs, filelist in os.walk(config['completed_tasks_path']):
+        completedTasks += len(filelist)
+
+    return {
+        "pending_file_transfers": pendingFileCount,
+        "globus_tasks_sent": createdTasks,
+        "completed_globus_tasks": completedTasks
+    }
+
 """Load contents of .json file into a JSON object"""
 def loadJsonFile(filename):
     f = open(filename)
@@ -267,23 +287,7 @@ Return basic information about monitor for health checking"""
 class MonitorStatus(restful.Resource):
 
     def get(self):
-        pendingFileCount = 0
-        for ds in pendingTransfers:
-            if 'files' in pendingTransfers[ds]:
-                for f in pendingTransfers[ds]['files']:
-                    pendingFileCount += 1
-
-        createdTasks = len(activeTasks)
-
-        completedTasks = 0
-        for root, dirs, filelist in os.walk(config['completed_tasks_path']):
-            completedTasks += len(filelist)
-
-        return {
-                "pending_file_transfers": pendingFileCount,
-                "globus_tasks_sent": createdTasks,
-                "completed_globus_tasks": completedTasks
-               }, 200
+        return getStatus(), 200
 
 api.add_resource(TransferQueue, '/files')
 api.add_resource(MonitorStatus, '/status')
@@ -321,8 +325,11 @@ def generateGlobusSubmissionID():
 def getGantryFilesForTransfer(gantryDir):
     transferQueue = {}
 
+    # Get list of files last modified more than X minutes ago
     #fileAge = config['gantry']['min_file_age_for_transfer_mins']
     #foundFiles = subprocess.check_output(["find", gantryDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
+
+    # Get list of files from FTP log
     foundFiles = getTransferQueueFromLogs()
 
     for f in foundFiles:
@@ -551,14 +558,16 @@ def gantryMonitorLoop():
 
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if gantryWait <= 0:
-            #pendingTransfers.update(
-            #        getGantryFilesForTransfer(config['gantry']['incoming_files_path']))
+            pendingTransfers.update(getGantryFilesForTransfer(config['gantry']['incoming_files_path']))
+
+            # Clean up the pending object of straggling keys, then initialize Globus transfer
             cleanPendingTransfers()
             if pendingTransfers != {}:
                 writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
                 initializeGlobusTransfers()
             # Reset wait to check gantry incoming directory again
             gantryWait = config['gantry']['file_check_frequency_secs']
+            writeTasksToDisk(config["status_log_path"], getStatus())
 
         # Check with NCSA Globus monitor API for completed transfers
         if apiWait <= 0:
@@ -603,6 +612,7 @@ def gantryMonitorLoop():
 
             # Reset timer to check NCSA api for transfer updates again
             apiWait = config['ncsa_api']['api_check_frequency']
+            writeTasksToDisk(config["status_log_path"], getStatus())
 
         # Refresh Globus auth tokens
         if authWait <= 0:

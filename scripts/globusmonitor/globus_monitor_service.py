@@ -124,6 +124,21 @@ def log(message, type="INFO"):
     print("["+type+"] "+message)
     logFile.write("["+type+"] "+message+"\n")
 
+"""Return small JSON object with information about monitor health"""
+def getStatus():
+    activeTaskCount = len(activeTasks)
+    datasetsCreated = len(datasetMap)
+
+    completedTasks = 0
+    for root, dirs, filelist in os.walk(config['completed_tasks_path']):
+        completedTasks += len(filelist)
+
+    return {
+        "active_task_count": activeTaskCount,
+        "datasets_created": datasetsCreated,
+        "completed_globus_tasks": completedTasks
+    }
+
 """Load contents of .json file into a JSON object"""
 def loadJsonFile(filename):
     f = open(filename)
@@ -341,18 +356,7 @@ Return basic information about monitor for health checking"""
 class MonitorStatus(restful.Resource):
 
     def get(self):
-        activeTaskCount = len(activeTasks)
-        datasetsCreated = len(datasetMap)
-
-        completedTasks = 0
-        for root, dirs, filelist in os.walk(config['completed_tasks_path']):
-            completedTasks += len(filelist)
-
-        return {
-                "active_task_count": activeTaskCount,
-                "datasets_created": datasetsCreated,
-                "completed_globus_tasks": completedTasks
-               }, 200
+        return getStatus(), 200
 
 api.add_resource(GlobusMonitor, '/tasks')
 api.add_resource(GlobusTask, '/tasks/<string:globusID>')
@@ -435,6 +439,7 @@ def notifyClowderOfCompletedTask(task):
                     else:
                         activeTasks[task['globus_id']]['contents'][ds]['files'][f]['clowder_id'] = json.loads(fi.text)['id']
 
+            # TODO: Make Sensor, Year_Month_Day Collections (if needed) and put datasets in appropriately
     else:
         log("cannot find clowder user credentials for Globus user "+globUser, "ERROR")
 
@@ -476,6 +481,7 @@ def globusMonitorLoop():
                     del activeTasks[globusID]
                     writeDataToDisk(config['active_tasks_path'], activeTasks)
             globWait = 0
+            writeDataToDisk(config["status_log_path"], getStatus())
 
         # Refresh auth tokens periodically
         if authWait >= config['globus']['authentication_refresh_frequency_secs']:
