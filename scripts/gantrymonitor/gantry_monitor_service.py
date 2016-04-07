@@ -30,6 +30,9 @@ rootPath = "/home/gantrymonitor/"
 config = {}
 logFile = None
 
+# These are used by the FTP log reader to track progress, and included in status report
+status_lastFTPLogLine = ""
+
 """pendingTransfers tracks files prepped for transfer, by dataset:
 {
     "dataset": {
@@ -121,7 +124,9 @@ def getStatus():
     return {
         "pending_file_transfers": pendingFileCount,
         "globus_tasks_sent": createdTasks,
-        "completed_globus_tasks": completedTasks
+        "completed_globus_tasks": completedTasks,
+        "last_ftp_logfile_read": status_lastFTPLogFile,
+        "last_ftp_log_line_read": status_lastFTPLogLine
     }
 
 """Load contents of .json file into a JSON object"""
@@ -260,6 +265,26 @@ def addFileToPendingTransfers(f):
         })
         log("dataset metadata found for: "+datasetID)
 
+"""Take line of FTP transfer log and parse a datetime object from it"""
+def parseDateFromFTPLogLine(line):
+    # Example log line:
+    #Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
+
+    months = {
+        "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+        "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12
+    }
+
+    l = line.split(" ")
+    YY = int(l[5])      # year, e.g. 2016
+    MM = months[l[1]]   # month, e.g. 4
+    DD = int(l[3])      # day of month, e.g. 5
+    hh = int(l[4].split(':')[0])  # hours, e.g. 12
+    mm = int(l[4].split(':')[1])  # minutes, e.g. 35
+    ss = int(l[4].split(':')[2])  # seconds, e.g. 58
+
+    return datetime.datetime(YY, MM, DD, hh, mm, ss)
+
 # ----------------------------------------------------------
 # API COMPONENTS
 # ----------------------------------------------------------
@@ -373,32 +398,43 @@ def getGantryFilesForTransfer(gantryDir):
 
 """Check FTP log files to determine new files that were successfully moved to staging area"""
 def getTransferQueueFromLogs():
+    global status_lastFTPLogLine
     transferQueue = {}
 
     logDir = config["gantry"]["ftp_log_path"]
-    previousLine = "" # TODO: Stash in a log file
-    lastLineRead = ""
+
+    # Example log line:
+    #Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
+    lastLine = status_lastFTPLogLine
+    lastReadTime = parseDateFromFTPLogLine(lastLine)
+
     currLog = os.path.join(logDir, "xferlog")
     backLog = 0
 
-    #Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
-    # compare timestamps & filenames
-    
-    # for line in iter(fileobj.readline, ''):
-    # pos = file.tell()
-    # file.seek(pos)
-    #
-
-    if lastLine != "":
-        foundLines = subprocess.check_output(["grep","-a",lastLine]).split("\n")
+    #if lastLine != "":
+    #    foundLines = subprocess.check_output(["grep","-a",lastLine]).split("\n")
 
     foundResumePoint = False
     handledBackLog = True
     while not (foundResumePoint and handledBackLog):
         with open(currLog, 'r+') as f:
+            initialLine = True
             for line in f:
+                if initialLine:
+                    firstLineTime = parseDateFromFTPLogLine(line)
+                    if firstLineTime <= lastReadTime:
+                        # File begins before most recent line - should be scanned
+                        initialLine = False
+                    elif firstLineTime > lastReadTime:
+                        # File begins after most recent line - need to go back 1 file at least
+                        break
+
                 if line == lastLine:
                     foundResumePoint = True
+                    # TODO: evaluate if instead using
+                    #   for line in iter(f.readline, ""):
+                    #       resumePoint = f.tell()
+                    #       then next log check, use f.seek(resumePoint)
 
                 elif foundResumePoint:
                     # We're past the last queue's line, so capture these
@@ -423,19 +459,25 @@ def getTransferQueueFromLogs():
             backLog += 1
             currLog = os.path.join(logDir, "xferlog-"+str(backLog))
             if not os.path.exists(currLog):
-                return {} # TODO: Didn't find last line. Read entire file(s)? Check timestamps? etc.
+                # Check for gzipped verison as well
+                currLog = os.path.join(logDir, "xferlog-"+str(backLog)+".gz")
+                if not os.path.exists(currLog):
+                    # TODO: Didn't find last read line. What now? Read entire file(s)?
+                    return {}
 
         # If we found last line in a previous file, climb back up to current file and get its contents too
         elif backLog > 0:
             backLog -= 1
             currLogName = "xferlog-"+str(backLog) if backLog > 0 else "xferlog"
             currLog = os.path.join(logDir, currLogName)
+            if not os.path.exists(currLog):
+                # Probably a gzipped version instead
+                currLogName = "xferlog-"+str(backLog)+".gz" if backLog > 0 else "xferlog.gz"
+                currLog = os.path.join(logDir, currLogName)
 
         # If we found the line and handled all backlogged files, we're ready to go
         else:
             handledBackLog = True
-
-    # TODO: Write lastLineRead to a log file
 
     return transferQueue
 
