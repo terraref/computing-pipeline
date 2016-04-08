@@ -203,18 +203,16 @@ def moveLocalFile(srcPath, destPath, filename):
 
 """Clear out any datasets from pendingTransfers without files or metadata"""
 def cleanPendingTransfers():
-    toRemove = []
-    for ds in pendingTransfers:
-        keep = False
-        if 'files' in pendingTransfers[ds]:
-            keep = len(pendingTransfers[ds]['files']) > 0
-        if 'md' in pendingTransfers[ds]:
-            keep = len(pendingTransfers[ds]['md']) > 0
-        if not keep:
-            toRemove.append(ds)
-
-    for ds in toRemove:
-        del pendingTransfers[ds]
+    # Iterate across a copy since we'll be changing object
+    allPendingTransfers = copy.deepcopy(pendingTransfers)
+    for ds in allPendingTransfers:
+        dsobj = allPendingTransfers[ds]
+        if 'files' in dsobj and len(dsobj['files']) == 0:
+            del pendingTransfers[ds]['files']
+        if 'md' in dsobj and len(dsobj['md']) == 0:
+            del pendingTransfers[ds]['md']
+        if 'files' not in pendingTransfers[ds] and 'md' not in pendingTransfers[ds]:
+            del pendingTransfers[ds]
 
 """Return true if a file is currently part of an active transfer"""
 def filenameInActiveTasks(filename):
