@@ -125,7 +125,6 @@ def getStatus():
         "pending_file_transfers": pendingFileCount,
         "globus_tasks_sent": createdTasks,
         "completed_globus_tasks": completedTasks,
-        "last_ftp_logfile_read": status_lastFTPLogFile,
         "last_ftp_log_line_read": status_lastFTPLogLine
     }
 
