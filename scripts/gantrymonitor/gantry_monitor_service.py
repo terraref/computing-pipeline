@@ -276,14 +276,18 @@ def parseDateFromFTPLogLine(line):
     }
 
     l = line.split(" ")
-    YY = int(l[5])      # year, e.g. 2016
-    MM = months[l[1]]   # month, e.g. 4
-    DD = int(l[3])      # day of month, e.g. 5
-    hh = int(l[4].split(':')[0])  # hours, e.g. 12
-    mm = int(l[4].split(':')[1])  # minutes, e.g. 35
-    ss = int(l[4].split(':')[2])  # seconds, e.g. 58
+    if len(l) > 6:
+        YY = int(l[5])      # year, e.g. 2016
+        MM = months[l[1]]   # month, e.g. 4
+        DD = int(l[3])      # day of month, e.g. 5
+        hh = int(l[4].split(':')[0])  # hours, e.g. 12
+        mm = int(l[4].split(':')[1])  # minutes, e.g. 35
+        ss = int(l[4].split(':')[2])  # seconds, e.g. 58
 
-    return datetime.datetime(YY, MM, DD, hh, mm, ss)
+        return datetime.datetime(YY, MM, DD, hh, mm, ss)
+    else:
+        # TODO: How to handle unparseable log line?
+        return datetime.datetime(1900, 1, 1, 1, 1, 1)
 
 # ----------------------------------------------------------
 # API COMPONENTS
