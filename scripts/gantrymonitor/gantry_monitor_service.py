@@ -482,18 +482,31 @@ def initializeGlobusTransfers():
                            config['globus']['destination_endpoint_id'])
 
     queueLength = 0
+    remainingPendingTransfers = copy.copy(pendingTransfers)
     for ds in pendingTransfers:
         if "files" in pendingTransfers[ds]:
             # Add files from each dataset
             for f in pendingTransfers[ds]['files']:
-                fobj = pendingTransfers[ds]['files'][f]
-                src_path = os.path.join(config['gantry']['incoming_files_path'], fobj["path"], fobj["name"])
-                dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
-                transferObj.add_item(src_path, dest_path)
-                queueLength += 1
+                if queueLength < config['globus']['max_transfer_file_count']:
+                    fobj = pendingTransfers[ds]['files'][f]
+                    src_path = os.path.join(config['gantry']['incoming_files_path'], fobj["path"], fobj["name"])
+                    dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
+                    transferObj.add_item(src_path, dest_path)
+
+                    # remainingTransfers will have leftover data once max Globus transfer size is met
+                    queueLength += 1
+                    del remainingPendingTransfers[ds]['files'][f]
+
+            if len(remainingPendingTransfers[ds]['files']) == 0:
+                del remainingPendingTransfers[ds]['files']
+
         elif "md" in pendingTransfers[ds]:
             # We have metadata for a dataset, but no files. Just send metadata separately.
             sendMetadataToMonitor(ds, pendingTransfers[ds]['md'])
+            del remainingPendingTransfers[ds]['md']
+
+        if 'files' not in pendingTransfers[ds] and 'md' not in pendingTransfers[ds]:
+            del remainingPendingTransfers[ds]
 
     if queueLength > 0:
         # Send transfer to Globus
@@ -521,10 +534,14 @@ def initializeGlobusTransfers():
 
             notifyMonitorOfNewTransfer(globusID, pendingTransfers)
 
-            pendingTransfers = {}
+            pendingTransfers = remainingPendingTransfers
             writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         else:
             log("globus initialization failed for "+ds+" ("+status_code+": "+status_message+")", "ERROR")
+
+    if pendingTransfers != {}:
+        # If pendingTransfers not empty, we still have remaining files and need to start more Globus transfers
+        initializeGlobusTransfers()
 
 """Send message to NCSA Globus monitor API that a new task has begun"""
 def notifyMonitorOfNewTransfer(globusID, contents):
