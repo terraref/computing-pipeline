@@ -207,9 +207,9 @@ def cleanPendingTransfers():
     for ds in pendingTransfers:
         keep = False
         if 'files' in pendingTransfers[ds]:
-            keep = pendingTransfers[ds]['files'] != {}
+            keep = len(pendingTransfers[ds]['files']) > 0
         if 'md' in pendingTransfers[ds]:
-            keep = pendingTransfers[ds]['md'] != {}
+            keep = len(pendingTransfers[ds]['md']) > 0
         if not keep:
             toRemove.append(ds)
 
@@ -487,6 +487,7 @@ def initializeGlobusTransfers():
     queueLength = 0
     sentSomeMd = False
     remainingPendingTransfers = copy.deepcopy(pendingTransfers)
+    currentTransferBatch = {}
 
     log("-------------------------------")
     log(str(pendingTransfers))
@@ -494,6 +495,9 @@ def initializeGlobusTransfers():
 
     for ds in pendingTransfers:
         if "files" in pendingTransfers[ds]:
+            if ds not in currentTransferBatch:
+                currentTransferBatch[ds] = {}
+                currentTransferBatch[ds]['files'] = {}
             # Add files from each dataset
             for f in pendingTransfers[ds]['files']:
                 if queueLength < config['globus']['max_transfer_file_count']:
@@ -504,6 +508,7 @@ def initializeGlobusTransfers():
 
                     # remainingTransfers will have leftover data once max Globus transfer size is met
                     queueLength += 1
+                    currentTransferBatch[ds]['files'][f] = fobj
                     del remainingPendingTransfers[ds]['files'][f]
 
         elif "md" in pendingTransfers[ds]:
@@ -533,13 +538,13 @@ def initializeGlobusTransfers():
 
             activeTasks[globusID] = {
                 "globus_id": globusID,
-                "contents": pendingTransfers,
+                "contents": currentTransferBatch,
                 "started": str(datetime.datetime.now()),
                 "status": "IN PROGRESS"
             }
             writeTasksToDisk(config['active_tasks_path'], activeTasks)
 
-            notifyMonitorOfNewTransfer(globusID, pendingTransfers)
+            notifyMonitorOfNewTransfer(globusID, currentTransferBatch)
 
             pendingTransfers = remainingPendingTransfers
             writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
