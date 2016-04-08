@@ -487,10 +487,6 @@ def initializeGlobusTransfers():
     remainingPendingTransfers = copy.deepcopy(pendingTransfers)
     currentTransferBatch = {}
 
-    log("-------------------------------")
-    log(str(pendingTransfers))
-    log("-------------------------------")
-
     for ds in pendingTransfers:
         if "files" in pendingTransfers[ds]:
             if ds not in currentTransferBatch:
@@ -535,7 +531,7 @@ def initializeGlobusTransfers():
         if status_code == 200 or status_code == 202:
             globusID = transfer_data['task_id']
 
-            log("globus transfer task started: "+globusID+" ("+str(queueLength)+" files)")
+            log("Globus transfer task started: "+globusID+" ("+str(queueLength)+" files)")
 
             activeTasks[globusID] = {
                 "globus_id": globusID,
@@ -558,7 +554,6 @@ def initializeGlobusTransfers():
 
     cleanPendingTransfers()
     if pendingTransfers != {}:
-        log("------------------RESENDING-----------------------")
         # If pendingTransfers not empty, we still have remaining files and need to start more Globus transfers
         initializeGlobusTransfers()
 
