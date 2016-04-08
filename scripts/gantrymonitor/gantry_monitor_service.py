@@ -502,11 +502,10 @@ def initializeGlobusTransfers():
 
         elif "md" in pendingTransfers[ds]:
             # We have metadata for a dataset, but no files. Just send metadata separately.
-            sendMetadataToMonitor(ds, pendingTransfers[ds]['md'])
-            del remainingPendingTransfers[ds]['md']
-
-        if 'files' not in pendingTransfers[ds] and 'md' not in pendingTransfers[ds]:
-            del remainingPendingTransfers[ds]
+            mdxfer = sendMetadataToMonitor(ds, pendingTransfers[ds]['md'])
+            if mdxfer.status_code == 200:
+                # Leave metadata in pending if it wasn't successfully posted to Clowder
+                del remainingPendingTransfers[ds]['md']
 
     if queueLength > 0:
         # Send transfer to Globus
@@ -539,6 +538,7 @@ def initializeGlobusTransfers():
         else:
             log("globus initialization failed for "+ds+" ("+status_code+": "+status_message+")", "ERROR")
 
+    cleanPendingTransfers()
     if pendingTransfers != {}:
         # If pendingTransfers not empty, we still have remaining files and need to start more Globus transfers
         initializeGlobusTransfers()
@@ -548,11 +548,14 @@ def notifyMonitorOfNewTransfer(globusID, contents):
     sess = requests.Session()
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
-    sess.post(config['ncsa_api']['host']+"/tasks", data=json.dumps({
+    log("notifying Globus monitor of "+globusID)
+    status = sess.post(config['ncsa_api']['host']+"/tasks", data=json.dumps({
         "user": config['globus']['username'],
         "globus_id": globusID,
         "contents": contents
     }))
+
+    return status
 
 """Send message to NCSA Globus monitor API with metadata for a dataset, without other files"""
 def sendMetadataToMonitor(datasetName, metadata):
