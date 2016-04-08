@@ -485,6 +485,7 @@ def initializeGlobusTransfers():
                            config['globus']['destination_endpoint_id'])
 
     queueLength = 0
+    sentSomeMd = False
     remainingPendingTransfers = copy.deepcopy(pendingTransfers)
     for ds in pendingTransfers:
         if "files" in pendingTransfers[ds]:
@@ -507,6 +508,7 @@ def initializeGlobusTransfers():
             # We have metadata for a dataset, but no files. Just send metadata separately.
             mdxfer = sendMetadataToMonitor(ds, pendingTransfers[ds]['md'])
             if mdxfer.status_code == 200:
+                sentSomeMd = True
                 # Leave metadata in pending if it wasn't successfully posted to Clowder
                 del remainingPendingTransfers[ds]['md']
 
@@ -536,6 +538,10 @@ def initializeGlobusTransfers():
 
             notifyMonitorOfNewTransfer(globusID, pendingTransfers)
 
+            pendingTransfers = remainingPendingTransfers
+            writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
+        elif sentSomeMd:
+            # If metadata was sent there was still activity, so update pending transfers
             pendingTransfers = remainingPendingTransfers
             writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         else:
