@@ -540,12 +540,12 @@ def initializeGlobusTransfers():
 
             pendingTransfers = remainingPendingTransfers
             writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
-        elif sentSomeMd:
-            # If metadata was sent there was still activity, so update pending transfers
-            pendingTransfers = remainingPendingTransfers
-            writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         else:
             log("globus initialization failed for "+ds+" ("+status_code+": "+status_message+")", "ERROR")
+    elif sentSomeMd:
+        # If metadata was sent there was still activity, so update pending transfers
+        pendingTransfers = remainingPendingTransfers
+        writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
 
     cleanPendingTransfers()
     if pendingTransfers != {}:
