@@ -508,6 +508,9 @@ def initializeGlobusTransfers():
                     queueLength += 1
                     currentTransferBatch[ds]['files'][f] = fobj
                     del remainingPendingTransfers[ds]['files'][f]
+            if "md" in pendingTransfers[ds]:
+                currentTransferBatch[ds]['md'] = pendingTransfers[ds]['md']
+                del remainingPendingTransfers[ds]['md']
 
         elif "md" in pendingTransfers[ds]:
             # We have metadata for a dataset, but no files. Just send metadata separately.
