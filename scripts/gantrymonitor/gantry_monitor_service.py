@@ -487,6 +487,11 @@ def initializeGlobusTransfers():
     queueLength = 0
     sentSomeMd = False
     remainingPendingTransfers = copy.deepcopy(pendingTransfers)
+
+    log("-------------------------------")
+    log(str(pendingTransfers))
+    log("-------------------------------")
+
     for ds in pendingTransfers:
         if "files" in pendingTransfers[ds]:
             # Add files from each dataset
@@ -501,16 +506,14 @@ def initializeGlobusTransfers():
                     queueLength += 1
                     del remainingPendingTransfers[ds]['files'][f]
 
-            if len(remainingPendingTransfers[ds]['files']) == 0:
-                del remainingPendingTransfers[ds]['files']
-
         elif "md" in pendingTransfers[ds]:
             # We have metadata for a dataset, but no files. Just send metadata separately.
             mdxfer = sendMetadataToMonitor(ds, pendingTransfers[ds]['md'])
+            # Leave metadata in pending if it wasn't successfully posted to Clowder
             if mdxfer.status_code == 200:
                 sentSomeMd = True
-                # Leave metadata in pending if it wasn't successfully posted to Clowder
-                del remainingPendingTransfers[ds]['md']
+                # Otherwise remove dataset entry since we already know there are no files
+                del remainingPendingTransfers[ds]
 
     if queueLength > 0:
         # Send transfer to Globus
@@ -549,6 +552,7 @@ def initializeGlobusTransfers():
 
     cleanPendingTransfers()
     if pendingTransfers != {}:
+        log("------------------RESENDING-----------------------")
         # If pendingTransfers not empty, we still have remaining files and need to start more Globus transfers
         initializeGlobusTransfers()
 
