@@ -455,7 +455,7 @@ def globusMonitorLoop():
         # Check with Globus for any status updates on monitored tasks
         if globWait >= config['globus']['transfer_update_frequency_secs']:
             # Use copy of task list so it doesn't change during iteration
-            currentActiveTasks = copy.copy(activeTasks)
+            currentActiveTasks = copy.deepcopy(activeTasks)
             for globusID in currentActiveTasks:
                 task = activeTasks[globusID]
                 globusStatus = getGlobusStatus(task)

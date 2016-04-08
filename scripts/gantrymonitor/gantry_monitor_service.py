@@ -485,7 +485,7 @@ def initializeGlobusTransfers():
                            config['globus']['destination_endpoint_id'])
 
     queueLength = 0
-    remainingPendingTransfers = copy.copy(pendingTransfers)
+    remainingPendingTransfers = copy.deepcopy(pendingTransfers)
     for ds in pendingTransfers:
         if "files" in pendingTransfers[ds]:
             # Add files from each dataset
@@ -618,7 +618,7 @@ def gantryMonitorLoop():
         # Check with NCSA Globus monitor API for completed transfers
         if apiWait <= 0:
             # Use copy of task list so it doesn't change during iteration
-            currentActiveTasks = copy.copy(activeTasks)
+            currentActiveTasks = copy.deepcopy(activeTasks)
             for globusID in currentActiveTasks:
                 task = activeTasks[globusID]
 
