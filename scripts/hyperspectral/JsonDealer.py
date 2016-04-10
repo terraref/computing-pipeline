@@ -156,7 +156,7 @@ def getDimension(fileName):
     '''
     Acquire dimensions from related HDR file
     '''
-    fileHandler = open(fileName + '_raw.hdr')
+    fileHandler = open(fileName + '.hdr')
 
     for members in fileHandler.readlines():
         if "samples" in members:
@@ -173,7 +173,7 @@ def getWavelength(fileName):
     '''
     Acquire wavelength(s) from related HDR file
     '''
-    fileHandler = open(fileName + '_raw.hdr')
+    fileHandler = open(fileName + '.hdr')
     wavelengthGroup = [float(x.strip('\r').strip('\n').strip(',')) for x in fileHandler.readlines()
                        if isDigit(x.strip('\r').strip('\n').strip(','))]
 
@@ -184,7 +184,7 @@ def getHeaderInfo(fileName):
     '''
     Acquire Other Information from related HDR file
     '''
-    fileHandler, infoDictionary = open(fileName + '_raw.hdr'), dict()
+    fileHandler, infoDictionary = open(fileName + '.hdr'), dict()
     for members in fileHandler.readlines():
         if '=' in members and 'wavelength' not in members:
             infoDictionary[members[0:members.find(
@@ -316,7 +316,7 @@ def jsonHandler(jsonFile):
     rawData = str()
 
     try:
-        with open(jsonFile + '_metadata.json') as fileHandler:
+        with open(jsonFile[:-4] + '_metadata.json') as fileHandler:
             for dataMember in fileHandler.readlines():
                 rawData += dataMember.strip('\\').strip('\t').strip('\n')
     except Exception as err:
@@ -338,7 +338,7 @@ def writeHeaderFile(fileName, netCDFHandler):
 
     # mainDataHandler, tempVariable = open(fileName + '_raw'), netCDFHandler.createVariable(
     #     'exposure_2', 'f8', ('band', 'x', 'y'))  # ('band', 'x', 'y')
-    fileSize = os.path.getsize(fileName + '_raw')
+    fileSize = os.path.getsize(fileName)
     dataNumber, dataType, dataSize = fileSize / DATATYPE[hdrInfo['data type']][-1], DATATYPE[hdrInfo['data type']][0],\
         DATATYPE[hdrInfo['data type']][-1]
 
