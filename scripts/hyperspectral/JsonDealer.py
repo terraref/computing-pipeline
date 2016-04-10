@@ -16,9 +16,19 @@ filePath2      is users' expected output location
 
 Warning:
 Make sure the json metadata ended with <data_name>+_metadata.json and the hdr file ended with <data_name>+_raw.hdr
+For example, if you have a group of data named like this:
+
+Data: data_raw
+Metadata: data_metadata.json
+Header: data_raw.hdr
+
+You just need to type in 
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/data
+
+JsonDealer will authomatically find data_raw, data_metadata.json and data_raw.hdr for you
 
 Example:
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/test_metadata.nc4
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/data
 ----------------------------------------------------------------------------------------
 This script is version-independent, and works with both Python 2 and 3, depending on the netCDF4 module version
 Thanks for the advice from Professor Zender and sample data from Dr. LeBauer.
@@ -103,9 +113,9 @@ class DataContainer(object):
             return self.__dict__[param]
 
     def writeToNetCDF(self, inputFilePath, outputFilePath, commandLine):
-        setattr(self,"HeaderInfo",None) #weird, but useful to check whether the HeaderInfo id in the netCDF file
+        setattr(self,"header_info",None) #weird, but useful to check whether the HeaderInfo id in the netCDF file
         netCDFHandler = _fileExistingCheck(outputFilePath, self)
-        delattr(self,"HeaderInfo")
+        delattr(self,"header_info")
 
 
         if netCDFHandler == 0:
@@ -342,15 +352,13 @@ def writeHeaderFile(fileName, netCDFHandler):
     # to avoid "de-interleaving"
 
     setattr(netCDFHandler, 'wavelength', wavelength)
-    headerInfo = netCDFHandler.createGroup("HeaderInfo")
+    headerInfo = netCDFHandler.createGroup("header_info")
 
     for members in hdrInfo:
         setattr(headerInfo, members, hdrInfo[members])
         if isDigit(hdrInfo[members]):
             tempVariable = headerInfo.createVariable(members, 'i4')
             tempVariable.assignValue(int(hdrInfo[members]))
-            print(hdrInfo[members])
-
 
 if __name__ == '__main__':
     fileInput, fileOutput = sys.argv[1], sys.argv[2]
