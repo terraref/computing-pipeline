@@ -490,7 +490,8 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     
     # Parse metadata from JSON to netCDF (sensor location, instrument configuration)
     if [ "${jsn_flg}" = 'Yes' ]; then
-	jsn_in="${fl_in[${fl_idx}]/_raw/_metadata.json}"
+#	jsn_in="${fl_in[${fl_idx}]/_raw/_metadata.json}"
+	jsn_in="${fl_in[${fl_idx}]}"
 	jsn_out="${jsn_fl}.fl${idx_prn}.tmp"
 	printf "jsn(in)  : ${jsn_in}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
