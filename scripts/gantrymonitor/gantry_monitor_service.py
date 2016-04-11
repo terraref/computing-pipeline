@@ -18,7 +18,7 @@
     queued for deletion.
 """
 
-import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl
+import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re
 import requests
 from io import BlockingIOError
 from flask import Flask, request, Response
@@ -417,8 +417,15 @@ def getNewFilesFromFTPLogs():
     handledBackLog = True
     while not (foundResumePoint and handledBackLog):
         with open(currLog, 'r+') as f:
-            initialLine = True
+            # If no most recent scanned line available, just start from beginning of current log file
+            if lastLine == "":
+                initialLine = False
+                foundResumePoint = True
+            else:
+                initialLine = True
+
             for line in f:
+                line = line.rstrip()
                 if initialLine:
                     firstLineTime = parseDateFromFTPLogLine(line)
                     if firstLineTime <= lastReadTime:
@@ -438,7 +445,7 @@ def getNewFilesFromFTPLogs():
                 elif foundResumePoint:
                     # We're past the last queue's line, so capture these
                     status_lastFTPLogLine = line
-                    vals = line.split(" ")
+                    vals = re.split(" +", line)
                     if vals[-1].replace("\n","") == 'c':    # c = complete, i = incomplete
                         foundFiles.append(vals[-10])        # full file path
 
@@ -451,8 +458,9 @@ def getNewFilesFromFTPLogs():
                 # Check for gzipped verison as well
                 currLog = os.path.join(logDir, "xferlog-"+str(backLog)+".gz")
                 if not os.path.exists(currLog):
-                    # TODO: Didn't find last read line. What now? Read entire file(s)?
-                    return {}
+                    # Didn't find any previous logs, so just start with current one
+                    currLog = os.path.join(logDir, "xferlog")
+                    foundResumePoint = True
 
         # If we found last line in a previous file, climb back up to current file and get its contents too
         elif backLog > 0:
