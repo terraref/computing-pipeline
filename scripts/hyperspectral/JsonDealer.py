@@ -2,7 +2,7 @@
 
 '''
 Created on Feb 5, 2016
-This module parses JSON provided by LemnaTec and outputs a formatted netCDF4 file
+This module parses JSON formatted metadata and data and header provided by LemnaTec and outputs a formatted netCDF4 file
 
 @author: jeromemao
 ----------------------------------------------------------------------------------------
@@ -23,7 +23,7 @@ Metadata: data_metadata.json
 Header: data_raw.hdr
 
 You just need to type in 
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/data
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/data_raw ${DATA}/terraref/output
 
 JsonDealer will authomatically find data_raw, data_metadata.json and data_raw.hdr for you
 
@@ -35,6 +35,9 @@ Thanks for the advice from Professor Zender and sample data from Dr. LeBauer.
 ----------------------------------------------------------------------------------------
 Update 4.1:
 Merged with DataProcess module; now JsonDealer will do all the jobs.
+
+Update 4.12:
+Fixed bugs in getting dimensions from the header file.
 ----------------------------------------------------------------------------------------
 '''
 
@@ -55,41 +58,41 @@ DATATYPE = {'1': ('H', 2), '2': ('i', 4), '3': ('l', 4), '4': ('f', 4), '5': (
 _RAW_VERSION = platform.python_version()[0]
 
 
-class JsonError(Exception):
-    '''
-    User-Defined Error Class
-    '''
+# class JsonError(Exception):
+#     '''
+#     User-Defined Error Class
+#     '''
 
-    def __init__(self, message):
-        self.message = message
+#     def __init__(self, message):
+#         self.message = message
 
-    def __str__(self):
-        return repr(self.message)
+#     def __str__(self):
+#         return repr(self.message)
 
 
-class TimeMeasurement(object):
-    '''
-    Supportive class;
-    Measuring the time used by unpacking the data
-    '''
+# class TimeMeasurement(object):
+#     '''
+#     Supportive class;
+#     Measuring the time used by unpacking the data
+#     '''
 
-    def __init__(self, lineName):
-        self.lineName = lineName
+#     def __init__(self, lineName):
+#         self.lineName = lineName
 
-    def __enter__(self):
-        self.startTime = time.time()
+#     def __enter__(self):
+#         self.startTime = time.time()
 
-    def __exit__(self, *args):
-        self.endTime = time.time()
-        self.runningTime = (self.endTime - self.startTime) * 1000
+#     def __exit__(self, *args):
+#         self.endTime = time.time()
+#         self.runningTime = (self.endTime - self.startTime) * 1000
 
-        reportHandler = open("PerformanceReport.txt", "w")
+#         reportHandler = open("PerformanceReport.txt", "w")
 
-        prompt = "%s elapsed time: %.3fms, %.5fs" % (self.lineName,
-                                                     self.runningTime,
-                                                     self.runningTime / 1000)
-        reportHandler.write(prompt)
-        print(prompt)
+#         prompt = "%s elapsed time: %.3fms, %.5fs" % (self.lineName,
+#                                                      self.runningTime,
+#                                                      self.runningTime / 1000)
+#         reportHandler.write(prompt)
+#         print(prompt)
 
 
 class DataContainer(object):
@@ -113,10 +116,11 @@ class DataContainer(object):
             return self.__dict__[param]
 
     def writeToNetCDF(self, inputFilePath, outputFilePath, commandLine):
-        setattr(self,"header_info",None) #weird, but useful to check whether the HeaderInfo id in the netCDF file
+        # weird, but useful to check whether the HeaderInfo id in the netCDF
+        # file
+        setattr(self, "header_info", None)
         netCDFHandler = _fileExistingCheck(outputFilePath, self)
-        delattr(self,"header_info")
-
+        delattr(self, "header_info")
 
         if netCDFHandler == 0:
             return
@@ -145,8 +149,8 @@ class DataContainer(object):
 
                     tempVariable.assignValue(
                         float(self.__dict__[members][submembers]))
-        writeHeaderFile(inputFilePath, netCDFHandler)
 
+        writeHeaderFile(inputFilePath, netCDFHandler)
         netCDFHandler.history = _timeStamp() + ' : python ' + commandLine
 
         netCDFHandler.close()
@@ -159,12 +163,14 @@ def getDimension(fileName):
     fileHandler = open(fileName + '.hdr')
 
     for members in fileHandler.readlines():
-        if "samples" in members:
+        if "samples" == members[:7]:
             x = members[members.find("=") + 1:len(members)]
-        elif "lines" in members:
+        elif "lines" == members[:5]:
             y = members[members.find("=") + 1:len(members)]
-        elif "bands" in members:
+        elif "bands" == members[:5]:
             wavelength = members[members.find("=") + 1:len(members)]
+
+    fileHandler.close()
 
     return int(wavelength.strip('\n').strip('\r')), int(x.strip('\n').strip('\r')), int(y.strip('\n').strip('\r'))
 
@@ -173,10 +179,9 @@ def getWavelength(fileName):
     '''
     Acquire wavelength(s) from related HDR file
     '''
-    fileHandler = open(fileName + '.hdr')
-    wavelengthGroup = [float(x.strip('\r').strip('\n').strip(',')) for x in fileHandler.readlines()
-                       if isDigit(x.strip('\r').strip('\n').strip(','))]
-
+    with open(fileName + '.hdr') as fileHandler:
+        wavelengthGroup = [float(x.strip('\r').strip('\n').strip(',')) for x in fileHandler.readlines()
+                           if isDigit(x.strip('\r').strip('\n').strip(','))]
     return wavelengthGroup
 
 
@@ -184,11 +189,9 @@ def getHeaderInfo(fileName):
     '''
     Acquire Other Information from related HDR file
     '''
-    fileHandler, infoDictionary = open(fileName + '.hdr'), dict()
-    for members in fileHandler.readlines():
-        if '=' in members and 'wavelength' not in members:
-            infoDictionary[members[0:members.find(
-                "=") - 1]] = members[members.find("=") + 2:].strip('\n').strip('\r')
+    with open(fileName + '.hdr') as fileHandler:
+        infoDictionary = {members[0:members.find("=") - 1].strip(";"): members[members.find("=") + 2:].strip('\n').strip('\r')
+                          for members in fileHandler.readlines() if '=' in members and 'wavelength' not in members}
 
     return infoDictionary
 
@@ -198,8 +201,6 @@ def _fileExistingCheck(filePath, dataContainer):
     This method will check wheter the filePath has the same variable name as the dataContainer has. If so,
     user will decide whether skip or overwrite it (no append,
     since netCDF does not support the repeating variable names)
-
-    Private to module members
     '''
     userPrompt = 'Output file already exists; skip it or overwrite or append? (S, O, A)'
 
@@ -216,7 +217,7 @@ def _fileExistingCheck(filePath, dataContainer):
 
                 if userChoice is 'S':
                     return 0
-                elif userChoice is 'O' and 'A':
+                elif userChoice is 'O' or 'A':
                     os.remove(filePath)
                     return Dataset(filePath, 'w', format='NETCDF4')
 
@@ -228,8 +229,6 @@ def isDigit(string):
     '''
     This method will check whether the string can be convert to int or float
     Similar to .isdight method in built-in string class, but python's will not check whether it is a float
-
-    Public to other modules
     '''
     try:
         if '.' in string:
@@ -244,8 +243,6 @@ def isDigit(string):
 def _replaceIllegalChar(string):
     '''
     This method will replace spaces (' '), slashes('/')
-
-    Private to module members
     '''
     rtn = str()
     if "current setting" in string:
@@ -253,7 +250,7 @@ def _replaceIllegalChar(string):
 
     for members in string:
         if members == '/':
-            rtn += ' per '
+            rtn += '_per_'
         elif members == ' ':
             rtn += '_'
         else:
@@ -266,8 +263,6 @@ def _spliter(string):
     '''
     This method will parse the string to a group of long names, short names and values
     Position and Velocity variables will be specially treated
-
-    Private to module members
     '''
     long_name = str()
 
@@ -297,8 +292,6 @@ def _spliter(string):
 def _filteringTheHeadings(target):
     '''
     A hook for json module to filter and process the useful data
-
-    Private to module members
     '''
     if u'lemnatec_measurement_metadata' in target:
         return DataContainer(target)
@@ -320,7 +313,7 @@ def jsonHandler(jsonFile):
             for dataMember in fileHandler.readlines():
                 rawData += dataMember.strip('\\').strip('\t').strip('\n')
     except Exception as err:
-        print('Fatal Error: ', repr(err))
+        print(repr(err))
     return json.loads(rawData, object_hook=_filteringTheHeadings)
 
 
@@ -348,17 +341,16 @@ def writeHeaderFile(fileName, netCDFHandler):
     # the data from the file
 
     # with TimeMeasurement("assigning value") as lineTiming:
-    # tempVariable[:,:,:] = value #TODO need a better method to assign value
-    # to avoid "de-interleaving"
+    # tempVariable[:,:,:] = value
 
     setattr(netCDFHandler, 'wavelength', wavelength)
     headerInfo = netCDFHandler.createGroup("header_info")
 
     for members in hdrInfo:
         setattr(headerInfo, members, hdrInfo[members])
-        if isDigit(hdrInfo[members]):
-            tempVariable = headerInfo.createVariable(members, 'i4')
-            tempVariable.assignValue(int(hdrInfo[members]))
+        # if isDigit(hdrInfo[members]):
+        #     tempVariable = headerInfo.createVariable(members, 'i4')
+        #     tempVariable.assignValue(int(hdrInfo[members]))
 
 if __name__ == '__main__':
     fileInput, fileOutput = sys.argv[1], sys.argv[2]
