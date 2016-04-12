@@ -444,6 +444,9 @@ def getNewFilesFromFTPLogs():
                     if vals[-1].replace("\n","") == 'c':    # c = complete, i = incomplete
                         status_lastFTPLogLine = line
                         foundFiles.append(vals[-10])        # full file path
+                    else:
+                        # Found an incomplete transfer log line, we can stop here for now
+                        break
 
         # If we didn't find last line in this file, look into the previous file
         if not foundResumePoint:
