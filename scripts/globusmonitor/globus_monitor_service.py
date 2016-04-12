@@ -95,6 +95,18 @@ def openLog():
 def closeLog():
     logFile.close()
 
+"""If metadata keys have periods in them, Clowder will reject the metadata"""
+def clean_json_keys(jsonobj):
+    clean_json = {}
+    for key in jsonobj.keys():
+        try:
+            jsonobj[key].keys() # Is this a json object?
+            clean_json[key.replace(".","_")] = clean_json_keys(jsonobj[key])
+        except:
+            clean_json[key.replace(".","_")] = jsonobj[key]
+
+    return clean_json
+
 """Attempt to lock a file so API and monitor don't write at once, and wait if unable"""
 def lockFile(f):
     # From http://tilde.town/~cristo/file-locking-in-python.html
@@ -272,7 +284,7 @@ def fetchCollectionByName(collectionName, requestsSession):
 """Add dataset to Space and Sensor, Date Collections"""
 def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
     sensorName = datasetName.split(" - ")[0]
-    timestamp = datasetName.split(" - ")[1].split(" ")[0]
+    timestamp = datasetName.split(" - ")[1].split("__")[0]
 
     sensColl = fetchCollectionByName(sensorName, requestsSession)
     if sensColl != "":
@@ -400,11 +412,12 @@ class MetadataLoader(restful.Resource):
         sess = requests.Session()
         sess.auth = (clowderUser, clowderPass)
 
+        md = clean_json_keys(req['md'])
         dsid = fetchDatasetByName(req['dataset'], sess)
         log("adding metadata to dataset "+dsid)
         dsmd = sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata",
                          headers={'Content-Type':'application/json'},
-                         data=json.dumps(req['md']))
+                         data=json.dumps(md))
 
         if dsmd.status_code != 200:
             log("cannot add dataset metadata ("+str(dsmd.status_code)+")", "ERROR")
@@ -474,10 +487,12 @@ def notifyClowderOfCompletedTask(task):
             # Assign dataset-level metadata if provided
             if "md" in task['contents'][ds]:
                 log("adding metadata to dataset "+ds)
-                # TODO: May need to scan metadata keys - will get 500 error if periods in any field names
+
+                md = clean_json_keys(task['contents'][ds]['md'])
+
                 dsmd = sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata",
                           headers={'Content-Type':'application/json'},
-                          data=json.dumps(task['contents'][ds]['md']))
+                          data=json.dumps(md))
                 if dsmd.status_code != 200:
                     log("cannot add dataset metadata ("+str(dsmd.status_code)+" - "+dsmd.text+")", "ERROR")
                 else:
