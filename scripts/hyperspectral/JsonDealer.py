@@ -150,6 +150,13 @@ class DataContainer(object):
                     tempVariable.assignValue(
                         float(self.__dict__[members][submembers]))
 
+        
+        wavelength = getWavelength(inputFilePath)
+        netCDFHandler.createDimension("wavelength", len(wavelength))
+        tempWavelength = netCDFHandler.createVariable("wavelength",'f8','wavelength')
+        tempWavelength[:] = wavelength
+
+
         writeHeaderFile(inputFilePath, netCDFHandler)
         netCDFHandler.history = _timeStamp() + ' : python ' + commandLine
 
@@ -322,7 +329,7 @@ def writeHeaderFile(fileName, netCDFHandler):
     The main function, reading the data and exporting netCDF file
     '''
     dimensionWavelength, dimensionX, dimensionY = getDimension(fileName)
-    wavelength, hdrInfo = getWavelength(fileName), getHeaderInfo(fileName)
+    hdrInfo = getHeaderInfo(fileName)
 
     # netCDFHandler.createDimension('wavelength',       dimensionWavelength)
     # netCDFHandler.createDimension('x',          dimensionX)
@@ -343,7 +350,7 @@ def writeHeaderFile(fileName, netCDFHandler):
     # with TimeMeasurement("assigning value") as lineTiming:
     # tempVariable[:,:,:] = value
 
-    setattr(netCDFHandler, 'wavelength', wavelength)
+    #setattr(netCDFHandler, 'wavelength', wavelength)
     headerInfo = netCDFHandler.createGroup("header_info")
 
     for members in hdrInfo:
