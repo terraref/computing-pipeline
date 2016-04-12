@@ -365,7 +365,7 @@ def getGantryFilesForTransfer(gantryDir):
         filename = pathParts[-1]
         sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
         timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
-        datasetID = sensorname +" "+timestamp
+        datasetID = sensorname +" - "+timestamp
         gantryDirPath = gantryDirPath.replace(filename, "")
 
         # Skip hidden/system files
@@ -437,10 +437,6 @@ def getNewFilesFromFTPLogs():
 
                 if line == lastLine:
                     foundResumePoint = True
-                    # TODO: evaluate if instead using
-                    #   for line in iter(f.readline, ""):
-                    #       resumePoint = f.tell()
-                    #       then next log check, use f.seek(resumePoint)
 
                 elif foundResumePoint:
                     # We're past the last queue's line, so capture these

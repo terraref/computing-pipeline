@@ -72,12 +72,13 @@ logFile = None
 }, {...}, {...}, ...}"""
 activeTasks = {}
 
-"""datasetMap maps sensor/timestamp dataset name to clowder dataset UUID
+"""Maps dataset/collection name to clowder UUID
 {
-    "datasetName": "UUID"
+    "name": "UUID"
 }
 """
 datasetMap = {}
+collectionMap = {}
 
 app = Flask(__name__)
 api = restful.Api(app)
@@ -215,10 +216,12 @@ def fetchDatasetByName(datasetName, requestsSession):
             datasetMap[datasetName] = dsid
             log("created dataset "+datasetName+" ("+dsid+")")
             writeDataToDisk(config['dataset_map_path'], datasetMap)
+            addDatasetToSpacesCollections(datasetName, dsid, requestsSession)
             return dsid
         else:
             log("cannot create dataset ("+str(ds.status_code)+")", "ERROR")
             return ""
+
     else:
         # We have a record of it, but check that it still exists before returning the ID
         dsid = datasetMap[datasetName]
@@ -231,6 +234,63 @@ def fetchDatasetByName(datasetName, requestsSession):
             # Could not find dataset so we'll just delete the record and create a new one
             del datasetMap[datasetName]
             return fetchDatasetByName(datasetName, requestsSession)
+
+"""Find dataset id if dataset exists, creating if necessary"""
+def fetchCollectionByName(collectionName, requestsSession):
+    if collectionName not in datasetMap:
+        coll = requestsSession.post(config['clowder']['host']+"/api/collections",
+                                  headers={"Content-Type": "application/json"},
+                                  data='{"name": "%s", "description": ""}' % collectionName)
+
+        if coll.status_code == 200:
+            collid = coll.json()['id']
+            collectionMap[collectionName] = collid
+            log("created collection "+collectionName+" ("+collid+")")
+            writeDataToDisk(config['collection_map_path'], collectionMap)
+            # Add new collection to primary space if defined
+            if config['clowder']['primary_space'] != "":
+                requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addCollectionToSpace/%s" %
+                                     (config['clowder']['primary_space'], collid))
+            return collid
+        else:
+            log("cannot create collection ("+str(coll.status_code)+")", "ERROR")
+            return ""
+
+    else:
+        # We have a record of it, but check that it still exists before returning the ID
+        collid = collectionMap[collectionName]
+        coll = requestsSession.get(config['clowder']['host']+"/api/collections/"+collid)
+        if coll.status_code == 200:
+            log("collection "+collectionName+" already exists ("+collid+")")
+            return collid
+        else:
+            log("cannot find collection "+collid+"; creating new collection "+collectionName)
+            # Could not find dataset so we'll just delete the record and create a new one
+            del collectionMap[collectionName]
+            return fetchCollectionByName(collectionName, requestsSession)
+
+"""Add dataset to Space and Sensor, Date Collections"""
+def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
+    sensorName = datasetName.split(" - ")[0]
+    timestamp = datasetName.split(" - ")[1].split(" ")[0]
+
+    sensColl = fetchCollectionByName(sensorName, requestsSession)
+    if sensColl != "":
+        sc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (sensColl, datasetID))
+        if sc.status_code != 200:
+            log("cannot add ds "+datasetID+" to coll "+sensColl+" ("+sc.status_code+")")
+
+    timeColl = fetchCollectionByName(timestamp, requestsSession)
+    if timeColl != "":
+        tc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (timeColl, datasetID))
+        if tc.status_code != 200:
+            log("cannot add ds "+datasetID+" to coll "+timeColl+" ("+tc.status_code+")")
+
+    if config['clowder']['primary_space'] != "":
+        spid = config['clowder']['primary_space']
+        sp = requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addDatasetToSpace/%s" % (spid, datasetID))
+        if sp.status_code != 200:
+            log("cannot add ds "+datasetID+" to space "+spid+" ("+sp.status_code+")")
 
 # ----------------------------------------------------------
 # API COMPONENTS
@@ -420,6 +480,9 @@ def notifyClowderOfCompletedTask(task):
                           data=json.dumps(task['contents'][ds]['md']))
                 if dsmd.status_code != 200:
                     log("cannot add dataset metadata ("+str(dsmd.status_code)+" - "+dsmd.text+")", "ERROR")
+                else:
+                    # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
+                    del activeTasks[task['globus_id']][ds]['md']
 
             # Add local files to dataset by path
             if 'files' in task['contents'][ds]:
@@ -435,13 +498,14 @@ def notifyClowderOfCompletedTask(task):
 
                     fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid, data=content, headers={'Content-Type':header})
                     if fi.status_code != 200:
-                        log("cannot upload file ("+str(fi.status_code)+")", "ERROR")
+                        log("cannot upload file "+fobj['path']+" ("+str(fi.status_code)+")", "ERROR")
+                        return False
                     else:
                         activeTasks[task['globus_id']]['contents'][ds]['files'][f]['clowder_id'] = json.loads(fi.text)['id']
-
-            # TODO: Make Sensor, Year_Month_Day Collections (if needed) and put datasets in appropriately
+                        return True
     else:
         log("cannot find clowder user credentials for Globus user "+globUser, "ERROR")
+        return False
 
 """Continually check Globus API for task updates"""
 def globusMonitorLoop():
@@ -474,12 +538,13 @@ def globusMonitorLoop():
 
                     # Notify Clowder to process file if transfer successful
                     if globusStatus == "SUCCEEDED":
-                        notifyClowderOfCompletedTask(task)
-
-                    # Write out results file, then delete from active list and write log file
-                    writeCompletedTaskToDisk(task)
-                    del activeTasks[globusID]
-                    writeDataToDisk(config['active_tasks_path'], activeTasks)
+                        clowderDone = notifyClowderOfCompletedTask(task)
+                        # If this doesn't succeed, leave the task active so we can try again next time
+                        if clowderDone:
+                            # Write out results file, then delete from active list and write log file
+                            writeCompletedTaskToDisk(task)
+                            del activeTasks[globusID]
+                            writeDataToDisk(config['active_tasks_path'], activeTasks)
             globWait = 0
             writeDataToDisk(config["status_log_path"], getStatus())
 
@@ -500,6 +565,7 @@ if __name__ == '__main__':
     atexit.register(closeLog)
 
     datasetMap = loadDataFromDisk(config['dataset_map_path'])
+    collectionMap = loadDataFromDisk(config['collection_map_path'])
     activeTasks = loadDataFromDisk(config['active_tasks_path'])
     generateAuthTokens()
 
