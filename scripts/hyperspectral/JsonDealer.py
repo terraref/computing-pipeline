@@ -141,7 +141,7 @@ class DataContainer(object):
                         tempVariable = tempGroup.createVariable(
                             nameSet[0][-1], 'f8')
                         setattr(tempVariable, 'long_name', nameSet[0][0])
-                        setattr(tempVariable, 'unit',      nameSet[1])
+                        setattr(tempVariable, 'units',      nameSet[1])
                     else:
                         tempVariable = tempGroup.createVariable(
                             nameSet[0], 'f8')
@@ -154,11 +154,13 @@ class DataContainer(object):
         wavelength = getWavelength(inputFilePath)
         netCDFHandler.createDimension("wavelength", len(wavelength))
         tempWavelength = netCDFHandler.createVariable("wavelength",'f8','wavelength')
+        setattr(tempWavelength, 'long_name', 'Hyperspectral Wavelength')
+        setattr(tempWavelength, 'units', 'nanometers')
         tempWavelength[:] = wavelength
 
 
         writeHeaderFile(inputFilePath, netCDFHandler)
-        netCDFHandler.history = _timeStamp() + ' : python ' + commandLine
+        netCDFHandler.history = _timeStamp() + ': python ' + commandLine
 
         netCDFHandler.close()
 
