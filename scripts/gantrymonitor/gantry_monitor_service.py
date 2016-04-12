@@ -18,7 +18,7 @@
     queued for deletion.
 """
 
-import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re
+import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip
 import requests
 from io import BlockingIOError
 from flask import Flask, request, Response
@@ -416,7 +416,7 @@ def getNewFilesFromFTPLogs():
     foundResumePoint = False
     handledBackLog = True
     while not (foundResumePoint and handledBackLog):
-        with open(currLog, 'r+') as f:
+        with (open(currLog, 'r+') if currLog.find(".gz")==-1 else gzip.open(currLog, 'r+')) as f:
             # If no most recent scanned line available, just start from beginning of current log file
             if lastLine == "":
                 initialLine = False
@@ -440,9 +440,9 @@ def getNewFilesFromFTPLogs():
 
                 elif foundResumePoint:
                     # We're past the last queue's line, so capture these
-                    status_lastFTPLogLine = line
                     vals = re.split(" +", line)
                     if vals[-1].replace("\n","") == 'c':    # c = complete, i = incomplete
+                        status_lastFTPLogLine = line
                         foundFiles.append(vals[-10])        # full file path
 
         # If we didn't find last line in this file, look into the previous file
