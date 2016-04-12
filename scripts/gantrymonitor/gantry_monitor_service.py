@@ -426,7 +426,7 @@ def getNewFilesFromFTPLogs():
 
             for line in f:
                 line = line.rstrip()
-                if initialLine:
+                if initialLine and handledBackLog:
                     firstLineTime = parseDateFromFTPLogLine(line)
                     if firstLineTime <= lastReadTime:
                         # File begins before most recent line - should be scanned
