@@ -698,7 +698,6 @@ if __name__ == '__main__':
     atexit.register(closeLog)
     generateAuthToken()
 
-    # TODO: Crash checks - are we writing enough logs at the right times to recover no matter when?
     # TODO: How to handle big errors, e.g. NCSA API not responding? admin email notification?
 
     # Load any previous active/pending transfers
