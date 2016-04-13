@@ -403,6 +403,9 @@ def getNewFilesFromFTPLogs():
     foundFiles = []
 
     logDir = config["gantry"]["ftp_log_path"]
+    if logDir == "":
+        # Don't perform a scan if no log file is defined
+        return foundFiles
 
     # Example log line:
     #Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
@@ -444,9 +447,6 @@ def getNewFilesFromFTPLogs():
                     if vals[-1].replace("\n","") == 'c':    # c = complete, i = incomplete
                         status_lastFTPLogLine = line
                         foundFiles.append(vals[-10])        # full file path
-                    else:
-                        # Found an incomplete transfer log line, we can stop here for now
-                        break
 
         # If we didn't find last line in this file, look into the previous file
         if not foundResumePoint:
