@@ -442,11 +442,14 @@ def getNewFilesFromFTPLogs():
                     foundResumePoint = True
 
                 elif foundResumePoint:
-                    # We're past the last queue's line, so capture these
-                    vals = re.split(" +", line)
-                    if vals[-1].replace("\n","") == 'c':    # c = complete, i = incomplete
+                    # We're past the last scanned line, so capture these lines if complete & ending in 'c'
+                    if re.search('ftp \d \* c', line.rstrip()):
                         status_lastFTPLogLine = line
-                        foundFiles.append(vals[-10])        # full file path
+                        # Extract filename from log entry, after an IP address and a number (byte count?)
+                        fnameRegex = '::ffff:\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \d+ ((\/?.)+) +\w _'
+                        fname = re.search(fnameRegex, line)
+                        if fname:
+                            foundFiles.append(fname.group(1).rstrip())
 
         # If we didn't find last line in this file, look into the previous file
         if not foundResumePoint:
