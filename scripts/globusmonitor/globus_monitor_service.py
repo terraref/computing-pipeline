@@ -242,10 +242,22 @@ def fetchDatasetByName(datasetName, requestsSession):
             log("dataset "+datasetName+" already exists ("+dsid+")")
             return dsid
         else:
-            log("cannot find dataset "+dsid+"; creating new dataset "+datasetName)
-            # Could not find dataset so we'll just delete the record and create a new one
-            del datasetMap[datasetName]
-            return fetchDatasetByName(datasetName, requestsSession)
+            # Query the database just in case, before giving up and creating a new dataset
+            dstitlequery = requestsSession.get(config['clowder']['host']+"/api/datasets?title="+datasetName)
+            if dstitlequery.status_code == 200:
+                results = dstitlequery.json()
+                if len(results) > 0:
+                    return results[0]['id']
+                else:
+                    log("cannot find dataset "+dsid+"; creating new dataset "+datasetName)
+                    # Could not find dataset so we'll just delete the record and create a new one
+                    del datasetMap[datasetName]
+                    return fetchDatasetByName(datasetName, requestsSession)
+            else:
+                log("cannot find dataset "+dsid+"; creating new dataset "+datasetName)
+                # Could not find dataset so we'll just delete the record and create a new one
+                del datasetMap[datasetName]
+                return fetchDatasetByName(datasetName, requestsSession)
 
 """Find dataset id if dataset exists, creating if necessary"""
 def fetchCollectionByName(collectionName, requestsSession):
@@ -276,10 +288,22 @@ def fetchCollectionByName(collectionName, requestsSession):
             log("collection "+collectionName+" already exists ("+collid+")")
             return collid
         else:
-            log("cannot find collection "+collid+"; creating new collection "+collectionName)
-            # Could not find dataset so we'll just delete the record and create a new one
-            del collectionMap[collectionName]
-            return fetchCollectionByName(collectionName, requestsSession)
+            # Query the database just in case, before giving up and creating a new dataset
+            colltitlequery = requestsSession.get(config['clowder']['host']+"/api/collections?title="+collectionName)
+            if colltitlequery.status_code == 200:
+                results = colltitlequery.json()
+                if len(results) > 0:
+                    return results[0]['id']
+                else:
+                    log("cannot find collection "+collid+"; creating new collection "+collectionName)
+                    # Could not find collection so we'll just delete the record and create a new one
+                    del collectionMap[collectionName]
+                    return fetchCollectionByName(collectionName, requestsSession)
+            else:
+                log("cannot find collection "+collid+"; creating new collection "+collectionName)
+                # Could not find collection so we'll just delete the record and create a new one
+                del collectionMap[collectionName]
+                return fetchCollectionByName(collectionName, requestsSession)
 
 """Add dataset to Space and Sensor, Date Collections"""
 def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
@@ -583,8 +607,6 @@ if __name__ == '__main__':
     collectionMap = loadDataFromDisk(config['collection_map_path'])
     activeTasks = loadDataFromDisk(config['active_tasks_path'])
     generateAuthTokens()
-
-    # TODO: Crash checks - are we writing enough logs at the right times to recover no matter when?
 
     # Create thread for service to begin monitoring
     thread.start_new_thread(globusMonitorLoop, ())
