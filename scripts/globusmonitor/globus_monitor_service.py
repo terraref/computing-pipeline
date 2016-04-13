@@ -479,16 +479,20 @@ def getGlobusStatus(task):
     try:
         status_code, status_message, task_data = api.task(task['globus_id'])
     except (APIError, ClientError) as e:
-        # Refreshing auth tokens and retry
-        generateAuthTokens()
-        authToken = config['globus']['valid_users'][task['user']]['auth_token']
-        api = TransferAPIClient(username=task['user'], goauth=authToken)
-        status_code, status_message, task_data = api.task(task['globus_id'])
+        try:
+            # Refreshing auth tokens and retry
+            generateAuthTokens()
+            authToken = config['globus']['valid_users'][task['user']]['auth_token']
+            api = TransferAPIClient(username=task['user'], goauth=authToken)
+            status_code, status_message, task_data = api.task(task['globus_id'])
+        except (APIError, ClientError) as e:
+            log("problem checking Globus transfer status", "ERROR")
+            status_code = 503
 
     if status_code == 200:
         return task_data['status']
     else:
-        return "UNKNOWN ("+status_code+": "+status_message+")"
+        return None
 
 """Send Clowder necessary details to load local file after Globus transfer complete"""
 def notifyClowderOfCompletedTask(task):
@@ -584,6 +588,7 @@ def globusMonitorLoop():
                             writeCompletedTaskToDisk(task)
                             del activeTasks[globusID]
                             writeDataToDisk(config['active_tasks_path'], activeTasks)
+
             globWait = 0
             writeDataToDisk(config["status_log_path"], getStatus())
 

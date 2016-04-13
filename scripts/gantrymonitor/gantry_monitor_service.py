@@ -337,15 +337,19 @@ def generateGlobusSubmissionID():
         api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
         status_code, status_message, submission_id = api.submission_id()
     except (APIError, ClientError) as e:
-        # Try refreshing auth token and retrying
-        generateAuthToken()
-        api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-        status_code, status_message, submission_id = api.submission_id()
+        try:
+            # Try refreshing auth token and retrying
+            generateAuthToken()
+            api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+            status_code, status_message, submission_id = api.submission_id()
+        except (APIError, ClientError) as e:
+            log("problem generating submission ID for globus transfer", "ERROR")
+            status_code = 503
 
     if status_code == 200:
         return submission_id['value']
     else:
-        return "UNKNOWN ("+status_code+": "+status_message+")"
+        return None
 
 """Check for files ready for transmission and return list"""
 def getGantryFilesForTransfer(gantryDir):
@@ -373,12 +377,10 @@ def getGantryFilesForTransfer(gantryDir):
             continue
 
         # Check add entry for this dataset if necessary
-        if datasetID not in pendingTransfers:
-            pendingTransfers[datasetID] = {}
-            pendingTransfers[datasetID]['files'] = {}
-        if datasetID not in transferQueue:
-            transferQueue[datasetID] = {}
-            transferQueue[datasetID]['files'] = {}
+        if datasetID not in pendingTransfers: pendingTransfers[datasetID] = {}
+        if 'files' not in pendingTransfers[datasetID]: pendingTransfers[datasetID]['files'] = {}
+        if datasetID not in transferQueue: transferQueue[datasetID] = {}
+        if 'files' not in transferQueue[datasetID]: transferQueue[datasetID]['files'] = {}
 
         if filename not in pendingTransfers[datasetID]['files'] and not filenameInActiveTasks(filename):
             if filename.find("metadata.json") == -1:
@@ -487,87 +489,92 @@ def initializeGlobusTransfers():
     api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
     submissionID = generateGlobusSubmissionID()
 
-    # Prepare transfer object
-    transferObj = Transfer(submissionID,
-                           config['globus']['source_endpoint_id'],
-                           config['globus']['destination_endpoint_id'])
+    if submissionID:
+        # Prepare transfer object
+        transferObj = Transfer(submissionID,
+                               config['globus']['source_endpoint_id'],
+                               config['globus']['destination_endpoint_id'])
 
-    queueLength = 0
-    sentSomeMd = False
-    remainingPendingTransfers = copy.deepcopy(pendingTransfers)
-    currentTransferBatch = {}
+        queueLength = 0
+        sentSomeMd = False
+        remainingPendingTransfers = copy.deepcopy(pendingTransfers)
+        currentTransferBatch = {}
 
-    for ds in pendingTransfers:
-        if "files" in pendingTransfers[ds]:
-            if ds not in currentTransferBatch:
-                currentTransferBatch[ds] = {}
-                currentTransferBatch[ds]['files'] = {}
-            # Add files from each dataset
-            for f in pendingTransfers[ds]['files']:
-                if queueLength < config['globus']['max_transfer_file_count']:
-                    fobj = pendingTransfers[ds]['files'][f]
-                    src_path = os.path.join(config['gantry']['incoming_files_path'], fobj["path"], fobj["name"])
-                    dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
-                    transferObj.add_item(src_path, dest_path)
+        for ds in pendingTransfers:
+            if "files" in pendingTransfers[ds]:
+                if ds not in currentTransferBatch:
+                    currentTransferBatch[ds] = {}
+                    currentTransferBatch[ds]['files'] = {}
+                # Add files from each dataset
+                for f in pendingTransfers[ds]['files']:
+                    if queueLength < config['globus']['max_transfer_file_count']:
+                        fobj = pendingTransfers[ds]['files'][f]
+                        src_path = os.path.join(config['gantry']['incoming_files_path'], fobj["path"], fobj["name"])
+                        dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
+                        transferObj.add_item(src_path, dest_path)
 
-                    # remainingTransfers will have leftover data once max Globus transfer size is met
-                    queueLength += 1
-                    currentTransferBatch[ds]['files'][f] = fobj
-                    del remainingPendingTransfers[ds]['files'][f]
-            if "md" in pendingTransfers[ds]:
-                currentTransferBatch[ds]['md'] = pendingTransfers[ds]['md']
-                del remainingPendingTransfers[ds]['md']
+                        # remainingTransfers will have leftover data once max Globus transfer size is met
+                        queueLength += 1
+                        currentTransferBatch[ds]['files'][f] = fobj
+                        del remainingPendingTransfers[ds]['files'][f]
+                if "md" in pendingTransfers[ds]:
+                    currentTransferBatch[ds]['md'] = pendingTransfers[ds]['md']
+                    del remainingPendingTransfers[ds]['md']
 
-        elif "md" in pendingTransfers[ds]:
-            # We have metadata for a dataset, but no files. Just send metadata separately.
-            mdxfer = sendMetadataToMonitor(ds, pendingTransfers[ds]['md'])
-            # Leave metadata in pending if it wasn't successfully posted to Clowder
-            if mdxfer.status_code == 200:
-                sentSomeMd = True
-                # Otherwise remove dataset entry since we already know there are no files
-                del remainingPendingTransfers[ds]
+            elif "md" in pendingTransfers[ds]:
+                # We have metadata for a dataset, but no files. Just send metadata separately.
+                mdxfer = sendMetadataToMonitor(ds, pendingTransfers[ds]['md'])
+                # Leave metadata in pending if it wasn't successfully posted to Clowder
+                if mdxfer.status_code == 200:
+                    sentSomeMd = True
+                    # Otherwise remove dataset entry since we already know there are no files
+                    del remainingPendingTransfers[ds]
 
-    if queueLength > 0:
-        # Send transfer to Globus
-        try:
-            status_code, status_message, transfer_data = api.transfer(transferObj)
-        except (APIError, ClientError) as e:
-            # Try refreshing auth token and retrying
-            generateAuthToken()
-            api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-            status_code, status_message, transfer_data = api.transfer(transferObj)
+        if queueLength > 0:
+            # Send transfer to Globus
+            try:
+                status_code, status_message, transfer_data = api.transfer(transferObj)
+            except (APIError, ClientError) as e:
+                try:
+                    # Try refreshing auth token and retrying
+                    generateAuthToken()
+                    api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+                    status_code, status_message, transfer_data = api.transfer(transferObj)
+                except (APIError, ClientError) as e:
+                    log("problem initializing Globus transfer", "ERROR")
+                    status_code = 503
 
-        if status_code == 200 or status_code == 202:
-            # Notify NCSA monitor of new task, and add to activeTasks for logging
-            globusID = transfer_data['task_id']
+            if status_code == 200 or status_code == 202:
+                # Notify NCSA monitor of new task, and add to activeTasks for logging
+                globusID = transfer_data['task_id']
 
-            log("Globus transfer task started: "+globusID+" ("+str(queueLength)+" files)")
+                log("Globus transfer task started: "+globusID+" ("+str(queueLength)+" files)")
 
-            activeTasks[globusID] = {
-                "globus_id": globusID,
-                "contents": currentTransferBatch,
-                "started": str(datetime.datetime.now()),
-                "status": "IN PROGRESS"
-            }
-            writeTasksToDisk(config['active_tasks_path'], activeTasks)
+                activeTasks[globusID] = {
+                    "globus_id": globusID,
+                    "contents": currentTransferBatch,
+                    "started": str(datetime.datetime.now()),
+                    "status": "IN PROGRESS"
+                }
+                writeTasksToDisk(config['active_tasks_path'], activeTasks)
 
-            notifyMonitorOfNewTransfer(globusID, currentTransferBatch)
+                notifyMonitorOfNewTransfer(globusID, currentTransferBatch)
 
+                pendingTransfers = remainingPendingTransfers
+                writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
+            else:
+                # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
+                log("globus transfer failed for "+ds+" ("+status_code+": "+status_message+")", "ERROR")
+                return
+        elif sentSomeMd:
+            # If metadata was sent there was still activity, so update pending transfers
             pendingTransfers = remainingPendingTransfers
             writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
-        else:
-            # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
-            log("globus transfer failed for "+ds+" ("+status_code+": "+status_message+")", "ERROR")
-            return
-    elif sentSomeMd:
-        # If metadata was sent there was still activity, so update pending transfers
-        pendingTransfers = remainingPendingTransfers
-        writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
 
-    cleanPendingTransfers()
-    if pendingTransfers != {}:
-        # If pendingTransfers not empty, we still have remaining files and need to start more Globus transfers
-        initializeGlobusTransfers()
+        cleanPendingTransfers()
+        if pendingTransfers != {}:
+            # If pendingTransfers not empty, we still have remaining files and need to start more Globus transfers
+            initializeGlobusTransfers()
 
 """Send message to NCSA Globus monitor API that a new task has begun"""
 def notifyMonitorOfNewTransfer(globusID, contents):
@@ -575,13 +582,16 @@ def notifyMonitorOfNewTransfer(globusID, contents):
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
     log("notifying Globus monitor of "+globusID)
-    status = sess.post(config['ncsa_api']['host']+"/tasks", data=json.dumps({
-        "user": config['globus']['username'],
-        "globus_id": globusID,
-        "contents": contents
-    }))
-
-    return status
+    try:
+        status = sess.post(config['ncsa_api']['host']+"/tasks", data=json.dumps({
+            "user": config['globus']['username'],
+            "globus_id": globusID,
+            "contents": contents
+        }))
+        return status
+    except requests.ConnectionError as e:
+        log("cannot connect to NCSA API", "ERROR")
+        return 503
 
 """Send message to NCSA Globus monitor API with metadata for a dataset, without other files"""
 def sendMetadataToMonitor(datasetName, metadata):
@@ -590,13 +600,16 @@ def sendMetadataToMonitor(datasetName, metadata):
 
     # Check with Globus monitor rather than Globus itself, to make sure file was handled properly before deleting from src
     log("sending metadata for "+datasetName)
-    status = sess.post(config['ncsa_api']['host']+"/metadata", data=json.dumps({
-        "user": config['globus']['username'],
-        "dataset": datasetName,
-        "md": metadata
-    }))
-
-    return status
+    try:
+        status = sess.post(config['ncsa_api']['host']+"/metadata", data=json.dumps({
+            "user": config['globus']['username'],
+            "dataset": datasetName,
+            "md": metadata
+        }))
+        return status
+    except requests.ConnectionError as e:
+        log("cannot connect to NCSA API", "ERROR")
+        return 503
 
 """Contact NCSA Globus monitor API to check whether task was completed successfully"""
 def getTransferStatusFromMonitor(globusID):
@@ -604,13 +617,18 @@ def getTransferStatusFromMonitor(globusID):
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
     # Check with Globus monitor rather than Globus itself, to make sure file was handled properly before deleting from src
-    st = sess.get(config['ncsa_api']['host']+"/tasks/"+globusID)
-
-    if st.status_code == 200:
-        return json.loads(st.text)['status']
-    else:
-        log("monitor status check failed for task "+globusID+" ("+st.status_code+": "+st.status_message+")", "ERROR")
-        return "UNKNOWN"
+    try:
+        st = sess.get(config['ncsa_api']['host']+"/tasks/"+globusID)
+        if st.status_code == 200:
+            return json.loads(st.text)['status']
+        elif st.status_code == 404:
+            return "NOT FOUND"
+        else:
+            log("monitor status check failed for task "+globusID+" ("+st.status_code+": "+st.status_message+")", "ERROR")
+            return "UNKNOWN"
+    except requests.ConnectionError as e:
+        log("cannot connect to NCSA API", "ERROR")
+        return "NOT FOUND"
 
 """Continually initiate transfers from pending queue and contact NCSA API for status updates"""
 def globusMonitorLoop():
@@ -677,6 +695,10 @@ def globusMonitorLoop():
 
                     del activeTasks[globusID]
                     writeTasksToDisk(config['active_tasks_path'], activeTasks)
+
+                # If the Globus monitor isn't even aware of this transfer, try to notify it!
+                elif globusStatus == "NOT FOUND":
+                    notifyMonitorOfNewTransfer(globusID, task['contents'])
 
             # Reset timer to check NCSA api for transfer updates again
             apiWait = config['ncsa_api']['api_check_frequency_secs']
