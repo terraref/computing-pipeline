@@ -543,6 +543,7 @@ def initializeGlobusTransfers():
                 except (APIError, ClientError) as e:
                     log("problem initializing Globus transfer", "ERROR")
                     status_code = 503
+                    status_message = e
 
             if status_code == 200 or status_code == 202:
                 # Notify NCSA monitor of new task, and add to activeTasks for logging
@@ -564,7 +565,7 @@ def initializeGlobusTransfers():
                 writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
             else:
                 # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
-                log("globus transfer failed for "+ds+" ("+status_code+": "+status_message+")", "ERROR")
+                log("globus transfer failed for "+ds+" ("+str(status_code)+": "+str(status_message)+")", "ERROR")
                 return
         elif sentSomeMd:
             # If metadata was sent there was still activity, so update pending transfers
@@ -624,7 +625,7 @@ def getTransferStatusFromMonitor(globusID):
         elif st.status_code == 404:
             return "NOT FOUND"
         else:
-            log("monitor status check failed for task "+globusID+" ("+st.status_code+": "+st.status_message+")", "ERROR")
+            log("monitor status check failed for task "+globusID+" ("+str(st.status_code)+": "+st.status_message+")", "ERROR")
             return "UNKNOWN"
     except requests.ConnectionError as e:
         log("cannot connect to NCSA API", "ERROR")

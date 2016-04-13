@@ -314,19 +314,19 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
     if sensColl != "":
         sc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (sensColl, datasetID))
         if sc.status_code != 200:
-            log("cannot add ds "+datasetID+" to coll "+sensColl+" ("+sc.status_code+")")
+            log("cannot add ds "+datasetID+" to coll "+sensColl+" ("+str(sc.status_code)+")")
 
     timeColl = fetchCollectionByName(timestamp, requestsSession)
     if timeColl != "":
         tc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (timeColl, datasetID))
         if tc.status_code != 200:
-            log("cannot add ds "+datasetID+" to coll "+timeColl+" ("+tc.status_code+")")
+            log("cannot add ds "+datasetID+" to coll "+timeColl+" ("+str(tc.status_code)+")")
 
     if config['clowder']['primary_space'] != "":
         spid = config['clowder']['primary_space']
         sp = requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addDatasetToSpace/%s" % (spid, datasetID))
         if sp.status_code != 200:
-            log("cannot add ds "+datasetID+" to space "+spid+" ("+sp.status_code+")")
+            log("cannot add ds "+datasetID+" to space "+spid+" ("+str(sp.status_code)+")")
 
 # ----------------------------------------------------------
 # API COMPONENTS
