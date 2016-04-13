@@ -537,8 +537,8 @@ def initializeGlobusTransfers():
             api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
             status_code, status_message, transfer_data = api.transfer(transferObj)
 
-        # Notify NCSA monitor of new task, and add to activeTasks for logging
         if status_code == 200 or status_code == 202:
+            # Notify NCSA monitor of new task, and add to activeTasks for logging
             globusID = transfer_data['task_id']
 
             log("Globus transfer task started: "+globusID+" ("+str(queueLength)+" files)")
@@ -556,7 +556,9 @@ def initializeGlobusTransfers():
             pendingTransfers = remainingPendingTransfers
             writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         else:
-            log("globus initialization failed for "+ds+" ("+status_code+": "+status_message+")", "ERROR")
+            # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
+            log("globus transfer failed for "+ds+" ("+status_code+": "+status_message+")", "ERROR")
+            return
     elif sentSomeMd:
         # If metadata was sent there was still activity, so update pending transfers
         pendingTransfers = remainingPendingTransfers
@@ -610,30 +612,29 @@ def getTransferStatusFromMonitor(globusID):
         log("monitor status check failed for task "+globusID+" ("+st.status_code+": "+st.status_message+")", "ERROR")
         return "UNKNOWN"
 
-"""Continually monitor gantry directory for new files to transmit"""
-def gantryMonitorLoop():
+"""Continually initiate transfers from pending queue and contact NCSA API for status updates"""
+def globusMonitorLoop():
     # Prepare timers for tracking how often different refreshes are executed
-    gantryWait = config['gantry']['file_check_frequency_secs'] # look for new files to send
-    apiWait = config['ncsa_api']['api_check_frequency'] # check status of sent files
+    globusWait = config['gantry']['globus_transfer_frequency_secs'] # bundle pending files and transfer
+    apiWait = config['ncsa_api']['api_check_frequency_secs'] # check status of sent files
     authWait = config['globus']['authentication_refresh_frequency_secs'] # renew globus auth
 
     while True:
         time.sleep(1)
-        gantryWait -= 1
+        globusWait -= 1
         apiWait -= 1
         authWait -= 1
 
         # Check for new files in incoming gantry directory and initiate transfers if ready
-        if gantryWait <= 0:
-            pendingTransfers.update(getGantryFilesForTransfer(config['gantry']['incoming_files_path']))
-
-            # Clean up the pending object of straggling keys, then initialize Globus transfer
+        if globusWait <= 0:
+            # Clean up the pending object of straggling keys, then initialize Globus transfers
             cleanPendingTransfers()
             if pendingTransfers != {}:
                 writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
                 initializeGlobusTransfers()
+
             # Reset wait to check gantry incoming directory again
-            gantryWait = config['gantry']['file_check_frequency_secs']
+            globusWait = config['gantry']['globus_transfer_frequency_secs']
             writeTasksToDisk(config["status_log_path"], getStatus())
 
         # Check with NCSA Globus monitor API for completed transfers
@@ -678,13 +679,34 @@ def gantryMonitorLoop():
                     writeTasksToDisk(config['active_tasks_path'], activeTasks)
 
             # Reset timer to check NCSA api for transfer updates again
-            apiWait = config['ncsa_api']['api_check_frequency']
+            apiWait = config['ncsa_api']['api_check_frequency_secs']
             writeTasksToDisk(config["status_log_path"], getStatus())
 
         # Refresh Globus auth tokens
         if authWait <= 0:
             generateAuthToken()
             authWait = config['globus']['authentication_refresh_frequency_secs']
+
+"""Continually monitor FTP log for new files to transmit and add them to pendingTransfers"""
+def ftpMonitorLoop():
+    gantryWait = config['gantry']['file_check_frequency_secs'] # look for new files to send
+
+    while True:
+        time.sleep(1)
+        gantryWait -= 1
+
+        # Check for new files in incoming gantry directory and initiate transfers if ready
+        if gantryWait <= 0:
+            pendingTransfers.update(getGantryFilesForTransfer(config['gantry']['incoming_files_path']))
+
+            # Clean up the pending object of straggling keys, then initialize Globus transfer
+            cleanPendingTransfers()
+            if pendingTransfers != {}:
+                writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
+
+            # Reset wait to check gantry incoming directory again
+            gantryWait = config['gantry']['file_check_frequency_secs']
+            writeTasksToDisk(config["status_log_path"], getStatus())
 
 if __name__ == '__main__':
     # Try to load custom config file, falling back to default values where not overridden
@@ -704,9 +726,11 @@ if __name__ == '__main__':
     activeTasks = loadTasksFromDisk(config['active_tasks_path'])
     pendingTransfers = loadTasksFromDisk(config['pending_transfers_path'])
 
-    # Create thread for service to begin monitoring
-    log("*** Service now monitoring gantry directory ***")
-    thread.start_new_thread(gantryMonitorLoop, ())
+    # Create thread for service to begin monitoring log file & transfer queue
+    log("*** Service now monitoring gantry transfer queue ***")
+    thread.start_new_thread(globusMonitorLoop, ())
+    log("*** Service now monitoring FTP log file ***")
+    thread.start_new_thread(ftpMonitorLoop, ())
 
     # Create thread for API to begin listening - requires valid Globus user/pass
     apiPort = os.getenv('MONITOR_API_PORT', config['api']['port'])
