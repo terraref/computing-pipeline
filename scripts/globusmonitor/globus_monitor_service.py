@@ -567,6 +567,7 @@ def globusMonitorLoop():
                 task = activeTasks[globusID]
                 globusStatus = getGlobusStatus(task)
 
+                # If this isn't done yet, leave the task active so we can try again next time
                 if globusStatus in ["SUCCEEDED", "FAILED"]:
                     log("status update for "+globusID+": "+globusStatus)
 
@@ -582,12 +583,17 @@ def globusMonitorLoop():
                     # Notify Clowder to process file if transfer successful
                     if globusStatus == "SUCCEEDED":
                         clowderDone = notifyClowderOfCompletedTask(task)
-                        # If this doesn't succeed, leave the task active so we can try again next time
                         if clowderDone:
                             # Write out results file, then delete from active list and write log file
                             writeCompletedTaskToDisk(task)
                             del activeTasks[globusID]
                             writeDataToDisk(config['active_tasks_path'], activeTasks)
+
+                    # Write failed transfers out to completed folder without Clowder
+                    elif globusStatus == "FAILED":
+                        writeCompletedTaskToDisk(task)
+                        del activeTasks[globusID]
+                        writeDataToDisk(config['active_tasks_path'], activeTasks)
 
             globWait = 0
             writeDataToDisk(config["status_log_path"], getStatus())
