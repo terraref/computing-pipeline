@@ -9,7 +9,7 @@ RUN apt-get -y update \
     && pip install globusonline-transfer-api-client
 
 COPY globus_monitor_service.py /home/globusmonitor/globus_monitor_service.py
-COPY log /home/globusmonitor/log
+COPY data /home/globusmonitor/data
 COPY config_default.json /home/globusmonitor/config_default.json
 
 ENV MONITOR_API_PORT 5454

@@ -8,7 +8,7 @@ RUN apt-get -y update \
     && pip install globusonline-transfer-api-client
 
 COPY gantry_monitor_service.py /home/gantrymonitor/gantry_monitor_service.py
-COPY log /home/gantrymonitor/log
+COPY data /home/gantrymonitor/data
 COPY config_default.json /home/gantrymonitor/config_default.json
 
 ENV MONITOR_API_PORT 5455
