@@ -123,7 +123,7 @@ def getStatus():
 
     return {
         "pending_file_transfers": pendingFileCount,
-        "globus_tasks_sent": createdTasks,
+        "active_globus_tasks": createdTasks,
         "completed_globus_tasks": completedTasks,
         "last_ftp_log_line_read": status_lastFTPLogLine
     }
