@@ -72,7 +72,17 @@ def openLog():
     global logFile
 
     logPath = config["log_path"]
-    logFile = open(logPath, 'w')
+
+    # If there's a current log file, store it as log1.txt, log2.txt, etc.
+    if os.path.exists(logPath):
+        i = 1
+        backupLog = logPath.replace(".txt", "_"+str(i)+".txt")
+        while os.path.exists(backupLog):
+            i+=1
+            backupLog = logPath.replace(".txt", "_"+str(i)+".txt")
+        shutil.move(filePath, backupLog)
+
+    logFile = open(logPath, 'w+')
 
 def closeLog():
     logFile.close()
