@@ -602,7 +602,7 @@ def notifyMonitorOfNewTransfer(globusID, contents):
         return status
     except requests.ConnectionError as e:
         log("cannot connect to NCSA API", "ERROR")
-        return 503
+        return {'status_code':503}
 
 """Send message to NCSA Globus monitor API with metadata for a dataset, without other files"""
 def sendMetadataToMonitor(datasetName, metadata):
@@ -620,7 +620,7 @@ def sendMetadataToMonitor(datasetName, metadata):
         return status
     except requests.ConnectionError as e:
         log("cannot connect to NCSA API", "ERROR")
-        return 503
+        return {'status_code':503}
 
 """Contact NCSA Globus monitor API to check whether task was completed successfully"""
 def getTransferStatusFromMonitor(globusID):
