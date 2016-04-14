@@ -98,7 +98,7 @@ def openLog():
         while os.path.exists(backupLog):
             i+=1
             backupLog = logPath.replace(".txt", "_"+str(i)+".txt")
-        shutil.move(filePath, backupLog)
+        shutil.move(logPath, backupLog)
 
     logFile = open(logPath, 'w+')
 
