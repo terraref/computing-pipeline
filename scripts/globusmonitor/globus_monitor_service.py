@@ -188,7 +188,7 @@ def loadDataFromDisk(logPath):
 
 """Save object into a log file from memory, moving existing file to .backup if it exists"""
 def writeDataToDisk(logPath, logData):
-    log("...writing data to "+logPath)
+    log("...writing data to "+os.path.basename(logPath))
 
     # Move existing copy to .backup if it exists
     if os.path.exists(logPath):

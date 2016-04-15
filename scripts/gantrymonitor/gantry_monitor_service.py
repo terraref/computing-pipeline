@@ -165,7 +165,7 @@ def loadTasksFromDisk(filePath):
 """Write active or pending tasks from memory into file"""
 def writeTasksToDisk(filePath, taskObj):
     # Write current file to backup location before writing current file
-    log("...writing tasks to "+filePath)
+    log("...writing tasks to "+os.path.basename(filePath))
 
     if os.path.exists(filePath):
         shutil.move(filePath, filePath+".backup")
