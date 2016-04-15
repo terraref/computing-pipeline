@@ -271,7 +271,7 @@ def fetchDatasetByName(datasetName, requestsSession):
 
 """Find dataset id if dataset exists, creating if necessary"""
 def fetchCollectionByName(collectionName, requestsSession):
-    if collectionName not in datasetMap:
+    if collectionName not in collectionMap:
         coll = requestsSession.post(config['clowder']['host']+"/api/collections",
                                   headers={"Content-Type": "application/json"},
                                   data='{"name": "%s", "description": ""}' % collectionName)
