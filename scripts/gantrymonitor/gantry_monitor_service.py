@@ -94,7 +94,7 @@ def lockFile(f):
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return
-        except BlockingIOError as e:
+        except {BlockingIOError, IOError} as e:
             # Try again in 1/10th of a second
             time.sleep(0.1)
 
