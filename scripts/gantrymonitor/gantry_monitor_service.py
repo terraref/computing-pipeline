@@ -74,8 +74,9 @@ def openLog():
     logPath = config["log_path"]
 
     # Create directories if necessary
-    if not os.path.exists(logPath):
-        os.makedirs(logPath)
+    dirs = logPath.replace(os.path.basename(logPath), "")
+    if not os.path.exists(dirs):
+        os.makedirs(dirs)
 
     # If there's a current log file, store it as log1.txt, log2.txt, etc.
     if os.path.exists(logPath):
@@ -172,8 +173,9 @@ def writeTasksToDisk(filePath, taskObj):
     log("...writing "+os.path.basename(filePath))
 
     # Create directories if necessary
-    if not os.path.exists(filePath):
-        os.makedirs(filePath)
+    dirs = filePath.replace(os.path.basename(filePath), "")
+    if not os.path.exists(dirs):
+        os.makedirs(dirs)
 
     if os.path.exists(filePath):
         shutil.move(filePath, filePath+".backup")
