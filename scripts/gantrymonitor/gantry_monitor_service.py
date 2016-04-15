@@ -246,7 +246,7 @@ def addFileToPendingTransfers(f):
     filename = pathParts[-1]
     sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
     timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
-    datasetID = sensorname +" "+timestamp
+    datasetID = sensorname +" - "+timestamp
     gantryDirPath = gantryDirPath.replace(filename, "")
 
     if filename.find("metadata.json") == -1:
