@@ -543,13 +543,13 @@ def initializeGlobusTransfers():
         if queueLength > 0:
             # Send transfer to Globus
             try:
-                status_code, status_message, transfer_data = api.transfer(transferObj)
+                status_code, status_message, transfer_data = api.transfer(transferObj, preserve_timestamp=True)
             except (APIError, ClientError) as e:
                 try:
                     # Try refreshing auth token and retrying
                     generateAuthToken()
                     api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-                    status_code, status_message, transfer_data = api.transfer(transferObj)
+                    status_code, status_message, transfer_data = api.transfer(transferObj, preserve_timestamp=True)
                 except (APIError, ClientError) as e:
                     log("problem initializing Globus transfer", "ERROR")
                     status_code = 503
