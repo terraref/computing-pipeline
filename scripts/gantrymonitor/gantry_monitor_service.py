@@ -73,6 +73,10 @@ def openLog():
 
     logPath = config["log_path"]
 
+    # Create directories if necessary
+    if not os.path.exists(logPath):
+        os.makedirs(logPath)
+
     # If there's a current log file, store it as log1.txt, log2.txt, etc.
     if os.path.exists(logPath):
         i = 1
@@ -167,6 +171,10 @@ def writeTasksToDisk(filePath, taskObj):
     # Write current file to backup location before writing current file
     log("...writing "+os.path.basename(filePath))
 
+    # Create directories if necessary
+    if not os.path.exists(filePath):
+        os.makedirs(filePath)
+
     if os.path.exists(filePath):
         shutil.move(filePath, filePath+".backup")
 
@@ -183,20 +191,13 @@ def writeCompletedTransferToDisk(transfer):
     # e.g. TaskID "eaca1f1a-d400-11e5-975b-22000b9da45e"
     #   = <completedPath>/ea/ca/1f/1a/eaca1f1a-d400-11e5-975b-22000b9da45e.json
 
-    # Create root directory if necessary
-    if not os.path.exists(completedPath):
-        os.mkdir(completedPath)
-    # Create nested hierarchy folders if needed, to hopefully avoid a long flat list
-    treeLv1 = os.path.join(completedPath, taskID[:2])
-    treeLv2 = os.path.join(treeLv1, taskID[2:4])
-    treeLv3 = os.path.join(treeLv2, taskID[4:6])
-    treeLv4 = os.path.join(treeLv3, taskID[6:8])
-    for dir in [treeLv1, treeLv2, treeLv3, treeLv4]:
-        if not os.path.exists(dir):
-            os.mkdir(dir)
+    # Create path if necessary
+    logPath = os.path.join(completedPath, taskID[:2], taskID[2:4], taskID[4:6], taskID[6:8])
+    if not os.path.exists(logPath):
+        os.makedirs(logPath)
 
     # Write to json file with task ID as filename
-    dest = os.path.join(treeLv4, taskID+".json")
+    dest = os.path.join(logPath, taskID+".json")
     log("...complete: "+dest)
     f = open(dest, 'w')
     f.write(json.dumps(transfer))
