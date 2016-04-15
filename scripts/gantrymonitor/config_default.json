@@ -1,13 +1,13 @@
 {
-  "log_path": "/home/gantrymonitor/data/log/log.txt",
-  "active_tasks_path": "/home/gantrymonitor/data/log/active_tasks.json",
-  "pending_transfers_path": "/home/gantrymonitor/data/log/pending_transfers.json",
-  "completed_tasks_path": "/home/gantrymonitor/data/completed",
-  "status_log_path": "/home/gantrymonitor/data/log/monitor_status.json",
+  "log_path": "/home/gantry/data/log/log.txt",
+  "active_tasks_path": "/home/gantry/data/log/active_tasks.json",
+  "pending_transfers_path": "/home/gantry/data/log/pending_transfers.json",
+  "completed_tasks_path": "/home/gantry/data/completed",
+  "status_log_path": "/home/gantry/data/log/monitor_status.json",
 
   "gantry": {
-    "incoming_files_path": "/gantry_data/LemnaTec/MovingSensor/ ",
-    "deletion_queue": "/gantry_data/deleteme",
+    "incoming_files_path": "/home/gantry/sensors",
+    "deletion_queue": "/home/gantry/delete/sensors",
     "ftp_log_path": "/var/log",
     "file_check_frequency_secs": 120,
     "globus_transfer_frequency_secs": 180,
