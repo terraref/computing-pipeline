@@ -341,6 +341,16 @@ def generateAuthToken():
     config['globus']['auth_token'] = t
     log("...generated: "+t)
 
+"""Refresh auth token and send autoactivate message to source and destination Globus endpoints"""
+def activateEndpoints():
+    src = config['globus']["source_endpoint_id"]
+    dest = config['globus']["destination_endpoint_id"]
+
+    generateAuthToken()
+    api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+    api.endpoint_autoactivate(src)
+    api.endpoint_autoactivate(dest)
+
 """Generate a submission ID that can be used to avoid double-submitting"""
 def generateGlobusSubmissionID():
     try:
@@ -348,8 +358,8 @@ def generateGlobusSubmissionID():
         status_code, status_message, submission_id = api.submission_id()
     except (APIError, ClientError) as e:
         try:
-            # Try refreshing auth token and retrying
-            generateAuthToken()
+            # Try activating endpoints and retrying
+            activateEndpoints()
             api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
             status_code, status_message, submission_id = api.submission_id()
         except (APIError, ClientError) as e:
@@ -547,8 +557,8 @@ def initializeGlobusTransfers():
                 status_code, status_message, transfer_data = api.transfer(transferObj)
             except (APIError, ClientError) as e:
                 try:
-                    # Try refreshing auth token and retrying
-                    generateAuthToken()
+                    # Try refreshing endpoints and retrying
+                    activateEndpoints()
                     api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
                     status_code, status_message, transfer_data = api.transfer(transferObj)
                 except (APIError, ClientError) as e:
@@ -752,7 +762,7 @@ if __name__ == '__main__':
         print("...no custom configuration file found. using default values")
     openLog()
     atexit.register(closeLog)
-    generateAuthToken()
+    activateEndpoints()
 
     # TODO: How to handle big errors, e.g. NCSA API not responding? admin email notification?
 
