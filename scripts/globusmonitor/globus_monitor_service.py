@@ -533,6 +533,7 @@ def notifyClowderOfCompletedTask(task):
                           data=json.dumps(md))
                 if dsmd.status_code != 200:
                     log("cannot add dataset metadata ("+str(dsmd.status_code)+" - "+dsmd.text+")", "ERROR")
+                    return False
                 else:
                     # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
                     del activeTasks[task['globus_id']][ds]['md']
@@ -555,7 +556,7 @@ def notifyClowderOfCompletedTask(task):
                         return False
                     else:
                         activeTasks[task['globus_id']]['contents'][ds]['files'][f]['clowder_id'] = json.loads(fi.text)['id']
-                        return True
+        return True
     else:
         log("cannot find clowder user credentials for Globus user "+globUser, "ERROR")
         return False
