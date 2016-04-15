@@ -536,7 +536,7 @@ def notifyClowderOfCompletedTask(task):
                     return False
                 else:
                     # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
-                    del activeTasks[task['globus_id']][ds]['md']
+                    del activeTasks[task['globus_id']]['contents'][ds]['md']
 
             # Add local files to dataset by path
             if 'files' in task['contents'][ds]:
