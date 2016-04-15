@@ -188,7 +188,7 @@ def loadDataFromDisk(logPath):
 
 """Save object into a log file from memory, moving existing file to .backup if it exists"""
 def writeDataToDisk(logPath, logData):
-    log("...writing data to "+os.path.basename(logPath))
+    log("...writing "+os.path.basename(logPath))
 
     # Move existing copy to .backup if it exists
     if os.path.exists(logPath):
@@ -221,7 +221,7 @@ def writeCompletedTaskToDisk(task):
 
     # Write to json file with task ID as filename
     dest = os.path.join(treeLv4, taskID+".json")
-    log("...writing completed task to "+dest)
+    log("...complete: "+dest)
     f = open(dest, 'w')
     f.write(json.dumps(task))
     f.close()

@@ -165,7 +165,7 @@ def loadTasksFromDisk(filePath):
 """Write active or pending tasks from memory into file"""
 def writeTasksToDisk(filePath, taskObj):
     # Write current file to backup location before writing current file
-    log("...writing tasks to "+os.path.basename(filePath))
+    log("...writing "+os.path.basename(filePath))
 
     if os.path.exists(filePath):
         shutil.move(filePath, filePath+".backup")
@@ -197,7 +197,7 @@ def writeCompletedTransferToDisk(transfer):
 
     # Write to json file with task ID as filename
     dest = os.path.join(treeLv4, taskID+".json")
-    log("...writing completed transfer to "+dest)
+    log("...complete: "+dest)
     f = open(dest, 'w')
     f.write(json.dumps(transfer))
     f.close()
