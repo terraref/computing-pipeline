@@ -25,7 +25,7 @@ from flask import Flask, request, Response
 from flask.ext import restful
 from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIError, ClientError, goauth
 
-rootPath = "/home/gantrymonitor/"
+rootPath = "/home/gantry"
 
 config = {}
 logFile = None
