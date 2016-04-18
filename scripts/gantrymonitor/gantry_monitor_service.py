@@ -145,10 +145,14 @@ def getStatus():
 
 """Load contents of .json file into a JSON object"""
 def loadJsonFile(filename):
-    f = open(filename)
-    jsonObj = json.load(f)
-    f.close()
-    return jsonObj
+    try:
+        f = open(filename)
+        jsonObj = json.load(f)
+        f.close()
+        return jsonObj
+    except IOError:
+        log("unable to open "+filename+", returning {}")
+        return {}
 
 """Load active or pending tasks from file into memory"""
 def loadTasksFromDisk(filePath):
