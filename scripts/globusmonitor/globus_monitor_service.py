@@ -18,7 +18,7 @@ from flask.ext import restful
 from flask_restful import reqparse, abort, Api, Resource
 from globusonline.transfer.api_client import TransferAPIClient, APIError, ClientError, goauth
 
-rootPath = "/home/globusmonitor/"
+rootPath = "/projects/arpae/terraref/globus_monitor/"
 
 """
 Config file has 2 important entries which do not have default values:
