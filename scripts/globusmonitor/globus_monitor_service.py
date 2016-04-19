@@ -43,7 +43,6 @@ Config file has 2 important entries which do not have default values:
     }
 """
 config = {}
-logFile = None
 
 """activeTasks tracks which Globus IDs are being monitored, and is of the format:
 {"globus_id": {
@@ -87,8 +86,6 @@ api = restful.Api(app)
 # SHARED UTILS
 # ----------------------------------------------------------
 def openLog():
-    global logFile
-
     logPath = config["log_path"]
 
     # Create directories if necessary
@@ -98,17 +95,10 @@ def openLog():
 
     # If there's a current log file, store it as log1.txt, log2.txt, etc.
     if os.path.exists(logPath):
-        i = 1
-        backupLog = logPath.replace(".txt", "_"+str(i)+".txt")
-        while os.path.exists(backupLog):
-            i+=1
-            backupLog = logPath.replace(".txt", "_"+str(i)+".txt")
+        backupLog = logPath.replace(".txt", "_backup.txt")
         shutil.move(logPath, backupLog)
 
-    logFile = open(logPath, 'w+')
-
-def closeLog():
-    logFile.close()
+    return open(logPath, 'w+')
 
 """If metadata keys have periods in them, Clowder will reject the metadata"""
 def clean_json_keys(jsonobj):
@@ -150,7 +140,9 @@ def updateNestedDict(existing, new):
 """Print log message to console and write it to log file"""
 def log(message, type="INFO"):
     print("["+type+"] "+message)
+    logFile = openLog()
     logFile.write("["+type+"] "+message+"\n")
+    logFile.close()
 
 """Return small JSON object with information about monitor health"""
 def getStatus():
@@ -629,8 +621,6 @@ if __name__ == '__main__':
         config = updateNestedDict(config, loadJsonFile(os.path.join(rootPath, "data/config_custom.json")))
     else:
         print("...no custom configuration file found. using default values")
-    openLog()
-    atexit.register(closeLog)
 
     datasetMap = loadDataFromDisk(config['dataset_map_path'])
     collectionMap = loadDataFromDisk(config['collection_map_path'])

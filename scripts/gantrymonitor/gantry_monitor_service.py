@@ -28,7 +28,6 @@ from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIErr
 rootPath = "/home/gantry"
 
 config = {}
-logFile = None
 
 # These are used by the FTP log reader to track progress, and included in status report
 status_lastFTPLogLine = ""
@@ -69,8 +68,6 @@ api = restful.Api(app)
 # SHARED UTILS
 # ----------------------------------------------------------
 def openLog():
-    global logFile
-
     logPath = config["log_path"]
 
     # Create directories if necessary
@@ -80,17 +77,10 @@ def openLog():
 
     # If there's a current log file, store it as log1.txt, log2.txt, etc.
     if os.path.exists(logPath):
-        i = 1
-        backupLog = logPath.replace(".txt", "_"+str(i)+".txt")
-        while os.path.exists(backupLog):
-            i+=1
-            backupLog = logPath.replace(".txt", "_"+str(i)+".txt")
+        backupLog = logPath.replace(".txt", "_backup.txt")
         shutil.move(logPath, backupLog)
 
-    logFile = open(logPath, 'w+')
-
-def closeLog():
-    logFile.close()
+    return open(logPath, 'w+')
 
 """Attempt to lock a file so API and monitor don't write at once, and wait if unable"""
 def lockFile(f):
@@ -120,7 +110,9 @@ def updateNestedDict(existing, new):
 """Print log message to console and write it to log file"""
 def log(message, type="INFO"):
     print("["+type+"] "+message)
+    logFile = openLog()
     logFile.write("["+type+"] "+message+"\n")
+    logFile.close()
 
 """Return small JSON object with information about monitor health"""
 def getStatus():
@@ -767,8 +759,6 @@ if __name__ == '__main__':
         config = updateNestedDict(config, loadJsonFile(os.path.join(rootPath, "data/config_custom.json")))
     else:
         print("...no custom configuration file found. using default values")
-    openLog()
-    atexit.register(closeLog)
     activateEndpoints()
 
     # TODO: How to handle big errors, e.g. NCSA API not responding? admin email notification?
