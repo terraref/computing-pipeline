@@ -374,12 +374,16 @@ def generateGlobusSubmissionID():
 def getGantryFilesForTransfer(gantryDir):
     transferQueue = {}
 
-    # Get list of files last modified more than X minutes ago
-    #fileAge = config['gantry']['min_file_age_for_transfer_mins']
-    #foundFiles = subprocess.check_output(["find", gantryDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
+    foundFiles = []
 
-    # Get list of files from FTP log
+    # Get list of files from FTP log, if log is specified
     foundFiles = getNewFilesFromFTPLogs()
+
+    # Get list of files from watched folders, if folders are specified  (and de-duplicate from FTP list)
+    fileList = getNewFilesFromWatchedFolders()
+    for found in fileList:
+        if found not in foundFiles:
+            foundFiles.append(found)
 
     for f in foundFiles:
         # Get dataset info & path details from found file
@@ -417,6 +421,20 @@ def getGantryFilesForTransfer(gantryDir):
                 transferQueue[datasetID]['md_path'] = gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
 
     return transferQueue
+
+"""Check folders in config for files older than the configured age, and queue for transfer"""
+def getNewFilesFromWatchedFolders():
+    foundFiles = []
+
+    # Get list of files last modified more than X minutes ago
+    watchDirs = config['gantry']['file_age_monitor_paths']
+    fileAge = config['gantry']['min_file_age_for_transfer_mins']
+
+    for currDir in watchDirs:
+        # TODO: Check for hidden files beginning with "." or just allow them?
+        foundFiles.append(subprocess.check_output(["find", currDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n"))
+
+    return foundFiles
 
 """Check FTP log files to determine new files that were successfully moved to staging area"""
 def getNewFilesFromFTPLogs():
