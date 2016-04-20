@@ -239,9 +239,12 @@ def filenameInActiveTasks(filename):
 def addFileToPendingTransfers(f):
     global pendingTransfers
 
-    gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
-    pathParts = gantryDirPath.split("/")
+    if f.find(config['gantry']['incoming_files_path']) > -1:
+        gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
+    else:
+        gantryDirPath = f.replace(config['globus']['source_path'], "")
 
+    pathParts = gantryDirPath.split("/")
     filename = pathParts[-1]
     sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
     timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
@@ -371,10 +374,13 @@ def generateGlobusSubmissionID():
         return None
 
 """Check for files ready for transmission and return list"""
-def getGantryFilesForTransfer(gantryDir):
+def getGantryFilesForTransfer():
     transferQueue = {}
 
     foundFiles = []
+
+    gantryDir = config['gantry']['incoming_files_path']
+    dockerDir = config['globus']['source_path']
 
     # Get list of files from FTP log, if log is specified
     foundFiles = getNewFilesFromFTPLogs()
@@ -387,7 +393,11 @@ def getGantryFilesForTransfer(gantryDir):
 
     for f in foundFiles:
         # Get dataset info & path details from found file
-        gantryDirPath = f.replace(gantryDir,"")
+        if f.find(gantryDir) > -1:
+            gantryDirPath = f.replace(gantryDir, "")
+        else:
+            gantryDirPath = f.replace(dockerDir, "")
+
         pathParts = gantryDirPath.split("/")
         filename = pathParts[-1]
         sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
@@ -488,7 +498,9 @@ def getNewFilesFromFTPLogs():
                         fnameRegex = '::ffff:\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \d+ ((\/?.)+) +\w _'
                         fname = re.search(fnameRegex, line)
                         if fname:
-                            foundFiles.append(fname.group(1).rstrip())
+                            fullname = fname.group(1).rstrip()
+                            fullname = fullname.replace(config['globus']['source_path'],"")
+                            foundFiles.append(fullname)
 
         # If we didn't find last line in this file, look into the previous file
         if not foundResumePoint:
@@ -547,7 +559,7 @@ def initializeGlobusTransfers():
                 for f in pendingTransfers[ds]['files']:
                     if queueLength < config['globus']['max_transfer_file_count']:
                         fobj = pendingTransfers[ds]['files'][f]
-                        src_path = os.path.join(config['gantry']['incoming_files_path'], fobj["path"], fobj["name"])
+                        src_path = os.path.join(config['globus']['source_path'], fobj["path"], fobj["name"])
                         dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
                         transferObj.add_item(src_path, dest_path)
 
@@ -758,7 +770,7 @@ def ftpMonitorLoop():
 
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if gantryWait <= 0:
-            pendingTransfers.update(getGantryFilesForTransfer(config['gantry']['incoming_files_path']))
+            pendingTransfers.update(getGantryFilesForTransfer())
 
             # Clean up the pending object of straggling keys, then initialize Globus transfer
             cleanPendingTransfers()

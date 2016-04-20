@@ -16,6 +16,7 @@
   },
 
   "globus": {
+    "source_path": "/gantry_data/LemnaTec",
     "destination_path": "/~/globus",
     "source_endpoint_id": "",
     "destination_endpoint_id": "",
