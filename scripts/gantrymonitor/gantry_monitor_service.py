@@ -78,7 +78,7 @@ def openLog():
     # If there's a current log file, store it as log1.txt, log2.txt, etc.
     if os.path.exists(logPath):
         backupLog = logPath.replace(".txt", "_backup.txt")
-        shutil.move(logPath, backupLog)
+        shutil.copyfile(logPath, backupLog)
 
     return open(logPath, 'a+')
 
