@@ -98,7 +98,7 @@ def openLog():
         backupLog = logPath.replace(".txt", "_backup.txt")
         shutil.move(logPath, backupLog)
 
-    return open(logPath, 'w+')
+    return open(logPath, 'a+')
 
 """If metadata keys have periods in them, Clowder will reject the metadata"""
 def clean_json_keys(jsonobj):

@@ -80,7 +80,7 @@ def openLog():
         backupLog = logPath.replace(".txt", "_backup.txt")
         shutil.move(logPath, backupLog)
 
-    return open(logPath, 'w+')
+    return open(logPath, 'a+')
 
 """Attempt to lock a file so API and monitor don't write at once, and wait if unable"""
 def lockFile(f):
