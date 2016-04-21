@@ -23,15 +23,15 @@ fi # HOSTNAME
 # Default input and output directory is ${DATA}
 if [ -z "${DATA}" ]; then
     case "${HOSTNAME}" in 
-	roger* ) DATA="/lustre/atlas/world-shared/cli115/${USER}" ; ;; # NCSA roger compute nodes named fxm, fxm GB/node
+	cg-gpu* ) DATA="/lustre/atlas/world-shared/cli115/${USER}" ; ;; # NCSA roger compute nodes named cg-gpuNN, fxm GB/node
 	* ) DATA='/tmp' ; ;; # Other
     esac # !HOSTNAME
 fi # DATA
 # Ensure batch jobs access correct 'mpirun' (or, on edison, 'aprun') command, netCDF library, and NCO executables and library:
 case "${HOSTNAME}" in 
-    roger* )
-        export PATH='/ccs/home/zender/bin'\:${PATH}
-	export LD_LIBRARY_PATH='/sw/redhat6/netcdf/4.3.3.1/rhel6.6_gcc4.8.2--with-dap+hdf4/lib:/sw/redhat6/szip/2.1/rhel6.6_gnu4.8.2/lib:/ccs/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
+    cg-gpu* )
+        export PATH='/home/zender/bin'\:${PATH}
+	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
 esac # !HOSTNAME
 
 # Test cases (for Charlie's machines)
@@ -555,9 +555,9 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 
     # Move file to final resting place
     if [ "${rip_flg}" = 'Yes' ]; then
-	if [ -z "${rip_in}" ]; then
+	if [ "${cmp_flg}" = 'Yes' ]; then
 	    rip_in=${cmp_out}
-	fi # !rip_in
+	fi # !cmp_flg
 	rip_out=${out_fl}
 	printf "rip(in)  : ${rip_in}\n"
 	printf "rip(out) : ${rip_out}\n"
