@@ -96,7 +96,7 @@ unq_sfx=".pid${spt_pid}" # [sng] Unique suffix
 
 # Set temporary-file directory
 if [ -d '/gpfs_scratch/arpae' ]; then
-    drc_tmp='/gpfs_scratch/arpae/hyperspectral'
+    drc_tmp='/gpfs_scratch/arpae/hyperspectral_imager'
 elif [ -d "${TMPDIR}" ]; then
     # Fancy %/ syntax removes trailing slash (e.g., from $TMPDIR)
     drc_tmp="${TMPDIR%/}"
