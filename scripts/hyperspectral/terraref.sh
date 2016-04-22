@@ -100,7 +100,7 @@ elif [ -d "${TMPDIR}" ]; then
     drc_tmp="${TMPDIR%/}"
 elif [ -d '/tmp' ]; then
     drc_tmp='/tmp'
-else [ -d '/tmp' ]; then
+else
     drc_tmp=${PWD}
 fi # !gpfs
 
