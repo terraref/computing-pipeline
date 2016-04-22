@@ -37,6 +37,10 @@ case "${HOSTNAME}" in
 	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
 esac # !HOSTNAME
 
+# Production
+# terraref.sh -d 1 -i /terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# ls -R /projects/arpae/terraref/raw_data/ua-mac/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O /gpfs_scratch/arpae/hyperspectral
+
 # Test cases (for Charlie's machines)
 # terraref.sh $fl > ~/terraref.out 2>&1 &
 
@@ -69,12 +73,6 @@ drc_in='' # [sng] Input file directory
 drc_in_xmp='drc_in' # [sng] Input file directory for examples
 drc_out="${drc_pwd}" # [sng] Output file directory
 drc_out_xmp="drc_out" # [sng] Output file directory for examples
-if [ -n "${TMPDIR}" ]; then
-    # Fancy %/ syntax removes trailing slash (e.g., from $TMPDIR)
-    drc_tmp="${TMPDIR%/}" # [sng] Temporary file directory
-else
-    drc_tmp='/tmp' # [sng] Temporary file directory
-fi # !tmp_usr
 gaa_sng="--gaa terraref_script=${spt_nm} --gaa terraref_hostname=${HOSTNAME} --gaa terraref_version=${nco_version}" # [sng] Global attributes to add
 hdr_pad='1000' # [B] Pad at end of header section
 in_fl='' # [sng] Input file stub
@@ -93,6 +91,18 @@ par_typ='bck' # [sng] Parallelism type
 tmp_fl='terraref_tmp.nc' # [sng] Temporary output file
 typ_out='NC_USHORT' # [enm] netCDF output type
 unq_sfx=".pid${spt_pid}" # [sng] Unique suffix
+
+# Set temporary-file directory
+if [ -d '/gpfs_scratch/arpae' ]; then
+    drc_tmp='/gpfs_scratch/arpae/hyperspectral'
+elif [ -d "${TMPDIR}" ]; then
+    # Fancy %/ syntax removes trailing slash (e.g., from $TMPDIR)
+    drc_tmp="${TMPDIR%/}"
+elif [ -d '/tmp' ]; then
+    drc_tmp='/tmp'
+else [ -d '/tmp' ]; then
+    drc_tmp=${PWD}
+fi # !gpfs
 
 # Derived defaults
 out_fl=${in_fl/_raw/.nc} # [sng] Output file name
