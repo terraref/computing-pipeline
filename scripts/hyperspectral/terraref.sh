@@ -12,6 +12,9 @@
 # In Anaconda:
 # conda install netCDF4
 
+# Direct install:
+# scp ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.sh roger-login.ncsa.illinois.edu:terraref/computing-pipeline/scripts/hyperspectral/terraref.sh
+
 # Configure paths at High-Performance Computer Centers (HPCCs) based on ${HOSTNAME}
 if [ -z "${HOSTNAME}" ]; then
     if [ -f /bin/hostname ] && [ -x /bin/hostname ]; then
@@ -66,7 +69,12 @@ drc_in='' # [sng] Input file directory
 drc_in_xmp='drc_in' # [sng] Input file directory for examples
 drc_out="${drc_pwd}" # [sng] Output file directory
 drc_out_xmp="drc_out" # [sng] Output file directory for examples
-drc_tmp="${TMPDIR%/}" # [sng] Temporary file directory
+if [ -n "${TMPDIR}" ]; then
+    # Fancy %/ syntax removes trailing slash (e.g., from $TMPDIR)
+    drc_tmp="${TMPDIR%/}" # [sng] Temporary file directory
+else
+    drc_tmp='/tmp' # [sng] Temporary file directory
+fi # !tmp_usr
 gaa_sng="--gaa terraref_script=${spt_nm} --gaa terraref_hostname=${HOSTNAME} --gaa terraref_version=${nco_version}" # [sng] Global attributes to add
 hdr_pad='1000' # [B] Pad at end of header section
 in_fl='' # [sng] Input file stub
@@ -191,7 +199,7 @@ fi # !drc_usr
 if [ -n "${tmp_usr}" ]; then
     # Fancy %/ syntax removes trailing slash (e.g., from $TMPDIR)
     drc_tmp=${tmp_usr%/}
-fi # !out_fl
+fi # !tmp_usr
 att_fl="${drc_tmp}/terraref_tmp_att.nc" # [sng] ncatted file
 cmp_fl="${drc_tmp}/terraref_tmp_cmp.nc" # [sng] Compress/pack file
 d23_fl="${drc_tmp}/terraref_tmp_d23.nc" # [sng] 2D->3D file
