@@ -33,6 +33,8 @@ fi # DATA
 # Ensure batch jobs access correct 'mpirun' (or, on edison, 'aprun') command, netCDF library, and NCO executables and library:
 case "${HOSTNAME}" in 
     cg-gpu* )
+# 20160422: /usr/bin/python is version 2.6.6. Load Python 3.x
+	module add python
         export PATH='/home/zender/bin'\:${PATH}
 	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
 esac # !HOSTNAME

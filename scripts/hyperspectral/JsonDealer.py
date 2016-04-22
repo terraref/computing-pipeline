@@ -30,7 +30,7 @@ JsonDealer will authomatically find data_raw, data_metadata.json and data_raw.hd
 Example:
 python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/data
 ----------------------------------------------------------------------------------------
-This script is version-independent, and works with both Python 2 and 3, depending on the netCDF4 module version
+This script works with both Python 2.7+ and 3+, depending on the netCDF4 module version
 Thanks for the advice from Professor Zender and sample data from Dr. LeBauer.
 ----------------------------------------------------------------------------------------
 Update 4.1:
