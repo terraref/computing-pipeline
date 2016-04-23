@@ -6,8 +6,7 @@
 
 # Prerequisites:
 # NCO version 4.6.0 (dated 20160401) or later
-# Python: Python 2.X or 3.X (preferred)
-# netCDF4: third-party netCDF library for Python
+# Python: Python 2.7.X or 3.X (preferred) with netCDF4 module
 
 # In Anaconda:
 # conda install netCDF4
@@ -96,7 +95,7 @@ unq_sfx=".pid${spt_pid}" # [sng] Unique suffix
 
 # Set temporary-file directory
 if [ -d '/gpfs_scratch/arpae' ]; then
-    drc_tmp='/gpfs_scratch/arpae/hyperspectral_imager'
+    drc_tmp='/gpfs_scratch/arpae/imaging_spectrometer'
 elif [ -d "${TMPDIR}" ]; then
     # Fancy %/ syntax removes trailing slash (e.g., from $TMPDIR)
     drc_tmp="${TMPDIR%/}"
