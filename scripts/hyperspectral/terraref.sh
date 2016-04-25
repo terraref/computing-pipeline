@@ -32,15 +32,15 @@ fi # DATA
 # Ensure batch jobs access correct 'mpirun' (or, on edison, 'aprun') command, netCDF library, and NCO executables and library:
 case "${HOSTNAME}" in 
     cg-gpu* )
-# 20160422: /usr/bin/python is version 2.6.6. Load Python 3.x
-	module add python
+# 20160422: /usr/bin/python is version 2.6.6. Must load Python 2.7+
+	module add gdal-stack-2.7.10 
         export PATH='/home/zender/bin'\:${PATH}
 	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
 esac # !HOSTNAME
 
 # Production
 # terraref.sh -d 1 -i /terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/terraref.out 2>&1 &
-# ls -R /projects/arpae/terraref/raw_data/ua-mac/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O /gpfs_scratch/arpae/hyperspectral
+# ls -R /projects/arpae/terraref/raw_data/ua-mac/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/terraref.out 2>&1 &
 
 # Test cases (for Charlie's machines)
 # terraref.sh $fl > ~/terraref.out 2>&1 &
@@ -79,7 +79,7 @@ hdr_pad='1000' # [B] Pad at end of header section
 in_fl='' # [sng] Input file stub
 in_xmp='test_raw' # [sng] Input file for examples
 fl_nbr=0 # [nbr] Number of files
-job_nbr=2 # [nbr] Job simultaneity for parallelism
+job_nbr=6 # [nbr] Job simultaneity for parallelism
 mpi_flg='No' # [sng] Parallelize over nodes
 mtd_mk='Yes' # [sng] Process metadata
 nco_opt='-O --no_tmp_fl' # [sng] NCO defaults (e.g., '-O -6 -t 1')
