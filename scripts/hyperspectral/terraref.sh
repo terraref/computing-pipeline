@@ -6,11 +6,13 @@
 
 # Prerequisites:
 # NCO version 4.6.0 (dated 20160401) or later
-# Python: Python 2.X or 3.X (preferred)
-# netCDF4: third-party netCDF library for Python
+# Python: Python 2.7.X or 3.X (preferred) with netCDF4 module
 
 # In Anaconda:
 # conda install netCDF4
+
+# Direct install:
+# scp ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.sh roger-login.ncsa.illinois.edu:terraref/computing-pipeline/scripts/hyperspectral/terraref.sh
 
 # Configure paths at High-Performance Computer Centers (HPCCs) based on ${HOSTNAME}
 if [ -z "${HOSTNAME}" ]; then
@@ -23,16 +25,22 @@ fi # HOSTNAME
 # Default input and output directory is ${DATA}
 if [ -z "${DATA}" ]; then
     case "${HOSTNAME}" in 
-	roger* ) DATA="/lustre/atlas/world-shared/cli115/${USER}" ; ;; # NCSA roger compute nodes named fxm, fxm GB/node
+	cg-gpu* ) DATA="/lustre/atlas/world-shared/cli115/${USER}" ; ;; # NCSA roger compute nodes named cg-gpuNN, fxm GB/node
 	* ) DATA='/tmp' ; ;; # Other
     esac # !HOSTNAME
 fi # DATA
 # Ensure batch jobs access correct 'mpirun' (or, on edison, 'aprun') command, netCDF library, and NCO executables and library:
 case "${HOSTNAME}" in 
-    roger* )
-        export PATH='/ccs/home/zender/bin'\:${PATH}
-	export LD_LIBRARY_PATH='/sw/redhat6/netcdf/4.3.3.1/rhel6.6_gcc4.8.2--with-dap+hdf4/lib:/sw/redhat6/szip/2.1/rhel6.6_gnu4.8.2/lib:/ccs/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
+    cg-gpu* )
+# 20160422: /usr/bin/python is version 2.6.6. Must load Python 2.7+
+	module add gdal-stack-2.7.10 
+        export PATH='/home/zender/bin'\:${PATH}
+	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
 esac # !HOSTNAME
+
+# Production
+# NCSA: ls -R /projects/arpae/terraref/raw_data/ua-mac/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/terraref.out 2>&1 &
+# UCI:  ls -R ${DATA}/terraref/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O ~/rgr > ~/terraref.out 2>&1 &
 
 # Test cases (for Charlie's machines)
 # terraref.sh $fl > ~/terraref.out 2>&1 &
@@ -65,14 +73,13 @@ dfl_lvl='' # [nbr] [enm] Deflate level [0..9]
 drc_in='' # [sng] Input file directory
 drc_in_xmp='drc_in' # [sng] Input file directory for examples
 drc_out="${drc_pwd}" # [sng] Output file directory
-drc_out_xmp="drc_out" # [sng] Output file directory for examples
-drc_tmp="${TMPDIR%/}" # [sng] Temporary file directory
+drc_out_xmp='drc_out' # [sng] Output file directory for examples
 gaa_sng="--gaa terraref_script=${spt_nm} --gaa terraref_hostname=${HOSTNAME} --gaa terraref_version=${nco_version}" # [sng] Global attributes to add
-hdr_pad='1000' # [B] Pad at end of header section
+hdr_pad='10000' # [B] Pad at end of header section
 in_fl='' # [sng] Input file stub
 in_xmp='test_raw' # [sng] Input file for examples
 fl_nbr=0 # [nbr] Number of files
-job_nbr=2 # [nbr] Job simultaneity for parallelism
+job_nbr=6 # [nbr] Job simultaneity for parallelism
 mpi_flg='No' # [sng] Parallelize over nodes
 mtd_mk='Yes' # [sng] Process metadata
 nco_opt='-O --no_tmp_fl' # [sng] NCO defaults (e.g., '-O -6 -t 1')
@@ -85,6 +92,18 @@ par_typ='bck' # [sng] Parallelism type
 tmp_fl='terraref_tmp.nc' # [sng] Temporary output file
 typ_out='NC_USHORT' # [enm] netCDF output type
 unq_sfx=".pid${spt_pid}" # [sng] Unique suffix
+
+# Set temporary-file directory
+if [ -d '/gpfs_scratch/arpae' ]; then
+    drc_tmp='/gpfs_scratch/arpae/imaging_spectrometer'
+elif [ -d "${TMPDIR}" ]; then
+    # Fancy %/ syntax removes trailing slash (e.g., from $TMPDIR)
+    drc_tmp="${TMPDIR%/}"
+elif [ -d '/tmp' ]; then
+    drc_tmp='/tmp'
+else
+    drc_tmp=${PWD}
+fi # !gpfs
 
 # Derived defaults
 out_fl=${in_fl/_raw/.nc} # [sng] Output file name
@@ -191,7 +210,7 @@ fi # !drc_usr
 if [ -n "${tmp_usr}" ]; then
     # Fancy %/ syntax removes trailing slash (e.g., from $TMPDIR)
     drc_tmp=${tmp_usr%/}
-fi # !out_fl
+fi # !tmp_usr
 att_fl="${drc_tmp}/terraref_tmp_att.nc" # [sng] ncatted file
 cmp_fl="${drc_tmp}/terraref_tmp_cmp.nc" # [sng] Compress/pack file
 d23_fl="${drc_tmp}/terraref_tmp_d23.nc" # [sng] 2D->3D file
@@ -434,9 +453,14 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    # Potential GDAL output types are INT16,UINT16,INT32,UINT32,Float32
 	    # Writing ENVI type 4 input as NC_USHORT output save of factor of two in storage and could obviate packing (lossy quantization)
 	    #	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 4 input by outputting NC_FLOAT
+	    # NB: GDAL method is relatively slow, and creates a thousand files (one per wavelength), which must then be stitched back together
+	    # 20160401: User NCO by default, and deprecate GDAL method, which may no longer work
+	    # Maintain code here in case returning to it seems wise
 	    cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 12 input by outputting NC_USHORT
 	    hst_att="`date`: ${cmd_ln};${cmd_trn[${fl_idx}]}"
 	else # !GDAL
+	    # Use NCO to convert rasters
+	    # NCO is much faster, and creates a "data cube" directory so no reassembly required
 	    # Collect metadata necessary to process image from header
 	    hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
 	    # Strip invisible, vexing DOS ^M characters from line with tr
@@ -555,9 +579,9 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 
     # Move file to final resting place
     if [ "${rip_flg}" = 'Yes' ]; then
-	if [ -z "${rip_in}" ]; then
+	if [ "${cmp_flg}" = 'Yes' ]; then
 	    rip_in=${cmp_out}
-	fi # !rip_in
+	fi # !cmp_flg
 	rip_out=${out_fl}
 	printf "rip(in)  : ${rip_in}\n"
 	printf "rip(out) : ${rip_out}\n"
