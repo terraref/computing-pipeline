@@ -1,0 +1,9 @@
+#!/bin/bash
+
+date=$(date --date="2 day ago" +%Y%m%d)
+
+/root/scripts/terra_report 2> /dev/null > /tmp/${date}_report
+
+echo Summary and Transfer Logs Attached for $date | mutt  -s "$date Transfer Log from Gantry" -a /tmp/${date}_report -a /var/log/xferlog-$date.gz -- malone12@illinois.edu dlebauer@illinois.edu robert.strand@lemnatec.com tino.dornbusch@lemnatec.de
+
+mv /tmp/${date}_report /root/reports/
