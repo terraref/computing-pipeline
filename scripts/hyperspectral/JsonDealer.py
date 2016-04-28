@@ -6,6 +6,9 @@ This module parses JSON formatted metadata and data and header provided by Lemna
 
 @author: jeromemao
 ----------------------------------------------------------------------------------------
+This script works with both Python 2.7+ and 3+, depending on the netCDF4 module version
+Thanks for the advice from Professor Zender and sample data from Dr. LeBauer.
+----------------------------------------------------------------------------------------
 Usage (commandline):
 python JsonDealerPath filePath1 filePath2
 
@@ -30,14 +33,18 @@ JsonDealer will authomatically find data_raw, data_metadata.json and data_raw.hd
 Example:
 python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/data
 ----------------------------------------------------------------------------------------
-This script works with both Python 2.7+ and 3+, depending on the netCDF4 module version
-Thanks for the advice from Professor Zender and sample data from Dr. LeBauer.
-----------------------------------------------------------------------------------------
+UPDATE LOG
+
 Update 4.1:
 Merged with DataProcess module; now JsonDealer will do all the jobs.
 
 Update 4.12:
 Fixed bugs in getting dimensions from the header file.
+
+Update 4.25:
+Attributes and variables now looks nicer.
+Rename "Velocity ..." as "Gantry Speed ..."
+Set the "default bands" variable from the header file as attributes of "exposure" variable.
 ----------------------------------------------------------------------------------------
 '''
 
@@ -140,6 +147,7 @@ class DataContainer(object):
                     if 'Velocity' in submembers or 'Position' in submembers:
                         tempVariable = tempGroup.createVariable(
                             nameSet[0][-1], 'f8')
+                        print nameSet[0][0]
                         setattr(tempVariable, 'long_name', nameSet[0][0])
                         setattr(tempVariable, 'units',      nameSet[1])
                     else:
@@ -157,7 +165,6 @@ class DataContainer(object):
         setattr(tempWavelength, 'long_name', 'Hyperspectral Wavelength')
         setattr(tempWavelength, 'units', 'nanometers')
         tempWavelength[:] = wavelength
-
 
         writeHeaderFile(inputFilePath, netCDFHandler)
         netCDFHandler.history = _timeStamp() + ': python ' + commandLine
@@ -256,6 +263,10 @@ def _replaceIllegalChar(string):
     rtn = str()
     if "current setting" in string:
         string = string.split(' ')[-1]
+    elif "Velocity" in string:
+        string = 'Gantry Speed in ' + string[-1].upper() + ' Direction'
+    elif "Position" in string:
+        string = 'Position in ' + string[-1].upper() + ' Direction'
 
     for members in string:
         if members == '/':
@@ -264,6 +275,10 @@ def _replaceIllegalChar(string):
             rtn += '_'
         else:
             rtn += members
+    if '(' in string:
+        rtn = rtn[:rtn.find('(')-1]
+    elif '[' in string:
+        rtn = rtn[:rtn.find('[')-1]
 
     return rtn
 
@@ -315,15 +330,8 @@ def jsonHandler(jsonFile):
     '''
     pass the json object to built-in json module
     '''
-    rawData = str()
-
-    try:
-        with open(jsonFile[:-4] + '_metadata.json') as fileHandler:
-            for dataMember in fileHandler.readlines():
-                rawData += dataMember.strip('\\').strip('\t').strip('\n')
-    except Exception as err:
-        print(repr(err))
-    return json.loads(rawData, object_hook=_filteringTheHeadings)
+    with open(jsonFile[:-4] + '_metadata.json') as fileHandler:
+        return json.loads(fileHandler.read(), object_hook=_filteringTheHeadings)
 
 
 def writeHeaderFile(fileName, netCDFHandler):
@@ -354,9 +362,26 @@ def writeHeaderFile(fileName, netCDFHandler):
 
     #setattr(netCDFHandler, 'wavelength', wavelength)
     headerInfo = netCDFHandler.createGroup("header_info")
+    threeColorBands = list()
 
     for members in hdrInfo:
-        setattr(headerInfo, members, hdrInfo[members])
+        if members == 'default bands':
+            threeColorBands = [int(bands) for bands in eval(hdrInfo[members])]
+            print threeColorBands
+        setattr(headerInfo, _replaceIllegalChar(members), hdrInfo[members])
+
+    headerInfo.createVariable('red_band_index','f8').assignValue(threeColorBands[0])
+    headerInfo.createVariable('green_band_index','f8').assignValue(threeColorBands[1])
+    headerInfo.createVariable('blue_band_index','f8').assignValue(threeColorBands[2])
+
+    for group in netCDFHandler.groups:
+        if group == 'sensor_variable_metadata':
+            for variable in netCDFHandler.groups[group].variables:
+                if variable == 'exposure':
+                    setattr(netCDFHandler.groups[group].variables[variable], 'red_band_index',   threeColorBands[0])
+                    setattr(netCDFHandler.groups[group].variables[variable], 'green_band_index', threeColorBands[1])
+                    setattr(netCDFHandler.groups[group].variables[variable], 'blue_band_index',  threeColorBands[2])
+
         # if isDigit(hdrInfo[members]):
         #     tempVariable = headerInfo.createVariable(members, 'i4')
         #     tempVariable.assignValue(int(hdrInfo[members]))
