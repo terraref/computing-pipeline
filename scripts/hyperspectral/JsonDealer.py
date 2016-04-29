@@ -147,7 +147,6 @@ class DataContainer(object):
                     if 'Velocity' in submembers or 'Position' in submembers:
                         tempVariable = tempGroup.createVariable(
                             nameSet[0][-1], 'f8')
-                        print nameSet[0][0]
                         setattr(tempVariable, 'long_name', nameSet[0][0])
                         setattr(tempVariable, 'units',      nameSet[1])
                     else:
@@ -367,20 +366,19 @@ def writeHeaderFile(fileName, netCDFHandler):
     for members in hdrInfo:
         if members == 'default bands':
             threeColorBands = [int(bands) for bands in eval(hdrInfo[members])]
-            print threeColorBands
         setattr(headerInfo, _replaceIllegalChar(members), hdrInfo[members])
 
     headerInfo.createVariable('red_band_index','f8').assignValue(threeColorBands[0])
     headerInfo.createVariable('green_band_index','f8').assignValue(threeColorBands[1])
     headerInfo.createVariable('blue_band_index','f8').assignValue(threeColorBands[2])
 
-    for group in netCDFHandler.groups:
-        if group == 'sensor_variable_metadata':
-            for variable in netCDFHandler.groups[group].variables:
-                if variable == 'exposure':
-                    setattr(netCDFHandler.groups[group].variables[variable], 'red_band_index',   threeColorBands[0])
-                    setattr(netCDFHandler.groups[group].variables[variable], 'green_band_index', threeColorBands[1])
-                    setattr(netCDFHandler.groups[group].variables[variable], 'blue_band_index',  threeColorBands[2])
+    # for group in netCDFHandler.groups:
+    #     if group == 'sensor_variable_metadata':
+    #         for variable in netCDFHandler.groups[group].variables:
+    #             if variable == 'exposure':
+    setattr(netCDFHandler.groups['sensor_variable_metadata'].variables['exposure'], 'red_band_index',   threeColorBands[0])
+    setattr(netCDFHandler.groups['sensor_variable_metadata'].variables['exposure'], 'green_band_index', threeColorBands[1])
+    setattr(netCDFHandler.groups['sensor_variable_metadata'].variables['exposure'], 'blue_band_index',  threeColorBands[2])
 
         # if isDigit(hdrInfo[members]):
         #     tempVariable = headerInfo.createVariable(members, 'i4')
