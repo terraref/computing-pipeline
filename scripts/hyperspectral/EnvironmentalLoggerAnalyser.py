@@ -148,7 +148,7 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None):
     '''
     netCDFHandler = Dataset(outputFileName, 'w', format='NETCDF4')
     dataMemberList = [JSONMembers[u"environment_sensor_set_reading"]
-                      for JSONMembers in JSONArray if u"environment_sensor_set_reading" in JSONMembers.keys()]
+                      for JSONMembers in JSONArray]
     timeStampList = [JSONMembers[u'timestamp']
                      for JSONMembers in dataMemberList]
     timeDimension = netCDFHandler.createDimension("time", None)
