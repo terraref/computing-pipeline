@@ -372,10 +372,6 @@ def writeHeaderFile(fileName, netCDFHandler):
     headerInfo.createVariable('green_band_index','f8').assignValue(threeColorBands[1])
     headerInfo.createVariable('blue_band_index','f8').assignValue(threeColorBands[2])
 
-    # for group in netCDFHandler.groups:
-    #     if group == 'sensor_variable_metadata':
-    #         for variable in netCDFHandler.groups[group].variables:
-    #             if variable == 'exposure':
     setattr(netCDFHandler.groups['sensor_variable_metadata'].variables['exposure'], 'red_band_index',   threeColorBands[0])
     setattr(netCDFHandler.groups['sensor_variable_metadata'].variables['exposure'], 'green_band_index', threeColorBands[1])
     setattr(netCDFHandler.groups['sensor_variable_metadata'].variables['exposure'], 'blue_band_index',  threeColorBands[2])
