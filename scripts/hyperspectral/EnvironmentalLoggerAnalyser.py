@@ -20,10 +20,10 @@ but it can also be one single file) and the third parameter as the output folder
 If the output folder does not exist, EnvironmentalLoggerAnalyser.py will create one for you.
 
 ----------------------------------------------------------------------------------------
-TODO list
+Update 4.29
 
-1. Reformat the input JSON file (spectrometer part) to match RFC standard.
-2. After finishing 1, parse the spectrometer.
+The output JSON file is now completely composed by variables
+2D spectrometer variables (wavelength and spectrum) are available in the exported file
 ----------------------------------------------------------------------------------------
 '''
 
@@ -40,16 +40,32 @@ _UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hecto-Pascal", u"DegCelsius": "Celsi
 _NAMES = {'sensor par': 'Sensor Photosynthetical Active Radiation'}
 
 
-def formattingTheInputJSONFile(fileLocation):
+def formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation):
     '''
     This function will format the source JSON file including multiple JSON objects
     into a file of JSON array
     '''
     with open(fileLocation, 'r+') as fileHandler:
-        tempList, linePosition = fileHandler.read().split('\n'), list()
+        tempList, linePosition, wavelengthList, spectrumList, j, k =\
+            fileHandler.read().split('\n'), list(), [[]], [[]], 0, 0
         for i in range(len(tempList)):
             if "environment_sensor_set_reading" in tempList[i] and i > 2:
                 linePosition.append(i - 1)
+            if "wavelength" in tempList[i]:
+                wavelengthList[j].append(
+                    float(tempList[i][tempList[i].find(':') + 1: -2]))
+            if "wavelength" not in tempList[i] and "wavelength" in tempList[i - 4]\
+                    and "band" not in tempList[i] and "," not in tempList[i]:
+                wavelengthList.append([])
+                j += 1
+                spectrumList.append([])
+                k += 1
+            if "spectrum" in tempList[i]:
+                spectrumList[k].append(
+                    float(tempList[i][tempList[i].find(':') + 1: -2]))
+          
+        wavelengthList.remove([])
+        spectrumList.remove([])
 
         for line in linePosition:
             del tempList[line]
@@ -64,17 +80,16 @@ def formattingTheInputJSONFile(fileLocation):
             fileHandler.write('\n'.join(tempList))
         else:
             fileHandler.write('\n'.join(tempList))
+    return wavelengthList, spectrumList
 
 
 def JSONHandler(fileLocation):
     '''
     Main JSON handler, write JSON file to a Python list with standard JSON module
     '''
-    JSONMasterList = list()
-    # if not os.path.isdir(fileLocation):
-    formattingTheInputJSONFile(fileLocation)
+    wavelength, spectrum = formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation)
     with open(fileLocation, 'r') as fileHandler:
-        return json.loads(fileHandler.read())
+        return json.loads(fileHandler.read()), wavelength, spectrum
 
 
 def renameTheValue(name):
@@ -125,13 +140,13 @@ def getListOfRawValue(arrayOfJSON, dataName):
     return [float(valueMembers[dataName]['rawValue'].encode('ascii', 'ignore')) for valueMembers in arrayOfJSON]
 
 
-def main(JSONArray, outputFileName):
+def main(JSONArray, outputFileName, wavelength=None, spectrum=None):
     '''
     Main netCDF handler, write data to the netCDF file indicated.
     '''
     netCDFHandler = Dataset(outputFileName, 'w', format='NETCDF4')
     dataMemberList = [JSONMembers[u"environment_sensor_set_reading"]
-                      for JSONMembers in JSONArray]
+                      for JSONMembers in JSONArray if u"environment_sensor_set_reading" in JSONMembers.keys()]
     timeStampList = [JSONMembers[u'timestamp']
                      for JSONMembers in dataMemberList]
     timeDimension = netCDFHandler.createDimension("time", None)
@@ -152,19 +167,20 @@ def main(JSONArray, outputFileName):
                 netCDFHandler.createVariable(renameTheValue(data) + '_rawValue', 'f4', ('time',))[:] =\
                     getListOfRawValue(dataMemberList, data)
         elif type(dataMemberList[0][data]) in (str, unicode):
-        	netCDFHandler.createVariable(renameTheValue(data), str)[0] = dataMemberList[0][data]
+            netCDFHandler.createVariable(renameTheValue(data), str)[
+                0] = dataMemberList[0][data]
 
-        # if data == 'spectrometer': #Special care for spectrometers :)
-        # 	tempGroup.createVariable('maxFixedIntensity', 'f4', ('time',))[:] =\
-        # 	 						getSpectrometerInformation(dataMemberList)[0]
-        # 	tempGroup.createVariable('Integration_Time_In_Microseconds', 'f4', ('time',))[:] =\
-        # 	 						getSpectrometerInformation(dataMemberList)[0]
+        if data == 'spectrometer':  # Special care for spectrometers :)
+            netCDFHandler.createVariable('Spectrometer_maxFixedIntensity', 'f4', ('time',))[:] =\
+                getSpectrometerInformation(dataMemberList)[0]
+            netCDFHandler.createVariable('Spectrometer_Integration_Time_In_Microseconds', 'f8', ('time',))[:] =\
+                getSpectrometerInformation(dataMemberList)[1]
 
-    # for DataMembers in dataMemberList:
-    # 	for subDataMembers in DataMembers:
-    # 		tempGroup = netCDFHandler.createGroup(renameTheValue(subDataMembers))
-    # 		if type(DataMembers[subDataMembers]) is not dict and subDataMembers != 'timestamp':
-    # 			setattr(tempGroup, renameTheValue(subDataMembers), DataMembers[subDataMembers])
+    if wavelength and spectrum:
+    	netCDFHandler.createDimension("wavelength", len(wavelength[0]))
+    	netCDFHandler.createVariable("wavelength", 'f4', ('time', 'wavelength'))[:,:] = wavelength
+    	netCDFHandler.createVariable("spectrum", 'f4', ('time', 'wavelength'))[:,:] = spectrum
+    	print "assigned"
 
     netCDFHandler.close()
 
@@ -177,13 +193,12 @@ if __name__ == '__main__':
     if not os.path.isdir(fileInputLocation):
         tempJSONMasterList = JSONHandler(fileInputLocation)
         main(tempJSONMasterList, fileInputLocation.strip('.json') + '.nc')
-    else:
-        # Read and Export netCDF to folder
+    else:  # Read and Export netCDF to folder
         for filePath, fileDirectory, fileName in os.walk(fileInputLocation):
             for members in fileName:
                 if os.path.join(filePath, members).endswith('.json'):
                     outputFileName = members.strip('.json') + '.nc'
-                    tempJSONMasterList = JSONHandler(
+                    tempJSONMasterList, wavelength, spectrum = JSONHandler(
                         os.path.join(filePath, members))
                     main(tempJSONMasterList, os.path.join(
-                        fileOutputLocation, outputFileName))
+                        fileOutputLocation, outputFileName), wavelength, spectrum)
