@@ -376,10 +376,6 @@ def writeHeaderFile(fileName, netCDFHandler):
     setattr(netCDFHandler.groups['sensor_variable_metadata'].variables['exposure'], 'green_band_index', threeColorBands[1])
     setattr(netCDFHandler.groups['sensor_variable_metadata'].variables['exposure'], 'blue_band_index',  threeColorBands[2])
 
-        # if isDigit(hdrInfo[members]):
-        #     tempVariable = headerInfo.createVariable(members, 'i4')
-        #     tempVariable.assignValue(int(hdrInfo[members]))
-
 if __name__ == '__main__':
     fileInput, fileOutput = sys.argv[1], sys.argv[2]
 
