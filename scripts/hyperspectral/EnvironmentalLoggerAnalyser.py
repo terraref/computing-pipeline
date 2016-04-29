@@ -25,6 +25,8 @@ Update 4.29
 The output JSON file is now completely composed by variables
 2D spectrometer variables (wavelength and spectrum) are available in the exported file
 ----------------------------------------------------------------------------------------
+Thanks for the advice from Professor Zender and testing data from Mr. Maloney
+----------------------------------------------------------------------------------------
 '''
 
 import json
@@ -173,7 +175,7 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None):
         if data == 'spectrometer':  # Special care for spectrometers :)
             netCDFHandler.createVariable('Spectrometer_maxFixedIntensity', 'f4', ('time',))[:] =\
                 getSpectrometerInformation(dataMemberList)[0]
-            netCDFHandler.createVariable('Spectrometer_Integration_Time_In_Microseconds', 'f8', ('time',))[:] =\
+            netCDFHandler.createVariable('Spectrometer_Integration_Time_In_Microseconds', 'f4', ('time',))[:] =\
                 getSpectrometerInformation(dataMemberList)[1]
 
     if wavelength and spectrum:
