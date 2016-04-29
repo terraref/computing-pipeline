@@ -142,22 +142,22 @@ def main(JSONArray, outputFileName):
     for data in dataMemberList[0]:
         if data != 'spectrometer' and type(dataMemberList[0][data]) not in (str, unicode):
             tempVariable = netCDFHandler.createVariable(
-                renameTheValue(data), 'f8', ('time',))
+                renameTheValue(data), 'f4', ('time',))
             tempVariable[:] = getListOfValue(
                 dataMemberList, data)  # Assign "values"
             if 'unit' in dataMemberList[0][data]:  # Assign Units
                 setattr(tempVariable, 'units', _UNIT_DICTIONARY[
                         dataMemberList[0][data]['unit']])
             if 'rawValue' in dataMemberList[0][data]:  # Assign "rawValues"
-                netCDFHandler.createVariable(renameTheValue(data) + '_rawValue', 'f8', ('time',))[:] =\
+                netCDFHandler.createVariable(renameTheValue(data) + '_rawValue', 'f4', ('time',))[:] =\
                     getListOfRawValue(dataMemberList, data)
         elif type(dataMemberList[0][data]) in (str, unicode):
         	netCDFHandler.createVariable(renameTheValue(data), str)[0] = dataMemberList[0][data]
 
         # if data == 'spectrometer': #Special care for spectrometers :)
-        # 	tempGroup.createVariable('maxFixedIntensity', 'f8', ('time',))[:] =\
+        # 	tempGroup.createVariable('maxFixedIntensity', 'f4', ('time',))[:] =\
         # 	 						getSpectrometerInformation(dataMemberList)[0]
-        # 	tempGroup.createVariable('Integration_Time_In_Microseconds', 'f8', ('time',))[:] =\
+        # 	tempGroup.createVariable('Integration_Time_In_Microseconds', 'f4', ('time',))[:] =\
         # 	 						getSpectrometerInformation(dataMemberList)[0]
 
     # for DataMembers in dataMemberList:
