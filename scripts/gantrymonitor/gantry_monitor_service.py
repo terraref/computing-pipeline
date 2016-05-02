@@ -210,6 +210,16 @@ def moveLocalFile(srcPath, destPath, filename):
     shutil.move(os.path.join(srcPath, filename),
                 os.path.join(destPath, filename))
 
+"""Create symlink to src file in destPath"""
+def createLocalSymlink(srcPath, destPath, filename):
+    log("...creating symlink to "+filename+" in "+destPath)
+
+    if not os.path.isdir(destPath):
+        os.makedirs(destPath)
+
+    os.symlink(os.path.join(srcPath, filename),
+               os.path.join(destPath, filename))
+
 """Clear out any datasets from pendingTransfers without files or metadata"""
 def cleanPendingTransfers():
     # Iterate across a copy since we'll be changing object
@@ -740,14 +750,14 @@ def globusMonitorLoop():
                                 if 'files' in task['contents'][ds]:
                                     for f in task['contents'][ds]['files']:
                                         fobj = task['contents'][ds]['files'][f]
-                                        moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], fobj['path']),
+                                        createLocalSymlink(os.path.join(config['gantry']['incoming_files_path'], fobj['path']),
                                                       os.path.join(deleteDir, fobj['path']), fobj['name'])
                                         if 'md'in fobj:
-                                            moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], fobj['md_path']),
+                                            createLocalSymlink(os.path.join(config['gantry']['incoming_files_path'], fobj['md_path']),
                                                           os.path.join(deleteDir, fobj['md_path']), fobj['md_name'])
                                 if 'md' in task['contents'][ds]:
                                     dsobj = task['contents'][ds]
-                                    moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], dsobj['md_path']),
+                                    createLocalSymlink(os.path.join(config['gantry']['incoming_files_path'], dsobj['md_path']),
                                                   os.path.join(deleteDir, dsobj['md_path']), "metadata.json")
 
                             # Crawl and remove empty directories
