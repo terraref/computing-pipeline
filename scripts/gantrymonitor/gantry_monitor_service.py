@@ -560,6 +560,7 @@ def initializeGlobusTransfers():
         transferObj = Transfer(submissionID,
                                config['globus']['source_endpoint_id'],
                                config['globus']['destination_endpoint_id'],
+                               verify_checksum=True,
                                preserve_timestamp=True)
 
         queueLength = 0
