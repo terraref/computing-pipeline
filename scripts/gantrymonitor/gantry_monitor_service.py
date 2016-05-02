@@ -284,7 +284,7 @@ def parseDateFromFTPLogLine(line):
         "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12
     }
 
-    l = line.split(" ")
+    l = line.split()
     if len(l) > 6:
         YY = int(l[5])      # year, e.g. 2016
         MM = months[l[1]]   # month, e.g. 4
@@ -451,6 +451,7 @@ def getNewFilesFromFTPLogs():
     global status_lastFTPLogLine
     foundFiles = []
 
+    log("checking log files")
     logDir = config["gantry"]["ftp_log_path"]
     if logDir == "":
         # Don't perform a scan if no log file is defined
@@ -534,6 +535,7 @@ def getNewFilesFromFTPLogs():
         else:
             handledBackLog = True
 
+    log("queued "+len(foundFiles)+" files from log")
     return foundFiles
 
 """Initiate Globus transfer with batch of files and add to activeTasks"""
