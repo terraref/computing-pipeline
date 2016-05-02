@@ -456,12 +456,16 @@ def getNewFilesFromFTPLogs():
         # Don't perform a scan if no log file is defined
         return foundFiles
 
+    # xferlog archived files are by date, e.g. "xferlog-20160501", "xferlog-20160502" - find these
+    def isOldXferLog(fname):
+        return fname.find("xferlog-") > -1
+    lognames = filter(isOldXferLog(), os.listdir(logDir)).sort()
+
     # Example log line:
     #Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
     lastLine = copy.copy(status_lastFTPLogLine)
     lastReadTime = parseDateFromFTPLogLine(lastLine)
 
-    # TODO: Put this whole method in a separate thread so reading log file doesn't slow down initializing pending transfers
     currLog = os.path.join(logDir, "xferlog")
     backLog = 0
 
@@ -506,24 +510,22 @@ def getNewFilesFromFTPLogs():
         if not foundResumePoint:
             handledBackLog = False
             backLog += 1
-            currLog = os.path.join(logDir, "xferlog-"+str(backLog))
-            if not os.path.exists(currLog):
-                # Check for gzipped verison as well
-                currLog = os.path.join(logDir, "xferlog-"+str(backLog)+".gz")
-                if not os.path.exists(currLog):
-                    # Didn't find any previous logs, so just start with current one
-                    currLog = os.path.join(logDir, "xferlog")
-                    foundResumePoint = True
+
+            if len(lognames) > abs(backLog):
+                # No previous logs, so just start with current one
+                currLog = os.path.join(logDir, "xferlog")
+                foundResumePoint = True
+                backLog = 0
+            else:
+                currLog = os.path.join(logDir, lognames[backLog])
 
         # If we found last line in a previous file, climb back up to current file and get its contents too
         elif backLog > 0:
             backLog -= 1
-            currLogName = "xferlog-"+str(backLog) if backLog > 0 else "xferlog"
+
+            currLogName = lognames[backLog]
+            #currLogName = "xferlog-"+str(backLog) if backLog > 0 else "xferlog"
             currLog = os.path.join(logDir, currLogName)
-            if not os.path.exists(currLog):
-                # Probably a gzipped version instead
-                currLogName = "xferlog-"+str(backLog)+".gz" if backLog > 0 else "xferlog.gz"
-                currLog = os.path.join(logDir, currLogName)
 
         # If we found the line and handled all backlogged files, we're ready to go
         else:
