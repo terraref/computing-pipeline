@@ -579,6 +579,9 @@ def initializeGlobusTransfers():
                     sentSomeMd = True
                     # Otherwise remove dataset entry since we already know there are no files
                     del remainingPendingTransfers[ds]
+                    # Move .json file to deletion queue
+                    moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], pendingTransfers[ds]['md_path']),
+                                  os.path.join(config['gantry']['deletion_queue'], pendingTransfers[ds]['md_path']), "metadata.json")
 
         if queueLength > 0:
             # Send transfer to Globus
