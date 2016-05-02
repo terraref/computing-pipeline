@@ -801,6 +801,11 @@ if __name__ == '__main__':
 
     # TODO: How to handle big errors, e.g. NCSA API not responding? admin email notification?
 
+    # Get last read log line from previous run
+    if os.path.exists(config["status_log_path"]):
+        monitorData = loadJsonFile(config["status_log_path"])
+        status_lastFTPLogLine = monitorData["last_ftp_log_line_read"]
+
     # Load any previous active/pending transfers
     activeTasks = loadTasksFromDisk(config['active_tasks_path'])
     pendingTransfers = loadTasksFromDisk(config['pending_transfers_path'])
