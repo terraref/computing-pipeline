@@ -12,10 +12,8 @@ Prerequisite:
 ----------------------------------------------------------------------------------------
 
 Usage (in bash):
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/input ${DATA}/terraref/output
 
-Example:
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/environmentlogger_test.json ${DATA}/terraref
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/input ${DATA}/terraref/output
 
 Please note EnvironmentalLoggerAnalyser.py will take the second parameter as the input folder (containing JSON files,
 but it can also be one single file) and the third parameter as the output folder (will dump netCDF files here).
@@ -42,6 +40,8 @@ _UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hecto-Pascal", u"DegCelsius": "Celsi
                     u"relHumPerCent": "PerCent", u"?mol/(m^2*s)": "micromole meters-2 second-1",
                     u'kilo Lux': 'kilo Lux', u'degrees': 'degrees', '': ''}
 _NAMES = {'sensor par': 'Sensor Photosynthetical Active Radiation'}
+_EXECA = 'dataMemberList = [JSONMembers[u"environment_sensor_set_reading"] for JSONMembers in JSONArray[0]]'
+_EXECB = 'dataMemberList = [JSONMembers[u"environment_sensor_set_reading"] for JSONMembers in JSONArray]'
 
 
 def formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation):
@@ -125,8 +125,6 @@ def getSpectrometerInformation(arrayOfJSON):
     integrationTime = [int(integrateMembers["spectrometer"]["integration time in ?s"]) for integrateMembers in
                        arrayOfJSON]
 
-    # TODO Reformat the spectrometer[bands]; illegal JSON formatting
-
     return maxFixedIntensity, integrationTime
 
 
@@ -144,13 +142,17 @@ def getListOfRawValue(arrayOfJSON, dataName):
     return [float(valueMembers[dataName]['rawValue'].encode('ascii', 'ignore')) for valueMembers in arrayOfJSON]
 
 
-def main(JSONArray, outputFileName, wavelength=None, spectrum=None):
+def main(JSONArray, outputFileName, wavelength=None, spectrum=None, singleFile=None):
     '''
     Main netCDF handler, write data to the netCDF file indicated.
     '''
     netCDFHandler = Dataset(outputFileName, 'w', format='NETCDF4')
-    dataMemberList = [JSONMembers[u"environment_sensor_set_reading"]
-                      for JSONMembers in JSONArray]
+    # dataMemberList = [JSONMembers[u"environment_sensor_set_reading"]
+    #                   for JSONMembers in JSONArray[0]]
+    if singleFile:
+        exec(_EXECA)
+    else:
+        exec(_EXECB)
     timeStampList = [JSONMembers[u'timestamp']
                      for JSONMembers in dataMemberList]
     timeDimension = netCDFHandler.createDimension("time", None)
@@ -196,7 +198,7 @@ if __name__ == '__main__':
 
     if not os.path.isdir(fileInputLocation):
         tempJSONMasterList = JSONHandler(fileInputLocation)
-        main(tempJSONMasterList, fileInputLocation.strip('.json') + '.nc')
+        main(tempJSONMasterList, fileInputLocation.strip('.json') + '.nc', singleFile=True)
     else:  # Read and Export netCDF to folder
         for filePath, fileDirectory, fileName in os.walk(fileInputLocation):
             for members in fileName:
@@ -205,4 +207,4 @@ if __name__ == '__main__':
                     tempJSONMasterList, wavelength, spectrum = JSONHandler(
                         os.path.join(filePath, members))
                     main(tempJSONMasterList, os.path.join(
-                        fileOutputLocation, outputFileName), wavelength, spectrum)
+                        fileOutputLocation, outputFileName), wavelength, spectrum, singleFile=False)
