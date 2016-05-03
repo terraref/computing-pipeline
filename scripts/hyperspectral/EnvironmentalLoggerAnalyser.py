@@ -184,7 +184,7 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, singleFile=N
 
     if wavelength and spectrum:
     	netCDFHandler.createDimension("wavelength", len(wavelength[0]))
-    	netCDFHandler.createVariable("wavelength", 'f4', ('time', 'wavelength'))[:,:] = wavelength
+        netCDFHandler.createVariable("wavelength", 'f4', ('time', 'wavelength'))[:,:] = wavelength
     	netCDFHandler.createVariable("spectrum", 'f4', ('time', 'wavelength'))[:,:] = spectrum
     	print "assigned"
 
@@ -197,8 +197,8 @@ if __name__ == '__main__':
         os.mkdir(fileOutputLocation)  # Create folder
 
     if not os.path.isdir(fileInputLocation):
-        tempJSONMasterList = JSONHandler(fileInputLocation)
-        main(tempJSONMasterList, fileInputLocation.strip('.json') + '.nc', singleFile=True)
+        tempJSONMasterList, wavelength, spectrum = JSONHandler(fileInputLocation)
+        main(tempJSONMasterList, fileInputLocation.strip('.json') + '.nc', wavelength, spectrum, singleFile=False)
     else:  # Read and Export netCDF to folder
         for filePath, fileDirectory, fileName in os.walk(fileInputLocation):
             for members in fileName:
