@@ -296,12 +296,12 @@ def parseDateFromFTPLogLine(line):
 
     l = line.split()
     if len(l) > 6:
-        YY = int(l[5])      # year, e.g. 2016
+        YY = int(l[4])      # year, e.g. 2016
         MM = months[l[1]]   # month, e.g. 4
-        DD = int(l[3])      # day of month, e.g. 5
-        hh = int(l[4].split(':')[0])  # hours, e.g. 12
-        mm = int(l[4].split(':')[1])  # minutes, e.g. 35
-        ss = int(l[4].split(':')[2])  # seconds, e.g. 58
+        DD = int(l[2])      # day of month, e.g. 5
+        hh = int(l[3].split(':')[0])  # hours, e.g. 12
+        mm = int(l[3].split(':')[1])  # minutes, e.g. 35
+        ss = int(l[3].split(':')[2])  # seconds, e.g. 58
 
         return datetime.datetime(YY, MM, DD, hh, mm, ss)
     else:
@@ -459,6 +459,7 @@ def getNewFilesFromWatchedFolders():
 """Check FTP log files to determine new files that were successfully moved to staging area"""
 def getNewFilesFromFTPLogs():
     global status_lastFTPLogLine
+    current_lastFTPLogLine = ""
     foundFiles = []
 
     log("checking log files")
@@ -509,7 +510,7 @@ def getNewFilesFromFTPLogs():
                 elif foundResumePoint:
                     # We're past the last scanned line, so capture these lines if complete & ending in 'c'
                     if re.search('ftp \d \* c', line.rstrip()):
-                        status_lastFTPLogLine = line
+                        current_lastFTPLogLine = line
                         # Extract filename from log entry, after an IP address and a number (byte count?)
                         fnameRegex = '::ffff:\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \d+ ((\/?.)+) +\w _'
                         fname = re.search(fnameRegex, line)
@@ -545,12 +546,14 @@ def getNewFilesFromFTPLogs():
         else:
             handledBackLog = True
 
-    log("queued "+len(foundFiles)+" files from log")
+    log("queued "+str(len(foundFiles))+" files from log")
+    status_lastFTPLogLine = current_lastFTPLogLine
     return foundFiles
 
 """Initiate Globus transfer with batch of files and add to activeTasks"""
 def initializeGlobusTransfers():
     global pendingTransfers
+    maxQueue = config['globus']['max_transfer_file_count']
 
     api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
     submissionID = generateGlobusSubmissionID()
@@ -575,7 +578,7 @@ def initializeGlobusTransfers():
                     currentTransferBatch[ds]['files'] = {}
                 # Add files from each dataset
                 for f in pendingTransfers[ds]['files']:
-                    if queueLength < config['globus']['max_transfer_file_count']:
+                    if queueLength < maxQueue:
                         fobj = pendingTransfers[ds]['files'][f]
                         src_path = os.path.join(config['globus']['source_path'], fobj["path"], fobj["name"])
                         dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
@@ -585,9 +588,17 @@ def initializeGlobusTransfers():
                         queueLength += 1
                         currentTransferBatch[ds]['files'][f] = fobj
                         del remainingPendingTransfers[ds]['files'][f]
+                    else:
+                        break
                 if "md" in pendingTransfers[ds]:
                     currentTransferBatch[ds]['md'] = pendingTransfers[ds]['md']
                     del remainingPendingTransfers[ds]['md']
+
+                # Clean up placeholder entries once queue length is exceeded
+                if currentTransferBatch[ds]['files'] == {}:
+                    del currentTransferBatch[ds]['files']
+                if currentTransferBatch[ds] == {}:
+                    del currentTransferBatch[ds]
 
             elif "md" in pendingTransfers[ds]:
                 # We have metadata for a dataset, but no files. Just send metadata separately.
@@ -600,6 +611,9 @@ def initializeGlobusTransfers():
                     # Move .json file to deletion queue
                     moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], pendingTransfers[ds]['md_path']),
                                   os.path.join(config['gantry']['deletion_queue'], pendingTransfers[ds]['md_path']), "metadata.json")
+
+            if queueLength >= maxQueue:
+                break
 
         if queueLength > 0:
             # Send transfer to Globus
