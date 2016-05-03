@@ -462,7 +462,7 @@ def getNewFilesFromFTPLogs():
     current_lastFTPLogLine = ""
     foundFiles = []
 
-    log("checking log files")
+    log("checking log files starting from >> "+status_lastFTPLogLine)
     logDir = config["gantry"]["ftp_log_path"]
     if logDir == "":
         # Don't perform a scan if no log file is defined
@@ -486,6 +486,7 @@ def getNewFilesFromFTPLogs():
     handledBackLog = True
     while not (foundResumePoint and handledBackLog):
         with (open(currLog, 'r+') if currLog.find(".gz")==-1 else gzip.open(currLog, 'r+')) as f:
+            log("scanning "+currLog)
             # If no most recent scanned line available, just start from beginning of current log file
             if lastLine == "":
                 initialLine = False
@@ -505,6 +506,7 @@ def getNewFilesFromFTPLogs():
                         break
 
                 if line == lastLine:
+                    log("found the resume point")
                     foundResumePoint = True
 
                 elif foundResumePoint:
@@ -532,6 +534,8 @@ def getNewFilesFromFTPLogs():
             else:
                 currLog = os.path.join(logDir, lognames[-backLog])
 
+            log("walking back to "+currLog)
+
         # If we found last line in a previous file, climb back up to current file and get its contents too
         elif backLog > 0:
             backLog -= 1
@@ -541,6 +545,7 @@ def getNewFilesFromFTPLogs():
             else:
                 currLogName = "xferlog"
             currLog = os.path.join(logDir, currLogName)
+            log("walking up to "+currLog)
 
         # If we found the line and handled all backlogged files, we're ready to go
         else:
@@ -731,6 +736,7 @@ def globusMonitorLoop():
 
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if globusWait <= 0:
+            log("initializing Globus transfers")
             # Clean up the pending object of straggling keys, then initialize Globus transfers
             cleanPendingTransfers()
             if pendingTransfers != {}:
@@ -743,6 +749,7 @@ def globusMonitorLoop():
 
         # Check with NCSA Globus monitor API for completed transfers
         if apiWait <= 0:
+            log("checking status of active transfers with NCSA")
             # Use copy of task list so it doesn't change during iteration
             currentActiveTasks = copy.deepcopy(activeTasks)
             for globusID in currentActiveTasks:
