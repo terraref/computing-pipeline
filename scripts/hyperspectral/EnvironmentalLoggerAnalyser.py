@@ -12,8 +12,10 @@ Prerequisite:
 ----------------------------------------------------------------------------------------
 
 Usage (in bash):
-
 python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/input ${DATA}/terraref/output
+
+Example:
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/environmentlogger_test.json ${DATA}/terraref
 
 Please note EnvironmentalLoggerAnalyser.py will take the second parameter as the input folder (containing JSON files,
 but it can also be one single file) and the third parameter as the output folder (will dump netCDF files here).
