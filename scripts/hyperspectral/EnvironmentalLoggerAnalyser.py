@@ -33,19 +33,13 @@ but it can also be one single file) and the third parameter as the output folder
 If the output folder does not exist, EnvironmentalLoggerAnalyser.py will create it.
 
 ----------------------------------------------------------------------------------------
-Update 4.29
+20160429: Output JSON file is now completely composed by variables
+          2D spectrometer variables (wavelength and spectrum) are available in the exported file
+20160503: Add chunksizes parameters for time, which significantly reduces the processing time (and the file size)
+          Add timestamps and commandLine the user used for each exported file
+          Remind the user currently the script is dealing with which file
 
-The output JSON file is now completely composed by variables
-2D spectrometer variables (wavelength and spectrum) are available in the exported file
-
-Update 5.3
-
-Add chuncksizes parameters for time, which significantly reduces the processing time (and the file size)
-Add timestamps and commandLine the user used for each exported file
-Remind the user currently the script is dealing with which file
-
-TODO List:
-
+TODO:
 1. reassign the variable "time" as the offset to the base time (temporary it is the UNIX base time)
 ----------------------------------------------------------------------------------------
 Thanks for the advice from Professor Zender and testing data from Mr. Maloney
