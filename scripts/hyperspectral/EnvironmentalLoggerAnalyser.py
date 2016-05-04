@@ -218,10 +218,10 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, recordTime=N
 
 if __name__ == '__main__':
     fileInputLocation, fileOutputLocation = sys.argv[1], sys.argv[2]
-    if not os.path.exists(fileOutputLocation):
+    if not os.path.exists(fileOutputLocation) and not fileOutputLocation.endswith('.nc'):
         os.mkdir(fileOutputLocation)  # Create folder
 
-    if not os.path.isdir(fileInputLocation):
+    if not os.path.isdir(fileInputLocation) or fileOutputLocation.endswith('.nc'):
         print "Processing", fileInputLocation + '....'
         tempJSONMasterList, wavelength, spectrum = JSONHandler(
             fileInputLocation)
