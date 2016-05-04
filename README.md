@@ -4,7 +4,7 @@ The computing pipeline is a data storage and computing system that provides rese
 
 ### Contact:
 
-* [Website](https://terraref.ncsa.illinois.edu)
+* [Website](https://terraref.org)
 * email: dlebauer@illinois.edu
 * [GitHub Issues](https://github.com/terraref/computing-pipeline/issues)
 * [Chat Room](https://gitter.im/terraref/computing-pipeline)
@@ -24,7 +24,7 @@ Project wide - if any code or data do not have clear terms of reuse, please requ
     "license"><img alt="Creative Commons License" src=
     "https://i.creativecommons.org/l/by/4.0/88x31.png" style=
     "border-width:0"></a><br>
-    <span>TERRA-REF Computing Pipeline</span> by <a href="terraref.ncsa.illinois.edu"
+    <span>TERRA-REF Computing Pipeline</span> by <a href="terraref.org"
     rel="cc:attributionURL">TERRA Reference Team</a> is licensed under a
     <a href="http://creativecommons.org/licenses/by/4.0/" rel=
     "license">Creative Commons Attribution 4.0 International License</a>.<br>
