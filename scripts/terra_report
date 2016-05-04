@@ -1,0 +1,17 @@
+#!/bin/bash
+
+sensors=($(ls /gantry_data/LemnaTec/MovingSensor/))
+date=$(date --date="2 days ago" +"%Y-%m-%d")
+
+printf '%-22s %8s %8s\n' Sensor FileCount Size
+for i in ${sensors[@]}
+do
+	file_count=$(find /gantry_data/LemnaTec/MovingSensor/$i/$date -type f | wc -l)
+	size=$(du -h --max-depth=0 /gantry_data/LemnaTec/MovingSensor/$i/$date | awk '{print $1}')
+	printf '%-22s %8s %8s\n' $i $file_count $size
+done
+
+file_count=$(find /gantry_data/LemnaTec/EnvironmentLogger/$date -type f | wc -l)
+size=$(du -h --max-depth=0 /gantry_data/LemnaTec/EnvironmentLogger/$date | awk '{print $1}')
+printf '%-22s %8s %8s\n' EnvironmentLogger $file_count $size
+
