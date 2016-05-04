@@ -24,6 +24,16 @@ Update 4.29
 
 The output JSON file is now completely composed by variables
 2D spectrometer variables (wavelength and spectrum) are available in the exported file
+
+Update 5.3
+
+Add chuncksizes parameters for time, which significantly reduces the processing time (and the file size)
+Add timestamps and commandLine the user used for each exported file
+Remind the user currently the script is dealing with which file
+
+TODO List:
+
+1. reassign the variable "time" as the offset to the base time (temporary it is the UNIX base time)
 ----------------------------------------------------------------------------------------
 Thanks for the advice from Professor Zender and testing data from Mr. Maloney
 ----------------------------------------------------------------------------------------
@@ -37,11 +47,9 @@ from netCDF4 import Dataset
 
 _UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hecto-Pascal", u"DegCelsius": "Celsius",
                     u's': 'second', u'm/s': 'meter second-1', u"mm/h": 'milimeters hour-1',
-                    u"relHumPerCent": "PerCent", u"?mol/(m^2*s)": "micromole meters-2 second-1",
+                    u"relHumPerCent": "percent", u"?mol/(m^2*s)": "micromole meters-2 second-1",
                     u'kilo Lux': 'kilo Lux', u'degrees': 'degrees', '': ''}
 _NAMES = {'sensor par': 'Sensor Photosynthetical Active Radiation'}
-_EXECA = 'dataMemberList = [JSONMembers[u"environment_sensor_set_reading"] for JSONMembers in JSONArray[0]]'
-_EXECB = 'dataMemberList = [JSONMembers[u"environment_sensor_set_reading"] for JSONMembers in JSONArray]'
 
 
 def formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation):
@@ -67,7 +75,7 @@ def formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation):
             if "spectrum" in tempList[i]:
                 spectrumList[k].append(
                     float(tempList[i][tempList[i].find(':') + 1: -2]))
-          
+
         wavelengthList.remove([])
         spectrumList.remove([])
 
@@ -91,7 +99,8 @@ def JSONHandler(fileLocation):
     '''
     Main JSON handler, write JSON file to a Python list with standard JSON module
     '''
-    wavelength, spectrum = formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation)
+    wavelength, spectrum = formattingTheJSONFileAndReturnWavelengthAndSpectrum(
+        fileLocation)
     with open(fileLocation, 'r') as fileHandler:
         return json.loads(fileHandler.read()), wavelength, spectrum
 
@@ -142,21 +151,22 @@ def getListOfRawValue(arrayOfJSON, dataName):
     return [float(valueMembers[dataName]['rawValue'].encode('ascii', 'ignore')) for valueMembers in arrayOfJSON]
 
 
-def main(JSONArray, outputFileName, wavelength=None, spectrum=None, singleFile=None):
+def _timeStamp():
+    return time.strftime("%a %b %d %H:%M:%S %Y",  time.localtime(int(time.time())))
+
+
+def main(JSONArray, outputFileName, wavelength=None, spectrum=None, recordTime=None, commandLine=None):
     '''
     Main netCDF handler, write data to the netCDF file indicated.
     '''
     netCDFHandler = Dataset(outputFileName, 'w', format='NETCDF4')
-    # dataMemberList = [JSONMembers[u"environment_sensor_set_reading"]
-    #                   for JSONMembers in JSONArray[0]]
-    if singleFile:
-        exec(_EXECA)
-    else:
-        exec(_EXECB)
+    dataMemberList = [JSONMembers[u"environment_sensor_set_reading"]
+                      for JSONMembers in JSONArray]
     timeStampList = [JSONMembers[u'timestamp']
                      for JSONMembers in dataMemberList]
     timeDimension = netCDFHandler.createDimension("time", None)
-    tempTimeVariable = netCDFHandler.createVariable('time', str, ('time',))
+    tempTimeVariable = netCDFHandler.createVariable(
+        'time', str, ('time',), chunksizes=(1,))
     for i in range(len(timeStampList)):  # Assign Times
         tempTimeVariable[i] = timeStampList[i]
 
@@ -183,11 +193,13 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, singleFile=N
                 getSpectrometerInformation(dataMemberList)[1]
 
     if wavelength and spectrum:
-    	netCDFHandler.createDimension("wavelength", len(wavelength[0]))
-        netCDFHandler.createVariable("wavelength", 'f4', ('time', 'wavelength'))[:,:] = wavelength
-    	netCDFHandler.createVariable("spectrum", 'f4', ('time', 'wavelength'))[:,:] = spectrum
-    	print "assigned"
+        netCDFHandler.createDimension("wavelength", len(wavelength[0]))
+        netCDFHandler.createVariable("wavelength", 'f4', ('wavelength',))[
+            :] = wavelength[0]
+        netCDFHandler.createVariable("spectrum", 'f4', ('time', 'wavelength'))[
+            :, :] = spectrum
 
+    netCDFHandler.history = recordTime + ': python ' + commandLine
     netCDFHandler.close()
 
 
@@ -197,14 +209,20 @@ if __name__ == '__main__':
         os.mkdir(fileOutputLocation)  # Create folder
 
     if not os.path.isdir(fileInputLocation):
-        tempJSONMasterList, wavelength, spectrum = JSONHandler(fileInputLocation)
-        main(tempJSONMasterList, fileInputLocation.strip('.json') + '.nc', wavelength, spectrum, singleFile=False)
+        print "Processing", fileInputLocation + '....'
+        tempJSONMasterList, wavelength, spectrum = JSONHandler(
+            fileInputLocation)
+        main(tempJSONMasterList, fileInputLocation.strip(
+            '.json') + '.nc', wavelength, spectrum,
+            _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
     else:  # Read and Export netCDF to folder
         for filePath, fileDirectory, fileName in os.walk(fileInputLocation):
             for members in fileName:
                 if os.path.join(filePath, members).endswith('.json'):
+                    print "Processing", members + '....'
                     outputFileName = members.strip('.json') + '.nc'
                     tempJSONMasterList, wavelength, spectrum = JSONHandler(
                         os.path.join(filePath, members))
                     main(tempJSONMasterList, os.path.join(
-                        fileOutputLocation, outputFileName), wavelength, spectrum, singleFile=False)
+                        fileOutputLocation, outputFileName),
+                        wavelength, spectrum, _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
