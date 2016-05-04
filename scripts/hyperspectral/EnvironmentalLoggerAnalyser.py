@@ -11,13 +11,26 @@ Prerequisite:
 2. netCDF4 module for Python (and many other supplements such as numpy, scipy and HDF5 if needed)
 ----------------------------------------------------------------------------------------
 
-Usage (in bash):
+Usage:
+python EnvironmentalLoggerAnalyser.py drc_in drc_out
+python EnvironmentalLoggerAnalyser.py fl_in drc_out
+where drc_in is input directory, drc_out is output directory, fl_in is input file
+Input  filenames must have '.json' extension
+Output filenames will have '.nc' extension
 
+UCI test:
 python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/input ${DATA}/terraref/output
 
-Please note EnvironmentalLoggerAnalyser.py will take the second parameter as the input folder (containing JSON files,
+UCI production:
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/EnvironmentLogger/2016-04-07/2016-04-07_12-00-07_enviromentlogger.json ~/rgr
+
+Roger production:
+module add gdal-stack-2.7.10 
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py /projects/arpae/terraref/raw_data/ua-mac/EnvironmentLogger/2016-04-07/2016-04-07_12-00-07_enviromentlogger.json ~/rgr
+
+EnvironmentalLoggerAnalyser.py will take the second parameter as the input folder (containing JSON files,
 but it can also be one single file) and the third parameter as the output folder (will dump netCDF files here).
-If the output folder does not exist, EnvironmentalLoggerAnalyser.py will create one for you.
+If the output folder does not exist, EnvironmentalLoggerAnalyser.py will create it.
 
 ----------------------------------------------------------------------------------------
 Update 4.29
