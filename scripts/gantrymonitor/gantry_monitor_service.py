@@ -143,7 +143,8 @@ def loadJsonFile(filename):
         f.close()
         return jsonObj
     except IOError:
-        log("unable to open "+filename+", returning {}")
+        if filename.find("metadata.json") == -1:
+            log("unable to open "+filename+", returning {}")
         return {}
 
 """Load active or pending tasks from file into memory"""
@@ -555,8 +556,8 @@ def getNewFilesFromFTPLogs():
     status_lastFTPLogLine = current_lastFTPLogLine
     return foundFiles
 
-"""Initiate Globus transfer with batch of files and add to activeTasks"""
-def initializeGlobusTransfers():
+"""Initiate Globus transfer with batch of files and add to activeTasks - recursively repeat until pending is empty"""
+def initializeGlobusTransfer():
     global pendingTransfers
     maxQueue = config['globus']['max_transfer_file_count']
 
@@ -573,18 +574,22 @@ def initializeGlobusTransfers():
 
         queueLength = 0
         sentSomeMd = False
+
+        # Loop over a copy of the list instead of actual thing - other thread will be appending to actual thing
+        loopingTransfers = copy.deepcopy(pendingTransfers)
+        # This will hold the leftover pending transfers once we've hit the max size for this transfer
         remainingPendingTransfers = copy.deepcopy(pendingTransfers)
         currentTransferBatch = {}
 
-        for ds in pendingTransfers:
-            if "files" in pendingTransfers[ds]:
+        for ds in loopingTransfers:
+            if "files" in loopingTransfers[ds]:
                 if ds not in currentTransferBatch:
                     currentTransferBatch[ds] = {}
                     currentTransferBatch[ds]['files'] = {}
                 # Add files from each dataset
-                for f in pendingTransfers[ds]['files']:
+                for f in loopingTransfers[ds]['files']:
                     if queueLength < maxQueue:
-                        fobj = pendingTransfers[ds]['files'][f]
+                        fobj = loopingTransfers[ds]['files'][f]
                         src_path = os.path.join(config['globus']['source_path'], fobj["path"], fobj["name"])
                         dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
                         transferObj.add_item(src_path, dest_path)
@@ -595,8 +600,8 @@ def initializeGlobusTransfers():
                         del remainingPendingTransfers[ds]['files'][f]
                     else:
                         break
-                if "md" in pendingTransfers[ds]:
-                    currentTransferBatch[ds]['md'] = pendingTransfers[ds]['md']
+                if "md" in loopingTransfers[ds]:
+                    currentTransferBatch[ds]['md'] = loopingTransfers[ds]['md']
                     del remainingPendingTransfers[ds]['md']
 
                 # Clean up placeholder entries once queue length is exceeded
@@ -605,17 +610,17 @@ def initializeGlobusTransfers():
                 if currentTransferBatch[ds] == {}:
                     del currentTransferBatch[ds]
 
-            elif "md" in pendingTransfers[ds]:
+            elif "md" in loopingTransfers[ds]:
                 # We have metadata for a dataset, but no files. Just send metadata separately.
-                mdxfer = sendMetadataToMonitor(ds, pendingTransfers[ds]['md'])
+                mdxfer = sendMetadataToMonitor(ds, loopingTransfers[ds]['md'])
                 # Leave metadata in pending if it wasn't successfully posted to Clowder
                 if mdxfer.status_code == 200:
                     sentSomeMd = True
                     # Otherwise remove dataset entry since we already know there are no files
                     del remainingPendingTransfers[ds]
                     # Move .json file to deletion queue
-                    moveLocalFile(os.path.join(config['gantry']['incoming_files_path'], pendingTransfers[ds]['md_path']),
-                                  os.path.join(config['gantry']['deletion_queue'], pendingTransfers[ds]['md_path']), "metadata.json")
+                    createLocalSymlink(os.path.join(config['gantry']['incoming_files_path'], loopingTransfers[ds]['md_path']),
+                                  os.path.join(config['gantry']['deletion_queue'], loopingTransfers[ds]['md_path']), "metadata.json")
 
             if queueLength >= maxQueue:
                 break
@@ -665,7 +670,7 @@ def initializeGlobusTransfers():
         cleanPendingTransfers()
         if pendingTransfers != {}:
             # If pendingTransfers not empty, we still have remaining files and need to start more Globus transfers
-            initializeGlobusTransfers()
+            initializeGlobusTransfer()
 
 """Send message to NCSA Globus monitor API that a new task has begun"""
 def notifyMonitorOfNewTransfer(globusID, contents):
@@ -741,7 +746,7 @@ def globusMonitorLoop():
             cleanPendingTransfers()
             if pendingTransfers != {}:
                 writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
-                initializeGlobusTransfers()
+                initializeGlobusTransfer()
 
             # Reset wait to check gantry incoming directory again
             globusWait = config['gantry']['globus_transfer_frequency_secs']
