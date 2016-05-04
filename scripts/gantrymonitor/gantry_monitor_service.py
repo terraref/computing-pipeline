@@ -809,7 +809,7 @@ def globusMonitorLoop():
 
 """Continually monitor FTP log for new files to transmit and add them to pendingTransfers"""
 def ftpMonitorLoop():
-    gantryWait = config['gantry']['file_check_frequency_secs'] # look for new files to send
+    gantryWait = 1 #config['gantry']['file_check_frequency_secs'] # look for new files to send
 
     while True:
         time.sleep(1)
