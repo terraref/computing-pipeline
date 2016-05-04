@@ -18,14 +18,7 @@ There are many ways to get in touch:
 
 New features are directed toward developing and extending the TERRA Ref computational infrastructure. 
 
-If you are unsure of whether your contribution should be implemented as a model, module or part of PEcAn Core, you may visit [HipChat](https://hipchat.ncsa.illinois.edu/gW51EFhtT), 
-open a new issue, or contact developers directly.
-
-## Contact
-
-* [chat room](https://gitter.im/terraref/reference-data)
-* issues
-* mailing list
+If you need any help, please contact us in our [chat room](https://gitter.im/terraref/reference-data) or creating a [new issue](https://github.com/terraref/computing-pipeline/issues/new).
 
 ## Related Projects
 
@@ -57,11 +50,22 @@ Some of the related software we will be using and contributing to.
 
 ## Contributing Text or Code
 
+### Overview
+
+When you add a significant **new feature**, please create an issue first, to allow others to comment and give feedback. 
+
+When you have created a new feature or non-trivial change to existing code, create a 'pull request'.
+
+**Branching and Pull Requests**: Although many core developers have write permissions on the TERRA Ref repositories, 
+_please use the feature branch workflow_ (below) in order to allow pull requests, automated testing, and code review.
+
+
 ### Web and Desktop Interfaces
 
-If you prefer web and graphical interfaces, the GitHub website and GitHub desktop make contributing easy, and are well documented.
+If you haven't used git before, the GitHub website and GitHub desktop client allow you to do all of the following within a graphical user interface. The GitHub interface is often the easiest way to make changes even if you do know git. These make contributing easy and fun, and are well documented.
 
-Any file can be edited in the GitHub interface, and new files can be created. GitHub will create these as a new pull request.
+Any file can be edited in the GitHub interface, and new files can be created. 
+GitHub will create these as a new pull request.
 
 ### Using Git at the Command Line
 
@@ -77,7 +81,7 @@ git config --global user.email johndoe@example.com
 Clone your fork of this repository
 
 ```
-git clone https://github.com/<your username>/pecan.git
+git clone https://github.com/<your username>/computing-pipeline.git
 ```
 
 Setup repository to be able to fetch from the master
@@ -86,18 +90,12 @@ Setup repository to be able to fetch from the master
 git remote add upstream https://github.com/terraref/computing-pipeline.git
 ```
 
-## Adding Features
+### Adding Features and Submitting Changes
 
-When you add a new feature always create an issue first, this allows others to comment and give you tips. 
-It will also help us keep track of what people are adding and with new releases helps us to write new release notes and give you credit for your work.
-
-**Branching and Pull Requests**: Although many core developers have write permissions on the TERRA Ref repositories, 
-please use the feature branch workflow in order to allow pull requests, automated testing, and code review.
-
-Always work in a  branch rather than directly on the master branch. 
-Keep your master branch in sync with the master of the terraref/computing-pipeline repository. 
-Finally, branches should focus on fixing or adding a single feature or set of closely related features 
+Always work in a branch rather than directly on the master branch.
+Branches should focus on fixing or adding a single feature or set of closely related features 
 because this will make it easier to review and merge your contributions.
+If more than one person is working on the same code, make sure to keep your master branch in sync with the master of the terraref/computing-pipeline repository. 
 
 Here is a simplified workflow on how add a new feature:
 
@@ -135,7 +133,6 @@ git push -u origin GH-issuenumber-title-of-issue
 ### Pull Request
 
 When finished create a pull request from your branch to the main pecan repository.
-
 
 ## Code Of Conduct
 
