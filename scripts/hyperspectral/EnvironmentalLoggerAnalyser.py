@@ -225,9 +225,14 @@ if __name__ == '__main__':
         print "Processing", fileInputLocation + '....'
         tempJSONMasterList, wavelength, spectrum = JSONHandler(
             fileInputLocation)
-        main(tempJSONMasterList, fileInputLocation.strip(
-            '.json') + '.nc', wavelength, spectrum,
-            _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
+        if not os.path.isdir(fileOutputLocation):
+            main(tempJSONMasterList, fileOutputLocation, wavelength, spectrum,
+                 _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
+        else:
+            outputFileName = os.path.split(fileInputLocation)[-1]
+            main(tempJSONMasterList, os.path.join(fileOutputLocation,
+                                                  outputFileName.strip('.json') + '.nc'), wavelength, spectrum,
+                 _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
     else:  # Read and Export netCDF to folder
         for filePath, fileDirectory, fileName in os.walk(fileInputLocation):
             for members in fileName:
