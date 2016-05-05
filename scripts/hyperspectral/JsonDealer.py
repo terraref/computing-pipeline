@@ -146,12 +146,12 @@ class DataContainer(object):
 
                     if 'Velocity' in submembers or 'Position' in submembers:
                         tempVariable = tempGroup.createVariable(
-                            nameSet[0][-1], 'f8')
+                            nameSet[0][-1], 'f4')
                         setattr(tempVariable, 'long_name', nameSet[0][0])
                         setattr(tempVariable, 'units',      nameSet[1])
                     else:
                         tempVariable = tempGroup.createVariable(
-                            nameSet[0], 'f8')
+                            nameSet[0], 'f4')
                         setattr(tempVariable, 'long_name', nameSet[0])
 
                     tempVariable.assignValue(
@@ -160,7 +160,7 @@ class DataContainer(object):
         wavelength = getWavelength(inputFilePath)
         netCDFHandler.createDimension("wavelength", len(wavelength))
         tempWavelength = netCDFHandler.createVariable(
-            "wavelength", 'f8', 'wavelength')
+            "wavelength", 'f4', 'wavelength')
         setattr(tempWavelength, 'long_name', 'Hyperspectral Wavelength')
         setattr(tempWavelength, 'units', 'nanometers')
         tempWavelength[:] = wavelength
@@ -247,7 +247,7 @@ def _fileExistingCheck(filePath, dataContainer):
 def isDigit(string):
     '''
     This method will check whether the string can be convert to int or float
-    Similar to .isdight method in built-in string class, but python's will not check whether it is a float
+    Similar to .isdigit method in built-in string class, but python's will not check whether it is a float
     '''
     try:
         if '.' in string:
@@ -383,11 +383,11 @@ def writeHeaderFile(fileName, netCDFHandler):
 
     try:
         headerInfo.createVariable(
-            'red_band_index', 'f8').assignValue(threeColorBands[0])
+            'red_band_index', 'u2').assignValue(threeColorBands[0])
         headerInfo.createVariable(
-            'green_band_index', 'f8').assignValue(threeColorBands[1])
+            'green_band_index', 'u2').assignValue(threeColorBands[1])
         headerInfo.createVariable(
-            'blue_band_index', 'f8').assignValue(threeColorBands[2])
+            'blue_band_index', 'u2').assignValue(threeColorBands[2])
 
         setattr(netCDFHandler.groups['sensor_variable_metadata'].variables[
                 'exposure'], 'red_band_index',   threeColorBands[0])
