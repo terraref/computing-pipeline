@@ -157,10 +157,10 @@ class DataContainer(object):
                     tempVariable.assignValue(
                         float(self.__dict__[members][submembers]))
 
-        
         wavelength = getWavelength(inputFilePath)
         netCDFHandler.createDimension("wavelength", len(wavelength))
-        tempWavelength = netCDFHandler.createVariable("wavelength",'f8','wavelength')
+        tempWavelength = netCDFHandler.createVariable(
+            "wavelength", 'f8', 'wavelength')
         setattr(tempWavelength, 'long_name', 'Hyperspectral Wavelength')
         setattr(tempWavelength, 'units', 'nanometers')
         tempWavelength[:] = wavelength
@@ -187,7 +187,11 @@ def getDimension(fileName):
 
     fileHandler.close()
 
-    return int(wavelength.strip('\n').strip('\r')), int(x.strip('\n').strip('\r')), int(y.strip('\n').strip('\r'))
+    try:
+        return int(wavelength.strip('\n').strip('\r')), int(x.strip('\n').strip('\r')), int(y.strip('\n').strip('\r'))
+    except:
+        printOnVersion('Fatal Warning: sample, lines and bands variables in header file are broken. Header information\
+         will not be written into the netCDF')
 
 
 def getWavelength(fileName):
@@ -275,9 +279,9 @@ def _replaceIllegalChar(string):
         else:
             rtn += members
     if '(' in string:
-        rtn = rtn[:rtn.find('(')-1]
+        rtn = rtn[:rtn.find('(') - 1]
     elif '[' in string:
-        rtn = rtn[:rtn.find('[')-1]
+        rtn = rtn[:rtn.find('[') - 1]
 
     return rtn
 
@@ -333,10 +337,19 @@ def jsonHandler(jsonFile):
         return json.loads(fileHandler.read(), object_hook=_filteringTheHeadings)
 
 
+def printOnVersion(prompt):
+    if _RAW_VERSION == 2:
+        exec("print prmpt")
+    else:
+        exec("print(prompt)")
+
+
 def writeHeaderFile(fileName, netCDFHandler):
     '''
     The main function, reading the data and exporting netCDF file
     '''
+    if not getDimension(fileName):
+        return
     dimensionWavelength, dimensionX, dimensionY = getDimension(fileName)
     hdrInfo = getHeaderInfo(fileName)
 
@@ -368,13 +381,23 @@ def writeHeaderFile(fileName, netCDFHandler):
             threeColorBands = [int(bands) for bands in eval(hdrInfo[members])]
         setattr(headerInfo, _replaceIllegalChar(members), hdrInfo[members])
 
-    headerInfo.createVariable('red_band_index','f8').assignValue(threeColorBands[0])
-    headerInfo.createVariable('green_band_index','f8').assignValue(threeColorBands[1])
-    headerInfo.createVariable('blue_band_index','f8').assignValue(threeColorBands[2])
+    try:
+        headerInfo.createVariable(
+            'red_band_index', 'f8').assignValue(threeColorBands[0])
+        headerInfo.createVariable(
+            'green_band_index', 'f8').assignValue(threeColorBands[1])
+        headerInfo.createVariable(
+            'blue_band_index', 'f8').assignValue(threeColorBands[2])
 
-    setattr(netCDFHandler.groups['sensor_variable_metadata'].variables['exposure'], 'red_band_index',   threeColorBands[0])
-    setattr(netCDFHandler.groups['sensor_variable_metadata'].variables['exposure'], 'green_band_index', threeColorBands[1])
-    setattr(netCDFHandler.groups['sensor_variable_metadata'].variables['exposure'], 'blue_band_index',  threeColorBands[2])
+        setattr(netCDFHandler.groups['sensor_variable_metadata'].variables[
+                'exposure'], 'red_band_index',   threeColorBands[0])
+        setattr(netCDFHandler.groups['sensor_variable_metadata'].variables[
+                'exposure'], 'green_band_index', threeColorBands[1])
+        setattr(netCDFHandler.groups['sensor_variable_metadata'].variables[
+                'exposure'], 'blue_band_index',  threeColorBands[2])
+    except:
+        printOnVersion(
+            'Warning: default_band variable in the header file is missing.')
 
 if __name__ == '__main__':
     fileInput, fileOutput = sys.argv[1], sys.argv[2]
