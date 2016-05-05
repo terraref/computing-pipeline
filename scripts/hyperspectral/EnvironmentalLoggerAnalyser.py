@@ -19,7 +19,7 @@ Input  filenames must have '.json' extension
 Output filenames will have '.nc' extension
 
 UCI test:
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/input ${DATA}/terraref/output
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/environmentlogger_test.json ${DATA}/terraref
 
 UCI production:
 python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/EnvironmentLogger/2016-04-07/2016-04-07_12-00-07_enviromentlogger.json ~/rgr
@@ -53,10 +53,10 @@ import os
 from netCDF4 import Dataset
 
 _UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hecto-Pascal", u"DegCelsius": "Celsius",
-                    u's': 'second', u'm/s': 'meter second-1', u"mm/h": 'milimeters hour-1',
-                    u"relHumPerCent": "percent", u"?mol/(m^2*s)": "micromole meters-2 second-1",
+                    u's': 'second', u'm/s': 'meter second-1', u"mm/h": 'millimeter hour-1',
+                    u"relHumPerCent": "percent", u"?mol/(m^2*s)": "micromole meter-2 second-1",
                     u'kilo Lux': 'kilo Lux', u'degrees': 'degrees', '': ''}
-_NAMES = {'sensor par': 'Sensor Photosynthetical Active Radiation'}
+_NAMES = {'sensor par': 'Sensor Photosynthetically Active Radiation'}
 
 
 def formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation):
@@ -203,6 +203,8 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, recordTime=N
         netCDFHandler.createDimension("wavelength", len(wavelength[0]))
         netCDFHandler.createVariable("wavelength", 'f4', ('wavelength',))[
             :] = wavelength[0]
+        setattr(netCDFHandler.variables['wavelength'], 'units', 'nanometers')
+        setattr(netCDFHandler.variables['wavelength'], 'long_name', 'Wavelength')
         netCDFHandler.createVariable("spectrum", 'f4', ('time', 'wavelength'))[
             :, :] = spectrum
 
