@@ -93,6 +93,10 @@ def openLog():
     if not os.path.exists(dirs):
         os.makedirs(dirs)
 
+    # Determine today's date (log_YYYYMMDD.txt)
+    currD = time.strftime("%Y%d%m")
+    logPath = logPath.replace(".txt", "_"+currD+".txt")
+
     # If there's a current log file, store it as log1.txt, log2.txt, etc.
     if os.path.exists(logPath):
         backupLog = logPath.replace(".txt", "_backup.txt")

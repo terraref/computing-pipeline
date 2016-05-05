@@ -29,8 +29,10 @@ rootPath = "/home/gantry"
 
 config = {}
 
-# These are used by the FTP log reader to track progress, and included in status report
+# Used by the FTP log reader to track progress
 status_lastFTPLogLine = ""
+status_numPending = 0
+status_numActive = 0
 
 """pendingTransfers tracks files prepped for transfer, by dataset:
 {
@@ -75,6 +77,10 @@ def openLog():
     if not os.path.exists(dirs):
         os.makedirs(dirs)
 
+    # Determine today's date (log_YYYYMMDD.txt)
+    currD = time.strftime("%Y%d%m")
+    logPath = logPath.replace(".txt", "_"+currD+".txt")
+
     # If there's a current log file, store it as log1.txt, log2.txt, etc.
     if os.path.exists(logPath):
         backupLog = logPath.replace(".txt", "_backup.txt")
@@ -116,21 +122,17 @@ def log(message, type="INFO"):
 
 """Return small JSON object with information about monitor health"""
 def getStatus():
-    pendingFileCount = 0
-    for ds in pendingTransfers:
-        if 'files' in pendingTransfers[ds]:
-            for f in pendingTransfers[ds]['files']:
-                pendingFileCount += 1
-
-    createdTasks = len(activeTasks)
+    global status_lastFTPLogLine
+    global status_numActive
+    global status_numPending
 
     completedTasks = 0
     for root, dirs, filelist in os.walk(config['completed_tasks_path']):
         completedTasks += len(filelist)
 
     return {
-        "pending_file_transfers": pendingFileCount,
-        "active_globus_tasks": createdTasks,
+        "pending_file_transfers": status_numPending,
+        "active_globus_tasks": status_numActive,
         "completed_globus_tasks": completedTasks,
         "last_ftp_log_line_read": status_lastFTPLogLine
     }
@@ -386,21 +388,24 @@ def generateGlobusSubmissionID():
 
 """Check for files ready for transmission and return list"""
 def getGantryFilesForTransfer():
+    global status_numPending
     transferQueue = {}
-
     foundFiles = []
 
     gantryDir = config['gantry']['incoming_files_path']
     dockerDir = config['globus']['source_path']
+    maxPending = config["gantry"]["max_pending_files"]
 
     # Get list of files from FTP log, if log is specified
-    foundFiles = getNewFilesFromFTPLogs()
+    if status_numPending < maxPending:
+        foundFiles = getNewFilesFromFTPLogs()
 
     # Get list of files from watched folders, if folders are specified  (and de-duplicate from FTP list)
-    fileList = getNewFilesFromWatchedFolders()
-    for found in fileList:
-        if found not in foundFiles:
-            foundFiles.append(found)
+    if status_numPending+len(foundFiles) < maxPending:
+        fileList = getNewFilesFromWatchedFolders()
+        for found in fileList:
+            if found not in foundFiles:
+                foundFiles.append(found)
 
     for f in foundFiles:
         # Get dataset info & path details from found file
@@ -441,26 +446,38 @@ def getGantryFilesForTransfer():
                 transferQueue[datasetID]['md'] = loadJsonFile(f)
                 transferQueue[datasetID]['md_path'] = gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
 
+    status_numPending += len(foundFiles)
     return transferQueue
 
 """Check folders in config for files older than the configured age, and queue for transfer"""
 def getNewFilesFromWatchedFolders():
+    global status_numPending
     foundFiles = []
 
     # Get list of files last modified more than X minutes ago
     watchDirs = config['gantry']['file_age_monitor_paths']
     fileAge = config['gantry']['min_file_age_for_transfer_mins']
+    maxPending = config["gantry"]["max_pending_files"]
 
     for currDir in watchDirs:
         # TODO: Check for hidden files beginning with "." or just allow them?
-        foundFiles.append(subprocess.check_output(["find", currDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n"))
+        foundList = subprocess.check_output(["find", currDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
+        if len(foundList)+len(foundFiles)+status_numPending > maxPending:
+            break
+        else:
+            for f in foundList:
+                foundFiles.append(f)
 
+    status_numPending += len(foundFiles)
     return foundFiles
 
 """Check FTP log files to determine new files that were successfully moved to staging area"""
 def getNewFilesFromFTPLogs():
     global status_lastFTPLogLine
+    global status_numPending
+
     current_lastFTPLogLine = ""
+    maxPending = config["gantry"]["max_pending_files"]
     foundFiles = []
 
     log("checking log files starting from >> "+status_lastFTPLogLine)
@@ -511,9 +528,10 @@ def getNewFilesFromFTPLogs():
                     foundResumePoint = True
 
                 elif foundResumePoint:
+                    current_lastFTPLogLine = line
+
                     # We're past the last scanned line, so capture these lines if complete & ending in 'c'
                     if re.search('ftp \d \* c', line.rstrip()):
-                        current_lastFTPLogLine = line
                         # Extract filename from log entry, after an IP address and a number (byte count?)
                         fnameRegex = '::ffff:\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \d+ ((\/?.)+) +\w _'
                         fname = re.search(fnameRegex, line)
@@ -521,6 +539,9 @@ def getNewFilesFromFTPLogs():
                             fullname = fname.group(1).rstrip()
                             fullname = fullname.replace(config['globus']['source_path'],"")
                             foundFiles.append(fullname)
+
+                if len(foundFiles)+status_numPending >= maxPending:
+                    break
 
         # If we didn't find last line in this file, look into the previous file
         if not foundResumePoint:
@@ -536,6 +557,10 @@ def getNewFilesFromFTPLogs():
                 currLog = os.path.join(logDir, lognames[-backLog])
 
             log("walking back to "+currLog)
+
+        # If we filled up the pending queue handling backlog, don't move onto newer files yet
+        elif len(foundFiles)+status_numPending >= maxPending:
+            handledBackLog = True
 
         # If we found last line in a previous file, climb back up to current file and get its contents too
         elif backLog > 0:
@@ -556,9 +581,13 @@ def getNewFilesFromFTPLogs():
     status_lastFTPLogLine = current_lastFTPLogLine
     return foundFiles
 
-"""Initiate Globus transfer with batch of files and add to activeTasks - recursively repeat until pending is empty"""
+"""Initiate Globus transfer with batch of files and add to activeTasks - recurse until max xfers reached or pending empty """
 def initializeGlobusTransfer():
     global pendingTransfers
+    global activeTasks
+    global status_numActive
+    global status_numPending
+
     maxQueue = config['globus']['max_transfer_file_count']
 
     api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
@@ -573,6 +602,9 @@ def initializeGlobusTransfer():
                                preserve_timestamp=True)
 
         queueLength = 0
+        # Metadata is handled slightly differently as they aren't files adding to the Globus transfer, but they ARE
+        # metadata.json files in the pending files queue that need to be purged correctly after the transfer starts.
+        mdQueueLength = 0
         sentSomeMd = False
 
         # Loop over a copy of the list instead of actual thing - other thread will be appending to actual thing
@@ -601,6 +633,7 @@ def initializeGlobusTransfer():
                     else:
                         break
                 if "md" in loopingTransfers[ds]:
+                    mdQueueLength += 1
                     currentTransferBatch[ds]['md'] = loopingTransfers[ds]['md']
                     del remainingPendingTransfers[ds]['md']
 
@@ -617,6 +650,7 @@ def initializeGlobusTransfer():
                 if mdxfer.status_code == 200:
                     sentSomeMd = True
                     # Otherwise remove dataset entry since we already know there are no files
+                    status_numPending -= 1
                     del remainingPendingTransfers[ds]
                     # Move .json file to deletion queue
                     createLocalSymlink(os.path.join(config['gantry']['incoming_files_path'], loopingTransfers[ds]['md_path']),
@@ -657,6 +691,8 @@ def initializeGlobusTransfer():
                 notifyMonitorOfNewTransfer(globusID, currentTransferBatch)
 
                 pendingTransfers = remainingPendingTransfers
+                status_numPending -= queueLength
+                status_numPending -= mdQueueLength
                 writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
             else:
                 # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
@@ -667,8 +703,9 @@ def initializeGlobusTransfer():
             pendingTransfers = remainingPendingTransfers
             writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
 
+        status_numActive = len(activeTasks)
         cleanPendingTransfers()
-        if pendingTransfers != {}:
+        if pendingTransfers != {} and status_numActive < config['globus']['max_active_tasks']:
             # If pendingTransfers not empty, we still have remaining files and need to start more Globus transfers
             initializeGlobusTransfer()
 
@@ -728,6 +765,9 @@ def getTransferStatusFromMonitor(globusID):
 
 """Continually initiate transfers from pending queue and contact NCSA API for status updates"""
 def globusMonitorLoop():
+    global activeTasks
+    global status_numActive
+
     # Prepare timers for tracking how often different refreshes are executed
     globusWait = config['gantry']['globus_transfer_frequency_secs'] # bundle pending files and transfer
     apiWait = config['ncsa_api']['api_check_frequency_secs'] # check status of sent files
@@ -741,12 +781,13 @@ def globusMonitorLoop():
 
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if globusWait <= 0:
-            log("initializing Globus transfers")
-            # Clean up the pending object of straggling keys, then initialize Globus transfers
-            cleanPendingTransfers()
-            if pendingTransfers != {}:
-                writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
-                initializeGlobusTransfer()
+            if status_numActive < config["globus"]["max_active_tasks"]:
+                log("initializing Globus transfers")
+                # Clean up the pending object of straggling keys, then initialize Globus transfers
+                cleanPendingTransfers()
+                if pendingTransfers != {}:
+                    writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
+                    initializeGlobusTransfer()
 
             # Reset wait to check gantry incoming directory again
             globusWait = config['gantry']['globus_transfer_frequency_secs']
@@ -798,6 +839,8 @@ def globusMonitorLoop():
                 elif globusStatus == "NOT FOUND":
                     notifyMonitorOfNewTransfer(globusID, task['contents'])
 
+            status_numActive = len(activeTasks)
+
             # Reset timer to check NCSA api for transfer updates again
             apiWait = config['ncsa_api']['api_check_frequency_secs']
             writeTasksToDisk(config["status_log_path"], getStatus())
@@ -808,7 +851,7 @@ def globusMonitorLoop():
             authWait = config['globus']['authentication_refresh_frequency_secs']
 
 """Continually monitor FTP log for new files to transmit and add them to pendingTransfers"""
-def ftpMonitorLoop():
+def gantryMonitorLoop():
     gantryWait = 1 #config['gantry']['file_check_frequency_secs'] # look for new files to send
 
     while True:
@@ -817,12 +860,13 @@ def ftpMonitorLoop():
 
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if gantryWait <= 0:
-            pendingTransfers.update(getGantryFilesForTransfer())
+            if status_numPending < config["gantry"]["max_pending_files"]:
+                pendingTransfers.update(getGantryFilesForTransfer())
 
-            # Clean up the pending object of straggling keys, then initialize Globus transfer
-            cleanPendingTransfers()
-            if pendingTransfers != {}:
-                writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
+                # Clean up the pending object of straggling keys, then initialize Globus transfer
+                cleanPendingTransfers()
+                if pendingTransfers != {}:
+                    writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
 
             # Reset wait to check gantry incoming directory again
             gantryWait = config['gantry']['file_check_frequency_secs']
@@ -844,16 +888,23 @@ if __name__ == '__main__':
     if os.path.exists(config["status_log_path"]):
         monitorData = loadJsonFile(config["status_log_path"])
         status_lastFTPLogLine = monitorData["last_ftp_log_line_read"]
+        status_numActive = monitorData["active_globus_tasks"]
+        status_numPending = monitorData["pending_file_transfers"]
 
     # Load any previous active/pending transfers
     activeTasks = loadTasksFromDisk(config['active_tasks_path'])
+    status_numActive = len(activeTasks)
     pendingTransfers = loadTasksFromDisk(config['pending_transfers_path'])
+    for ds in pendingTransfers:
+        if 'files' in pendingTransfers[ds]:
+            for f in pendingTransfers[ds]['files']:
+                status_numPending += 1
 
     # Create thread for service to begin monitoring log file & transfer queue
     log("*** Service now monitoring gantry transfer queue ***")
     thread.start_new_thread(globusMonitorLoop, ())
-    log("*** Service now monitoring FTP log file ***")
-    thread.start_new_thread(ftpMonitorLoop, ())
+    log("*** Service now checking for new files via FTP logs/folder monitoring ***")
+    thread.start_new_thread(gantryMonitorLoop, ())
 
     # Create thread for API to begin listening - requires valid Globus user/pass
     apiPort = os.getenv('MONITOR_API_PORT', config['api']['port'])
