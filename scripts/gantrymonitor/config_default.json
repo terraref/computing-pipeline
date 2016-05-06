@@ -24,7 +24,7 @@
     "username": "globus_username",
     "password": "globus_password",
     "authentication_refresh_frequency_secs": 43200,
-    "max_transfer_file_count": 100,
+    "max_transfer_file_count": 500,
     "max_active_tasks": 100
   },
 

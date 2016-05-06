@@ -94,7 +94,7 @@ def openLog():
         os.makedirs(dirs)
 
     # Determine today's date (log_YYYYMMDD.txt)
-    currD = time.strftime("%Y%d%m")
+    currD = time.strftime("%Y%m%d")
     logPath = logPath.replace(".txt", "_"+currD+".txt")
 
     # If there's a current log file, store it as log1.txt, log2.txt, etc.

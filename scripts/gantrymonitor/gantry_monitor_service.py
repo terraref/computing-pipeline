@@ -78,7 +78,7 @@ def openLog():
         os.makedirs(dirs)
 
     # Determine today's date (log_YYYYMMDD.txt)
-    currD = time.strftime("%Y%d%m")
+    currD = time.strftime("%Y%m%d")
     logPath = logPath.replace(".txt", "_"+currD+".txt")
 
     # If there's a current log file, store it as log1.txt, log2.txt, etc.
@@ -215,13 +215,16 @@ def moveLocalFile(srcPath, destPath, filename):
 
 """Create symlink to src file in destPath"""
 def createLocalSymlink(srcPath, destPath, filename):
-    log("...creating symlink to "+filename+" in "+destPath)
+    try:
+        if not os.path.isdir(destPath):
+            os.makedirs(destPath)
 
-    if not os.path.isdir(destPath):
-        os.makedirs(destPath)
-
-    os.symlink(os.path.join(srcPath, filename),
-               os.path.join(destPath, filename))
+        log("...creating symlink to "+filename+" in "+destPath)
+        os.symlink(os.path.join(srcPath, filename),
+                   os.path.join(destPath, filename))
+    except OSError:
+        #log("Unable to create dirs for "+destPath, "ERROR")
+        return
 
 """Clear out any datasets from pendingTransfers without files or metadata"""
 def cleanPendingTransfers():
@@ -829,8 +832,8 @@ def globusMonitorLoop():
                                                   os.path.join(deleteDir, dsobj['md_path']), "metadata.json")
 
                             # Crawl and remove empty directories
-                            log("...removing empty directories in "+config['gantry']['incoming_files_path'])
-                            subprocess.call(["find", config['gantry']['incoming_files_path'], "-type", "d", "-empty", "-delete"])
+                            # log("...removing empty directories in "+config['gantry']['incoming_files_path'])
+                            # subprocess.call(["find", config['gantry']['incoming_files_path'], "-type", "d", "-empty", "-delete"])
 
                     del activeTasks[globusID]
                     writeTasksToDisk(config['active_tasks_path'], activeTasks)
