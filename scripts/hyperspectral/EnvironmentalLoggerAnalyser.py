@@ -64,7 +64,7 @@ def formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation):
     This function will format the source JSON file including multiple JSON objects
     into a file of JSON array
     '''
-    with open(fileLocation, 'r+') as fileHandler:
+    with open(fileLocation, 'r') as fileHandler:
         tempList, linePosition, wavelengthList, spectrumList, j, k =\
             fileHandler.read().split('\n'), list(), [[]], [[]], 0, 0
         for i in range(len(tempList)):
