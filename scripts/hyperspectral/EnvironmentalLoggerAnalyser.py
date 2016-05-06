@@ -38,6 +38,8 @@ If the output folder does not exist, EnvironmentalLoggerAnalyser.py will create 
 20160503: Add chunksizes parameters for time, which significantly reduces the processing time (and the file size)
           Add timestamps and commandLine the user used for each exported file
           Remind the user currently the script is dealing with which file
+20160506: Formatting issue had been solved by Dr.LeBauer, now the script will open the JSON in read-only mode
+          and reformatting function had been removed
 
 TODO:
 1. reassign the variable "time" as the offset to the base time (temporary it is the UNIX base time)
@@ -85,20 +87,7 @@ def formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation):
 
         wavelengthList.remove([])
         spectrumList.remove([])
-
-        for line in linePosition:
-            del tempList[line]
-            tempList.insert(line, "},{")
-
-        fileHandler.seek(0)
-        fileHandler.truncate()
-
-        if '[' not in tempList[0] and ']' not in tempList[-1]:
-            tempList.insert(0, '[')
-            tempList.append(']')
-            fileHandler.write('\n'.join(tempList))
-        else:
-            fileHandler.write('\n'.join(tempList))
+        
     return wavelengthList, spectrumList
 
 
