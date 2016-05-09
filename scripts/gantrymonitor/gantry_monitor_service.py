@@ -62,6 +62,7 @@ pendingTransfers = {}
     "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
 }, {...}, {...}, ...}"""
 activeTasks = {}
+inaccessibleFiles = []
 
 app = Flask(__name__)
 api = restful.Api(app)
@@ -138,19 +139,25 @@ def getStatus():
     }
 
 """Load contents of .json file into a JSON object"""
-def loadJsonFile(filename):
+def loadJsonFile(filename, markInaccessible=False):
+    global inaccessibleFiles
+
     try:
         f = open(filename)
         jsonObj = json.load(f)
         f.close()
         return jsonObj
     except IOError:
-        if filename.find("metadata.json") == -1:
+        if not markInaccessible:
             log("unable to open "+filename+", returning {}")
+        else:
+            inaccessibleFiles.append(filename)
+            writeTasksToDisk(config['inaccessible_files_path'], inaccessibleFiles)
+            return False
         return {}
 
 """Load active or pending tasks from file into memory"""
-def loadTasksFromDisk(filePath):
+def loadTasksFromDisk(filePath, emptyVal="{}"):
     # Prefer to load from primary file, try to use backup if primary is missing
     if not os.path.exists(filePath):
         if os.path.exists(filePath+".backup"):
@@ -159,7 +166,7 @@ def loadTasksFromDisk(filePath):
         else:
             # Create an empty file if primary+backup don't exist
             f = open(filePath, 'w')
-            f.write("{}")
+            f.write(emptyVal)
             f.close()
     else:
         log("...loading tasks from "+filePath)
@@ -255,7 +262,7 @@ def filenameInActiveTasks(filename):
 
     return False
 
-"""Add a particular file to pendingTransfers, checking for metadata first"""
+"""Add a particular file to pendingTransfers, checking for metadata first (used by manual API submissions)"""
 def addFileToPendingTransfers(f):
     global pendingTransfers
 
@@ -286,13 +293,15 @@ def addFileToPendingTransfers(f):
 
     else:
         # Found metadata.json, assume it is for dataset
-        pendingTransfers = updateNestedDict(pendingTransfers, {
-            datasetID: {
-                "md": loadJsonFile(f),
-                "md_path": gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
-            }
-        })
-        log("dataset metadata found for: "+datasetID)
+        mdobj = loadJsonFile(f, True)
+        if mdobj:
+            pendingTransfers = updateNestedDict(pendingTransfers, {
+                datasetID: {
+                    "md": mdobj,
+                    "md_path": gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
+                }
+            })
+            log("dataset metadata found for: "+datasetID)
 
 """Take line of FTP transfer log and parse a datetime object from it"""
 def parseDateFromFTPLogLine(line):
@@ -414,6 +423,7 @@ def getGantryFilesForTransfer():
             if found not in foundFiles:
                 foundFiles.append(found)
 
+    inaccessibleCount = 0
     for f in foundFiles:
         # Get dataset info & path details from found file
         if f.find(gantryDir) > -1:
@@ -449,11 +459,17 @@ def getGantryFilesForTransfer():
                     # "md_path": "" metadata folder
                 }
             else:
-                # Found metadata.json, assume it is for dataset
-                transferQueue[datasetID]['md'] = loadJsonFile(f)
-                transferQueue[datasetID]['md_path'] = gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
+                mdobj = loadJsonFile(f, True)
+                if mdobj:
+                    # Found metadata.json, assume it is for dataset
+                    transferQueue[datasetID]['md'] = loadJsonFile(f)
+                    transferQueue[datasetID]['md_path'] = gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
+                else:
+                    # File was inaccessible; remove from pending becuase it was logged in appropriate file
+                    inaccessibleCount += 1
 
     status_numPending += len(foundFiles)
+    status_numPending -= inaccessibleCount
     return transferQueue
 
 """Check folders in config for files older than the configured age, and queue for transfer"""
@@ -907,6 +923,7 @@ if __name__ == '__main__':
         if 'files' in pendingTransfers[ds]:
             for f in pendingTransfers[ds]['files']:
                 status_numPending += 1
+    inaccessibleFiles = loadTasksFromDisk(config['inaccessible_files_path'], "[]")
 
     log("loaded data from active and pending log files")
     log(str(status_numPending)+" pending files")
