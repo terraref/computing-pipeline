@@ -23,6 +23,19 @@ if(!exists(clb_nbr)) *clb_nbr=73; // [nbr] Calibration number
 // Assume white reference sheet reflects all wavelengths with 97% efficiency
 *fake_factory_calibrated_reflectance=0.97f;
 
+// [nbr] Number of wavelengths in environmental sensor
+*wvl_nvr_nbr=1024;
+defdim("wvl_nvr",wvl_nvr_nbr);
+wvl_nvr[wvl_nvr]=0.0;
+wvl_nvr@long_name="Wavelength of environmental sensor";
+wvl_nvr@units="meter";
+
+// [counts ()] 
+
+// Change wavelength to SI or leave as nanometer?
+wavelength*=1.0e-6;
+wavelength@units="meter";  
+
 // [xps] Exposure from white reference sheet/panel
 xps_wht[wavelength,x]=maximum_exposure;
 xps_wht@long_name="Exposure from white reference sheet/panel";
@@ -38,6 +51,7 @@ flx_dwn[wavelength]=2.0e9f;
 flx_dwn@long_name="Downwelling spectral irradiance";
 flx_dwn@units="watt meter-2 meter-1"; 
 
+// Intermediate quantities (not archived)
 // [xps/(W m-2 um-1)] Proportionality constant between reflected spectral flux and Exposure
 *cst_cnv=xps_wht/(flx_dwn*rfl_wht);
 
