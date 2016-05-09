@@ -71,6 +71,9 @@ config = {}
 }, {...}, {...}, ...}"""
 activeTasks = {}
 
+"""List of Globus IDs that need to be moved into Clowder; details stored in /completed folder"""
+unprocessedTasks = []
+
 """Maps dataset/collection name to clowder UUID
 {
     "name": "UUID"
@@ -175,7 +178,7 @@ def loadJsonFile(filename):
         return {}
 
 """Load object into memory from a log file, checking for .backup if main file does not exist"""
-def loadDataFromDisk(logPath):
+def loadDataFromDisk(logPath, emptyValue="{}"):
     # Prefer to load from primary file, try to use backup if primary is missing
     if not os.path.exists(logPath):
         if os.path.exists(logPath+".backup"):
@@ -184,7 +187,7 @@ def loadDataFromDisk(logPath):
         else:
             # Create an empty file if primary+backup don't exist
             f = open(logPath, 'w')
-            f.write("{}")
+            f.write(emptyValue)
             f.close()
     else:
         log("...loading data from "+logPath)
@@ -581,6 +584,8 @@ def notifyClowderOfCompletedTask(task):
 
 """Continually check Globus API for task updates"""
 def globusMonitorLoop():
+    global unprocessedTasks
+
     authWait = 0
     globWait = 0
     while True:
@@ -611,12 +616,12 @@ def globusMonitorLoop():
 
                     # Notify Clowder to process file if transfer successful
                     if globusStatus == "SUCCEEDED":
-                        clowderDone = notifyClowderOfCompletedTask(task)
-                        if clowderDone:
-                            # Write out results file, then delete from active list and write log file
-                            writeCompletedTaskToDisk(task)
-                            del activeTasks[globusID]
-                            writeDataToDisk(config['active_tasks_path'], activeTasks)
+                        unprocessedTasks.append(globusID)
+
+                        # Write out results file, then delete from active list and write log file
+                        writeCompletedTaskToDisk(task)
+                        del activeTasks[globusID]
+                        writeDataToDisk(config['active_tasks_path'], activeTasks)
 
                     # Write failed transfers out to completed folder without Clowder
                     elif globusStatus == "FAILED":
@@ -632,6 +637,30 @@ def globusMonitorLoop():
             generateAuthTokens()
             authWait = 0
 
+"""Work on completed Globus transfers to process them into Clowder"""
+def clowderSubmissionLoop():
+    global unprocessedTasks
+
+    clowderWait = 0
+    while True:
+        time.sleep(1)
+        clowderWait += 1
+
+        # Check with Globus for any status updates on monitored tasks
+        if clowderWait >= config['clowder']['globus_processing_frequency']:
+            toHandle = copy.deepcopy(unprocessedTasks)
+
+            for globusID in toHandle:
+                logPath = os.path.join(config['completed_tasks_path'], globusID[:2], globusID[2:4], globusID[4:6], globusID[6:8], globusID+".json")
+                if os.path.exists(logPath):
+                    clowderDone = notifyClowderOfCompletedTask(loadJsonFile(logPath))
+                    if clowderDone:
+                        unprocessedTasks.remove(globusID)
+                else:
+                    log("Unprocessed task "+globusID+" not found in completed tasks", "ERROR")
+
+            clowderWait = 0
+
 if __name__ == '__main__':
     # Try to load custom config file, falling back to default values where not overridden
     config = loadJsonFile(os.path.join(rootPath, "config_default.json"))
@@ -644,11 +673,14 @@ if __name__ == '__main__':
     datasetMap = loadDataFromDisk(config['dataset_map_path'])
     collectionMap = loadDataFromDisk(config['collection_map_path'])
     activeTasks = loadDataFromDisk(config['active_tasks_path'])
+    unprocessedTasks = loadDataFromDisk(config['unprocessed_tasks_path'], '[]')
     generateAuthTokens()
 
     # Create thread for service to begin monitoring
     thread.start_new_thread(globusMonitorLoop, ())
     log("*** Service now monitoring Globus tasks ***")
+    thread.start_new_thread(clowderSubmissionLoop, ())
+    log("*** Service now waiting to process completed tasks into Clowder ***")
 
     # Create thread for API to begin listening - requires valid Globus user/pass
     apiPort = os.getenv('MONITOR_API_PORT', config['api']['port'])
