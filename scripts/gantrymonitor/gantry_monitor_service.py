@@ -62,7 +62,6 @@ pendingTransfers = {}
     "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
 }, {...}, {...}, ...}"""
 activeTasks = {}
-inaccessibleFiles = []
 
 app = Flask(__name__)
 api = restful.Api(app)
@@ -70,24 +69,25 @@ api = restful.Api(app)
 # ----------------------------------------------------------
 # SHARED UTILS
 # ----------------------------------------------------------
-def openLog():
-    logPath = config["log_path"]
+def openFileToAppend(fpath=None):
+    if not fpath:
+        fpath = config["log_path"]
 
     # Create directories if necessary
-    dirs = logPath.replace(os.path.basename(logPath), "")
+    dirs = fpath.replace(os.path.basename(fpath), "")
     if not os.path.exists(dirs):
         os.makedirs(dirs)
 
     # Determine today's date (log_YYYYMMDD.txt)
     currD = time.strftime("%Y%m%d")
-    logPath = logPath.replace(".txt", "_"+currD+".txt")
+    fpath = fpath.replace(".txt", "_"+currD+".txt")
 
     # If there's a current log file, store it as log1.txt, log2.txt, etc.
-    if os.path.exists(logPath):
-        backupLog = logPath.replace(".txt", "_backup.txt")
-        shutil.copyfile(logPath, backupLog)
+    if os.path.exists(fpath):
+        backupLog = fpath.replace(".txt", "_backup.txt")
+        shutil.copyfile(fpath, backupLog)
 
-    return open(logPath, 'a+')
+    return open(fpath, 'a+')
 
 """Attempt to lock a file so API and monitor don't write at once, and wait if unable"""
 def lockFile(f):
@@ -117,7 +117,7 @@ def updateNestedDict(existing, new):
 """Print log message to console and write it to log file"""
 def log(message, type="INFO"):
     print("["+type+"] "+message)
-    logFile = openLog()
+    logFile = openFileToAppend()
     logFile.write("["+type+"] "+message+"\n")
     logFile.close()
 
@@ -140,8 +140,6 @@ def getStatus():
 
 """Load contents of .json file into a JSON object"""
 def loadJsonFile(filename, markInaccessible=False):
-    global inaccessibleFiles
-
     try:
         f = open(filename)
         jsonObj = json.load(f)
@@ -151,8 +149,10 @@ def loadJsonFile(filename, markInaccessible=False):
         if not markInaccessible:
             log("unable to open "+filename+", returning {}")
         else:
-            inaccessibleFiles.append(filename)
-            writeTasksToDisk(config['inaccessible_files_path'], inaccessibleFiles)
+            # Write filename to inaccessible list
+            iaf = openFileToAppend(config['inaccessible_files_path'])
+            iaf.write(filename+"\n")
+            iaf.close()
             return False
         return {}
 
@@ -923,7 +923,6 @@ if __name__ == '__main__':
         if 'files' in pendingTransfers[ds]:
             for f in pendingTransfers[ds]['files']:
                 status_numPending += 1
-    inaccessibleFiles = loadTasksFromDisk(config['inaccessible_files_path'], "[]")
 
     log("loaded data from active and pending log files")
     log(str(status_numPending)+" pending files")
