@@ -531,7 +531,7 @@ def notifyClowderOfCompletedTask(task):
 
                 md = clean_json_keys(task['contents'][ds]['md'])
 
-                dsmd = sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata",
+                dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
                           headers={'Content-Type':'application/json'},
                           data=json.dumps(md))
                 if dsmd.status_code != 200:
@@ -545,20 +545,35 @@ def notifyClowderOfCompletedTask(task):
             if 'files' in task['contents'][ds]:
                 for f in task['contents'][ds]['files']:
                     fobj = task['contents'][ds]['files'][f]
-                    log("adding file '"+fobj['path']+"' to "+ds)
-                    # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
-                    (content, header) = encode_multipart_formdata([
-                        ("file",'{"path":"%s"%s}' % (
-                            fobj['path'],
-                            ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else ""
-                        ))])
+                    if fobj.find("metadata.json") == -1:
+                        log("adding file '"+fobj['path']+"' to "+ds)
+                        # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
+                        (content, header) = encode_multipart_formdata([
+                            ("file",'{"path":"%s"%s}' % (
+                                fobj['path'],
+                                ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else ""
+                            ))])
 
-                    fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid, data=content, headers={'Content-Type':header})
-                    if fi.status_code != 200:
-                        log("cannot upload file "+fobj['path']+" ("+str(fi.status_code)+")", "ERROR")
-                        return False
+                        fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid, data=content, headers={'Content-Type':header})
+                        if fi.status_code != 200:
+                            log("cannot upload file "+fobj['path']+" ("+str(fi.status_code)+")", "ERROR")
+                            return False
+                        else:
+                            activeTasks[task['globus_id']]['contents'][ds]['files'][f]['clowder_id'] = json.loads(fi.text)['id']
                     else:
-                        activeTasks[task['globus_id']]['contents'][ds]['files'][f]['clowder_id'] = json.loads(fi.text)['id']
+                        log("adding metadata from file to dataset "+ds)
+                        mdobj = loadJsonFile(f)
+                        md = clean_json_keys(mdobj)
+
+                        dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
+                                         headers={'Content-Type':'application/json'},
+                                         data=json.dumps(md))
+                        if dsmd.status_code != 200:
+                            log("cannot add dataset metadata ("+str(dsmd.status_code)+" - "+dsmd.text+")", "ERROR")
+                            return False
+                        else:
+                            activeTasks[task['globus_id']]['contents'][ds]['files'][f]['metadata_loaded'] = True
+                            activeTasks[task['globus_id']]['contents'][ds]['files'][f]['clowder_id'] = "attached to dataset"
         return True
     else:
         log("cannot find clowder user credentials for Globus user "+globUser, "ERROR")

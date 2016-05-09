@@ -897,17 +897,20 @@ if __name__ == '__main__':
     if os.path.exists(config["status_log_path"]):
         monitorData = loadJsonFile(config["status_log_path"])
         status_lastFTPLogLine = monitorData["last_ftp_log_line_read"]
-        status_numActive = monitorData["active_globus_tasks"]
-        status_numPending = monitorData["pending_file_transfers"]
 
     # Load any previous active/pending transfers
     activeTasks = loadTasksFromDisk(config['active_tasks_path'])
     status_numActive = len(activeTasks)
     pendingTransfers = loadTasksFromDisk(config['pending_transfers_path'])
+    cleanPendingTransfers()
     for ds in pendingTransfers:
         if 'files' in pendingTransfers[ds]:
             for f in pendingTransfers[ds]['files']:
                 status_numPending += 1
+
+    log("loaded data from active and pending log files")
+    log(str(status_numPending)+" pending files")
+    log(str(status_numActive)+" active Globus tasks")
 
     # Create thread for service to begin monitoring log file & transfer queue
     log("*** Service now monitoring gantry transfer queue ***")
