@@ -525,6 +525,7 @@ def notifyClowderOfCompletedTask(task):
         sess = requests.Session()
         sess.auth = (clowderUser, clowderPass)
 
+        updatedTask = copy.deepcopy(task)
         for ds in task['contents']:
             dsid = fetchDatasetByName(ds, sess)
 
@@ -542,7 +543,7 @@ def notifyClowderOfCompletedTask(task):
                     return False
                 else:
                     # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
-                    del activeTasks[task['globus_id']]['contents'][ds]['md']
+                    del updatedTask['contents'][ds]['md']
 
             # Add local files to dataset by path
             if 'files' in task['contents'][ds]:
@@ -562,7 +563,7 @@ def notifyClowderOfCompletedTask(task):
                             log("cannot upload file "+fobj['path']+" ("+str(fi.status_code)+")", "ERROR")
                             return False
                         else:
-                            activeTasks[task['globus_id']]['contents'][ds]['files'][f]['clowder_id'] = json.loads(fi.text)['id']
+                            updatedTask['contents'][ds]['files'][f]['clowder_id'] = json.loads(fi.text)['id']
                     else:
                         log("adding metadata from file to dataset "+ds)
                         mdobj = loadJsonFile(f)
@@ -575,8 +576,9 @@ def notifyClowderOfCompletedTask(task):
                             log("cannot add dataset metadata ("+str(dsmd.status_code)+" - "+dsmd.text+")", "ERROR")
                             return False
                         else:
-                            activeTasks[task['globus_id']]['contents'][ds]['files'][f]['metadata_loaded'] = True
-                            activeTasks[task['globus_id']]['contents'][ds]['files'][f]['clowder_id'] = "attached to dataset"
+                            updatedTask['contents'][ds]['files'][f]['metadata_loaded'] = True
+                            updatedTask['contents'][ds]['files'][f]['clowder_id'] = "attached to dataset"
+        writeCompletedTaskToDisk(updatedTask)                    
         return True
     else:
         log("cannot find clowder user credentials for Globus user "+globUser, "ERROR")
