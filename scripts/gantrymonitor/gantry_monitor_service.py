@@ -631,9 +631,14 @@ def initializeGlobusTransfer():
         sentSomeMd = False
 
         # Loop over a copy of the list instead of actual thing - other thread will be appending to actual thing
-        loopingTransfers = copy.deepcopy(pendingTransfers)
+        try:
+            loopingTransfers = copy.deepcopy(pendingTransfers)
+        except RuntimeError:
+            # If there's a problem accessing this dict, return to it later
+            return
+
         # This will hold the leftover pending transfers once we've hit the max size for this transfer
-        remainingPendingTransfers = copy.deepcopy(pendingTransfers)
+        remainingPendingTransfers = copy.deepcopy(loopingTransfers)
         currentTransferBatch = {}
 
         for ds in loopingTransfers:
