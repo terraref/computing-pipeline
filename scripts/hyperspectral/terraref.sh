@@ -455,35 +455,31 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	trn_out="${trn_fl}.fl${idx_prn}.tmp"
 	printf "trn(in)  : ${trn_in}\n"
 	printf "trn(out) : ${trn_out}\n"
-	if [ "${gdl_flg}" = 'Yes' ]; then
-	    # Corresponding GDAL output types are Float32 for ENVI type 4 (NC_FLOAT) or UInt16 for ENVI type 12 (NC_USHORT)
-	    # Potential GDAL output types are INT16,UINT16,INT32,UINT32,Float32
-	    # Writing ENVI type 4 input as NC_USHORT output saves factor of two in storage and could obviate packing (lossy quantization)
-	    #	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 4 input by outputting NC_FLOAT
-	    # NB: GDAL method is relatively slow, and creates ~1k files (one per wavelength), which must then be stitched back together
-	    # 20160401: Deprecate GDAL method, which may no longer work, in favor of NCO
-	    # Maintain GDAL code here in case it someday becomes useful
-	    cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 12 input by outputting NC_USHORT
-	    hst_att="`date`: ${cmd_ln};${cmd_trn[${fl_idx}]}"
-	else # !GDAL
-	    # Use NCO to convert rasters
-	    # NCO is much faster, and creates a "data cube" directory so no reassembly required
-	    # Collect metadata necessary to process image from header
-	    hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
-	    # tr strips invisible and vexing DOS ^M characters from line
-	    wvl_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
-	    xdm_nbr=$(grep '^samples' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
-	    ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
-	    ntl_in=$(grep '^interleave' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
-	    typ_in_ENVI=$(grep '^data type' ${hdr_fl} | cut -d ' ' -f 4 | tr -d '\015')
-	    case "${typ_in_ENVI}" in
-		4 ) typ_in='NC_FLOAT' ; ;;
-		12 ) typ_in='NC_USHORT' ; ;;
-		* ) printf "${spt_nm}: ERROR Unknown typ_in in ${hdr_fl}. Debug grep command.\n" ; exit 1 ; ;; # Other
-	    esac # !typ_in_ENVI
-	    cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ~/nco/data/in.nc ${trn_out}"
-	    hst_att="`date`: ${cmd_ln}"
-	fi # !GDAL
+	# Corresponding GDAL output types are Float32 for ENVI type 4 (NC_FLOAT) or UInt16 for ENVI type 12 (NC_USHORT)
+	# Potential GDAL output types are INT16,UINT16,INT32,UINT32,Float32
+	# Writing ENVI type 4 input as NC_USHORT output saves factor of two in storage and could obviate packing (lossy quantization)
+	# NB: GDAL method is relatively slow, and creates ~1k files (one per wavelength), which must then be stitched back together
+	# 20160401: Deprecate GDAL method, which may no longer work, in favor of NCO
+	# Maintain GDAL code here in case it someday becomes useful
+	# cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 12 input by outputting NC_USHORT
+	# hst_att="`date`: ${cmd_ln};${cmd_trn[${fl_idx}]}"
+	# 20160401: Use NCO to convert rasters
+	# NCO is much faster, and creates a "data cube" directory so no reassembly required
+	# Collect metadata necessary to process image from header
+	hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
+	# tr strips invisible and vexing DOS ^M characters from line
+	wvl_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	xdm_nbr=$(grep '^samples' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	ntl_in=$(grep '^interleave' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
+	typ_in_ENVI=$(grep '^data type' ${hdr_fl} | cut -d ' ' -f 4 | tr -d '\015')
+	case "${typ_in_ENVI}" in
+	    4 ) typ_in='NC_FLOAT' ; ;;
+	    12 ) typ_in='NC_USHORT' ; ;;
+	    * ) printf "${spt_nm}: ERROR Unknown typ_in in ${hdr_fl}. Debug grep command.\n" ; exit 1 ; ;; # Other
+	esac # !typ_in_ENVI
+	cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ~/nco/data/in.nc ${trn_out}"
+	hst_att="`date`: ${cmd_ln}"
 	att_in="${trn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_trn[${fl_idx}]}
