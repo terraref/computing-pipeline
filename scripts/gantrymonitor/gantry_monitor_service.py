@@ -228,6 +228,8 @@ def createLocalSymlink(srcPath, destPath, filename):
 
 """Clear out any datasets from pendingTransfers without files or metadata"""
 def cleanPendingTransfers():
+    global pendingTransfers
+    
     # Iterate across a copy since we'll be changing object
     allPendingTransfers = copy.deepcopy(pendingTransfers)
     for ds in allPendingTransfers:
@@ -236,6 +238,8 @@ def cleanPendingTransfers():
             del pendingTransfers[ds]['files']
         if 'md' in dsobj and len(dsobj['md']) == 0:
             del pendingTransfers[ds]['md']
+            if 'md_path' in dsobj:
+                del pendingTransfers[ds]['md_path']
         if 'files' not in pendingTransfers[ds] and 'md' not in pendingTransfers[ds]:
             del pendingTransfers[ds]
 
@@ -639,6 +643,8 @@ def initializeGlobusTransfer():
                     mdQueueLength += 1
                     currentTransferBatch[ds]['md'] = loopingTransfers[ds]['md']
                     del remainingPendingTransfers[ds]['md']
+                    if "md_path" in loopingTransfers[ds]:
+                        del remainingPendingTransfers[ds]['md_path']
 
                 # Clean up placeholder entries once queue length is exceeded
                 if currentTransferBatch[ds]['files'] == {}:
