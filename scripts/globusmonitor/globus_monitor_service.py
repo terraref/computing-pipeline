@@ -617,6 +617,7 @@ def globusMonitorLoop():
                     # Notify Clowder to process file if transfer successful
                     if globusStatus == "SUCCEEDED":
                         unprocessedTasks.append(globusID)
+                        writeDataToDisk(config['unprocessed_tasks_path'], unprocessedTasks)
 
                         # Write out results file, then delete from active list and write log file
                         writeCompletedTaskToDisk(task)
@@ -656,6 +657,7 @@ def clowderSubmissionLoop():
                     clowderDone = notifyClowderOfCompletedTask(loadJsonFile(logPath))
                     if clowderDone:
                         unprocessedTasks.remove(globusID)
+                        writeDataToDisk(config['unprocessed_tasks_path'], unprocessedTasks)
                 else:
                     log("Unprocessed task "+globusID+" not found in completed tasks", "ERROR")
 
