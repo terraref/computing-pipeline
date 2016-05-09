@@ -547,10 +547,11 @@ def notifyClowderOfCompletedTask(task):
 
             # Add local files to dataset by path
             if 'files' in task['contents'][ds]:
+                log("adding files to dataset "+ds)
                 for f in task['contents'][ds]['files']:
                     fobj = task['contents'][ds]['files'][f]
-                    if fobj.find("metadata.json") == -1:
-                        log("adding file '"+fobj['path']+"' to "+ds)
+                    if f.find("metadata.json") == -1:
+                        log("adding file '"+fobj['path'])
                         # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
                         (content, header) = encode_multipart_formdata([
                             ("file",'{"path":"%s"%s}' % (
