@@ -110,6 +110,7 @@ out_fl=${in_fl/_raw/.nc} # [sng] Output file name
 
 # Default workflow stages
 att_flg='Yes' # [sng] Add workflow-specific metadata
+clb_flg='Yes' # [sng] Calibrate data
 cmp_flg='No' # [sng] Compress and/or pack data
 d23_flg='Yes' # [sng] Convert 2D->3D
 gdl_flg='No' # [sng] GDAL translate raw data to netCDF
@@ -212,6 +213,7 @@ if [ -n "${tmp_usr}" ]; then
     drc_tmp=${tmp_usr%/}
 fi # !tmp_usr
 att_fl="${drc_tmp}/terraref_tmp_att.nc" # [sng] ncatted file
+clb_fl="${drc_tmp}/terraref_tmp_clb.nc" # [sng] Calibrate file
 cmp_fl="${drc_tmp}/terraref_tmp_cmp.nc" # [sng] Compress/pack file
 d23_fl="${drc_tmp}/terraref_tmp_d23.nc" # [sng] 2D->3D file
 jsn_fl="${drc_tmp}/terraref_tmp_jsn.nc" # [sng] JSON file
@@ -232,6 +234,7 @@ if [ -n "${unq_usr}" ]; then
     fi # !unq_usr
 fi # !unq_sfx
 att_fl=${att_fl}${unq_sfx}
+clb_fl=${clb_fl}${unq_sfx}
 cmp_fl=${cmp_fl}${unq_sfx}
 d23_fl=${d23_fl}${unq_sfx}
 jsn_fl=${jsn_fl}${unq_sfx}
@@ -455,11 +458,11 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	if [ "${gdl_flg}" = 'Yes' ]; then
 	    # Corresponding GDAL output types are Float32 for ENVI type 4 (NC_FLOAT) or UInt16 for ENVI type 12 (NC_USHORT)
 	    # Potential GDAL output types are INT16,UINT16,INT32,UINT32,Float32
-	    # Writing ENVI type 4 input as NC_USHORT output save of factor of two in storage and could obviate packing (lossy quantization)
+	    # Writing ENVI type 4 input as NC_USHORT output saves factor of two in storage and could obviate packing (lossy quantization)
 	    #	cmd_trn[${fl_idx}]="gdal_translate -ot Float32 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 4 input by outputting NC_FLOAT
-	    # NB: GDAL method is relatively slow, and creates a thousand files (one per wavelength), which must then be stitched back together
-	    # 20160401: User NCO by default, and deprecate GDAL method, which may no longer work
-	    # Maintain code here in case returning to it seems wise
+	    # NB: GDAL method is relatively slow, and creates ~1k files (one per wavelength), which must then be stitched back together
+	    # 20160401: Deprecate GDAL method, which may no longer work, in favor of NCO
+	    # Maintain GDAL code here in case it someday becomes useful
 	    cmd_trn[${fl_idx}]="gdal_translate -ot UInt16 -of netCDF ${trn_in} ${trn_out}" # Preserves ENVI type 12 input by outputting NC_USHORT
 	    hst_att="`date`: ${cmd_ln};${cmd_trn[${fl_idx}]}"
 	else # !GDAL
@@ -467,7 +470,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    # NCO is much faster, and creates a "data cube" directory so no reassembly required
 	    # Collect metadata necessary to process image from header
 	    hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
-	    # Strip invisible, vexing DOS ^M characters from line with tr
+	    # tr strips invisible and vexing DOS ^M characters from line
 	    wvl_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	    xdm_nbr=$(grep '^samples' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	    ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
@@ -502,8 +505,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	att_out="${att_fl}.fl${idx_prn}.tmp"
 	printf "att(in)  : ${att_in}\n"
 	printf "att(out) : ${att_out}\n"
-#	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" -a \"GDAL_Band_.?,global,d,,\" --gaa history='${hst_att}' ${att_in} ${att_out}"
-	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" --gaa history='${hst_att}' ${att_in} ${att_out}"
+	cmd_att[${fl_idx}]="ncatted -O ${gaa_sng} -a \"Conventions,global,o,c,CF-1.5\" -a \"Project,global,o,c,TERRAREF\" --gaa history=\"${hst_att}\" ${att_in} ${att_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_att[${fl_idx}]}
 	fi # !dbg
@@ -518,13 +520,11 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     
     # Parse metadata from JSON to netCDF (sensor location, instrument configuration)
     if [ "${jsn_flg}" = 'Yes' ]; then
-#	jsn_in="${fl_in[${fl_idx}]/_raw/_metadata.json}"
 	jsn_in="${fl_in[${fl_idx}]}"
 	jsn_out="${jsn_fl}.fl${idx_prn}.tmp"
 	printf "jsn(in)  : ${jsn_in}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
 	cmd_jsn[${fl_idx}]="python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${jsn_in} ${jsn_out}"
-	in_fl=${jsn_out}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_jsn[${fl_idx}]}
 	fi # !dbg
@@ -537,15 +537,13 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	fi # !dbg
     fi # !jsn_flg
 
-    # Merge JSON metadata with data
+    # Merge JSON metadata with image data
     if [ "${mrg_flg}" = 'Yes' ]; then
 	mrg_in=${jsn_out}
 	mrg_out=${att_out}
 	printf "mrg(in)  : ${mrg_in}\n"
 	printf "mrg(out) : ${mrg_out}\n"
-	mrg_fl=${n34_fl}
 	cmd_mrg[${fl_idx}]="ncks -A ${mrg_in} ${mrg_out}"
-	in_fl=${mrg_out}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_mrg[${fl_idx}]}
 	fi # !dbg
@@ -557,16 +555,35 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    fi # !err
 	fi # !dbg
     fi # !mrg_flg
+    
+    # Calibrate
+    if [ "${clb_flg}" = 'Yes' ]; then
+	clb_in=${mrg_out}
+	clb_out="${clb_fl}.fl${idx_prn}.tmp"
+	printf "clb(in)  : ${clb_in}\n"
+	printf "clb(out) : ${clb_out}\n"
+	clb_fl=${n34_fl}
+	cmd_clb[${fl_idx}]="ncap2 -O -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${clb_in} ${clb_out}"
+	if [ ${dbg_lvl} -ge 1 ]; then
+	    echo ${cmd_clb[${fl_idx}]}
+	fi # !dbg
+	if [ ${dbg_lvl} -ne 2 ]; then
+	    eval ${cmd_clb[${fl_idx}]}
+	    if [ $? -ne 0 ] || [ ! -f ${clb_out} ]; then
+		printf "${spt_nm}: ERROR Failed to calibrate data. Debug this:\n${cmd_clb[${fl_idx}]}\n"
+		exit 1
+	    fi # !err
+	fi # !dbg
+    fi # !clb_flg
 
     # Compress and/or pack final data file
     if [ "${cmp_flg}" = 'Yes' ]; then
-	cmp_in=${mrg_out}
+	cmp_in=${clb_out}
 	cmp_out="${cmp_fl}.fl${idx_prn}.tmp"
 	printf "cmp(in)  : ${cmp_in}\n"
 	printf "cmp(out) : ${cmp_out}\n"
 	cmp_fl=${n34_fl}
 	cmd_cmp[${fl_idx}]="ncks -L ${dfl_lvl} ${cmp_in} ${cmp_out}"
-	in_fl=${cmp_out}
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_cmp[${fl_idx}]}
 	fi # !dbg
@@ -578,7 +595,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    fi # !err
 	fi # !dbg
     else # !cmp_flg
-	rip_in=${mrg_out}
+	rip_in=${clb_out}
     fi # !cmp_flg
 
     # Move file to final resting place
@@ -615,10 +632,8 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	printf "2D  : ${d23_in}\n"
 	printf "3D  : ${d23_out}\n"
 	hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
-	# Strip invisible and vexing DOS ^M characters from line with tr
+	# tr strips invisible and vexing DOS ^M characters from line
 	wvl_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
-	xdm_nbr=$(grep '^samples' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
-	ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	if [ $? -ne 0 ]; then
 	    printf "${spt_nm}: ERROR Failed to find wvl_nbr in ${hdr_fl}. Debug grep command.\n"
 	    exit 1
@@ -626,7 +641,6 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo "dbg: diagnosed band number wvl_nbr = ${wvl_nbr} (nothing invisible afterward)"
 	fi # !dbg
-	#    cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncks -4 -O -D 73 --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} ${d23_in} ${d23_out}"
 	cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*wvl_nbr=${wvl_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${d23_in} ${d23_out}"
 	in_fl=${d23_out}
 	
@@ -765,7 +779,7 @@ fi # !0
 
 if [ "${cln_flg}" = 'Yes' ]; then
     printf "Cleaning-up intermediate files...\n"
-    /bin/rm -f ${att_fl}.fl*.tmp ${cmp_fl}.fl*.tmp ${d23_fl}.fl*.tmp ${jsn_fl}.fl*.tmp ${mrg_fl}.fl*.tmp ${tmp_fl}.fl*.tmp ${trn_fl}.fl*.tmp
+    /bin/rm -f ${att_fl}.fl*.tmp ${clb_fl}.fl*.tmp ${cmp_fl}.fl*.tmp ${d23_fl}.fl*.tmp ${jsn_fl}.fl*.tmp ${mrg_fl}.fl*.tmp ${tmp_fl}.fl*.tmp ${trn_fl}.fl*.tmp
 fi # !cln_flg
 
 date_end=$(date +"%s")

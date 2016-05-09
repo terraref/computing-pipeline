@@ -1,12 +1,10 @@
 // -*-C++-*-
 
-/* Purpose: NCO/ncap2 script to Combine 2D TR fractional exposure into single 3D variable
+/* Purpose: NCO/ncap2 script to process and calibrate Terraref exposure data
+
    Usage:
-   ncap2 -v -O -s \*wvl_nbr=926 -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/test_raw.nc ${DATA}/terraref/test_raw_3d.nc
-   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/whiteReference_raw.nc ${DATA}/terraref/whiteReference_3d.nc
-   ncap2 -v -O -s \*wvl_nbr=926 -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/whiteReference_raw.nc ${DATA}/terraref/whiteReference_3d.nc
-   ncap2 -v -O -s \*wvl_nbr=926 -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw.nc ${DATA}/terraref/foo_3d.nc
-   ncap2 -v -O -s \*wvl_nbr=955 -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/MovingSensor/VNIR/2016-03-05/2016-03-05__09-46_17_450/72235cd1-35d5-480a-8443-14281ded1a63_raw.nc ${DATA}/terraref/foo_3d.nc */
+   ncap2 -v -O -s \*clb_nbr=926 -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/test_raw.nc ~/foo.nc
+   ncap2 -v -O -s \*clb_nbr=926 -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/whiteReference_raw.nc ~/foo.nc */
 
 // Declare flags as RAM variables or they will clutter output file
 *flg_tst=1s; // [flg] Test mode
@@ -16,40 +14,74 @@
 *flg_typ=flg_prd; // [enm] Run type
 
 // Defaults for values not provided on command-line
-if(!exists(wvl_nbr)) *wvl_nbr=926; // [nbr] SWIR camera has 926 bands
-//if(!exists(wvl_nbr)) *wvl_nbr=955; // [nbr] VNIR camera has 955 bands
+if(!exists(clb_nbr)) *clb_nbr=73; // [nbr] Calibration number
 
-defdim("wavelength",wvl_nbr); 
-exposure[wavelength,x,y]=0.0f; 
-exposure@long_name="Fractional exposure";
-exposure@meaning="Ratio of actual to fully exposed (saturated) channel";
-exposure@units="fraction";
-set_miss(exposure,Band1@_FillValue);
-wavelength[wavelength]=0.0f;
-wavelength@long_name="Wavelength";
-wavelength@units="nanometer";
+// Calibration documentation https://github.com/terraref/computing-pipeline/issues/88
+// Maximum exposure (counts) recordable when imaging white reference sheet
+*maximum_exposure=0us;
+*maximum_exposure=2^16-1;
+// Assume white reference sheet reflects all wavelengths with 97% efficiency
+*fake_factory_calibrated_reflectance=0.97f;
 
-for(*wvl_idx=1;wvl_idx<=wvl_nbr;wvl_idx++){
-  // Current variable has name produced by gdal_translate
-  {  
-   @var_crr=snprint(wvl_idx,"Band%d"); 
-   @att_crr=snprint(wvl_idx,"Band%d@wavelength"); 
-  }
-  if(flg_typ == flg_tst) print(@var_crr,"%s ");
+// [xps] Exposure from white reference sheet/panel
+xps_wht[wavelength,x]=maximum_exposure;
+xps_wht@long_name="Exposure from white reference sheet/panel";
+xps_wht@units="Counts on scale from 0 to 2^16-1 = 65535";
 
-  // Copy band 2D raster into 3D image hypercube
-  exposure((wvl_idx-1),:,:)=*@var_crr;   
+// [frc] Reflectance of white reference (factory calibration)
+rfl_wht[wavelength]=fake_factory_calibrated_reflectance;
+rfl_wht@long_name="Reflectance of white reference";
+rfl_wht@units="1";
 
-  // Copy wavelength attribute into wavelength coordinate
-  wavelength(wvl_idx-1)=*@att_crr;
+// [W m-2 m-1] Downwelling spectral irradiance (measured by environmental sensor)
+flx_dwn[wavelength]=2.0e9f;
+flx_dwn@long_name="Downwelling spectral irradiance";
+flx_dwn@units="watt meter-2 meter-1"; 
+
+// [xps/(W m-2 um-1)] Proportionality constant between reflected spectral flux and Exposure
+*cst_cnv=xps_wht/(flx_dwn*rfl_wht);
+
+// [frc] = Reflectance of image (i.e., plants)
+rfl_img=xps_img/(flx_dwn*cst_cnv);
+rfl_img@long_name="Reflectance of image";
+rfl_img@units="1";
+  
+if(0){
+  // Old ncap2 script that converted GDAL-prodoced rasters into a single 3D image cube
+  if(!exists(wvl_nbr)) *wvl_nbr=926; // [nbr] SWIR camera has 926 bands
+
+  defdim("wavelength",wvl_nbr); 
+  exposure[wavelength,x,y]=0.0f; 
+  exposure@long_name="Fractional exposure";
+  exposure@meaning="Ratio of actual to fully exposed (saturated) channel";
+  exposure@units="fraction";
+  set_miss(exposure,Band1@_FillValue);
+  wavelength[wavelength]=0.0f;
+  wavelength@long_name="Wavelength";
+  wavelength@units="nanometer";
+  
+  for(*wvl_idx=1;wvl_idx<=wvl_nbr;wvl_idx++){
+    // Current variable has name produced by gdal_translate
+    @var_crr=snprint(wvl_idx,"Band%d"); 
+    @att_crr=snprint(wvl_idx,"Band%d@wavelength"); 
+    if(flg_typ == flg_tst) print(@var_crr,"%s ");
+    
+    // Copy band 2D raster into 3D image hypercube
+    exposure((wvl_idx-1),:,:)=*@var_crr;   
+    
+    // Copy wavelength attribute into wavelength coordinate
+    wavelength(wvl_idx-1)=*@att_crr;
  } // !wvl_idx
 
-// Debugging sanity check: Ensure, e.g., Band10 minus tenth band is zero
-if(flg_typ == flg_tst){
-  err_chk10=(Band10-exposure(9,:,:)).total();
-  err_chk300=(Band300-exposure(299,:,:)).total();
-  err_chk926=(Band926-exposure(925,:,:)).total();
-  print(err_chk10);
-  print(err_chk300);
-  print(err_chk926);
-} // !flg_typ
+  // Debugging sanity check: Ensure, e.g., Band10 minus tenth band is zero
+  if(flg_typ == flg_tst){
+    err_chk10=(Band10-exposure(9,:,:)).total();
+    err_chk300=(Band300-exposure(299,:,:)).total();
+    err_chk926=(Band926-exposure(925,:,:)).total();
+    print(err_chk10);
+    print(err_chk300);
+    print(err_chk926);
+  } // !flg_typ
+  
+} // !0
+
