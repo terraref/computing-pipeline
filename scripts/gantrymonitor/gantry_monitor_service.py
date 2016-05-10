@@ -100,6 +100,19 @@ def lockFile(f):
             # Try again in 1/10th of a second
             time.sleep(0.1)
 
+"""Create copy of dict in safe manner for multi-thread access (won't change during copy iteration)"""
+def safeCopy(obj):
+    # Iterate across a copy since we'll be changing object
+    copied = False
+    while not copied:
+        try:
+            newObj = copy.deepcopy(obj)
+            copied = True
+        except RuntimeError:
+            time.sleep(0.1)
+
+    return newObj
+
 """Nested update of python dictionaries for config parsing"""
 def updateNestedDict(existing, new):
     # Adapted from http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
@@ -236,16 +249,8 @@ def createLocalSymlink(srcPath, destPath, filename):
 """Clear out any datasets from pendingTransfers without files or metadata"""
 def cleanPendingTransfers():
     global pendingTransfers
-    
-    # Iterate across a copy since we'll be changing object
-    copied = False
-    while not copied:
-        try:
-            allPendingTransfers = copy.deepcopy(pendingTransfers)
-            copied = True
-        except RuntimeError:
-            time.sleep(0.1)
 
+    allPendingTransfers = safeCopy(pendingTransfers)
     for ds in allPendingTransfers:
         dsobj = allPendingTransfers[ds]
         if 'files' in dsobj and len(dsobj['files']) == 0:
@@ -259,9 +264,10 @@ def cleanPendingTransfers():
 
 """Return true if a file is currently part of an active transfer"""
 def filenameInActiveTasks(filename):
-    for globusID in activeTasks:
-        for ds in activeTasks[globusID]['contents']:
-            dsobj = activeTasks[globusID]['contents'][ds]
+    allActive = safeCopy(activeTasks)
+    for globusID in allActive:
+        for ds in allActive[globusID]['contents']:
+            dsobj = allActive[globusID]['contents'][ds]
             if 'files' in dsobj:
                 for f in dsobj['files']:
                     if f == filename:
@@ -638,14 +644,7 @@ def initializeGlobusTransfer():
         sentSomeMd = False
 
         # Loop over a copy of the list instead of actual thing - other thread will be appending to actual thing
-        copied = False
-        while not copied:
-            try:
-                loopingTransfers = copy.deepcopy(pendingTransfers)
-                copied = True
-            except RuntimeError:
-                # If there's a problem accessing this dict, wait & retry
-                time.sleep(0.1)
+        loopingTransfers = safeCopy(pendingTransfers)
 
         # This will hold the leftover pending transfers once we've hit the max size for this transfer
         remainingPendingTransfers = copy.deepcopy(loopingTransfers)
@@ -838,7 +837,7 @@ def globusMonitorLoop():
         if apiWait <= 0:
             log("checking status of active transfers with NCSA")
             # Use copy of task list so it doesn't change during iteration
-            currentActiveTasks = copy.deepcopy(activeTasks)
+            currentActiveTasks = safeCopy(activeTasks)
             for globusID in currentActiveTasks:
                 task = activeTasks[globusID]
 
