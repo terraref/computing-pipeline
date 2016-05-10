@@ -293,7 +293,7 @@ def addFileToPendingTransfers(f):
     datasetID = sensorname +" - "+timestamp
     gantryDirPath = gantryDirPath.replace(filename, "")
 
-    pendingTransfers = updateNestedDict(pendingTransfers, {
+    pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), {
         datasetID: {
             "files": {
                 filename: {
