@@ -446,7 +446,8 @@ def getGantryFilesForTransfer():
 
         pathParts = gantryDirPath.split("/")
         filename = pathParts[-1]
-        sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
+        sensorname = ("EnvironmentalLogger" if (f.find("EnvironmentLogger")>-1 or f.find("EnviromentLogger")>-1)
+                        else (pathParts[-4] if len(pathParts)>3 else "unknown_sensor"))
         timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
         datasetID = sensorname +" - "+timestamp
         gantryDirPath = gantryDirPath.replace(filename, "")
