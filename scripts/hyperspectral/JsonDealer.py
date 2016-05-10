@@ -183,8 +183,8 @@ class DataContainer(object):
         netCDFHandler.createDimension("y", len(tempFrameTime))
         frameTime    = netCDFHandler.createVariable("frametime", "f8", ("y",))
         frameTime[:] = tempFrameTime
-        setattr(frameTime, "unit",     " days since 1970.01.01-00:00:00 (UNIX basetime)")
-        setattr(frameTime, "calender", "Gregorian")
+        setattr(frameTime, "units",     "days since 1970-01-01 00:00:00")
+        setattr(frameTime, "calender", "gregorian")
 
 
         ##### Write the history to netCDF #####

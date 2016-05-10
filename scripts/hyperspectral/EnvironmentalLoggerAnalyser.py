@@ -59,10 +59,10 @@ from datetime import date, datetime
 from netCDF4 import Dataset
 
 _UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hecto-Pascal", u"DegCelsius": "Celsius",
-                    u's': 'second', u'm/s': 'meter second-1', u"mm/h": 'milimeters hour-1',
-                    u"relHumPerCent": "percent", u"?mol/(m^2*s)": "micromole meters-2 second-1",
+                    u's': 'second', u'm/s': 'meter second-1', u"mm/h": 'millimeter hour-1',
+                    u"relHumPerCent": "percent", u"?mol/(m^2*s)": "micromole meter-2 second-1",
                     u'kilo Lux': 'kilo Lux', u'degrees': 'degrees', '': ''}
-_NAMES = {'sensor par': 'Sensor Photosynthetical Active Radiation'}
+_NAMES = {'sensor par': 'Sensor Photosynthetic Active Radiation'}
 _UNIX_BASETIME = date(year=1970, month=1, day=1)
 
 
@@ -75,8 +75,6 @@ def formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation):
         tempList, wavelengthList, spectrumList, k, writeToWavelength =\
             fileHandler.read().split('\n'), [], [[]], 0, True
         for i in range(len(tempList)):
-            if "environment_sensor_set_reading" in tempList[i] and i > 2:
-                linePosition.append(i - 1)
             if "wavelength" in tempList[i] and writeToWavelength:
                 wavelengthList.append(
                     float(tempList[i][tempList[i].find(':') + 1: -2]))
