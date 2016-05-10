@@ -278,6 +278,7 @@ def filenameInActiveTasks(filename):
 """Add a particular file to pendingTransfers"""
 def addFileToPendingTransfers(f):
     global pendingTransfers
+    global status_numPending
 
     if f.find(config['gantry']['incoming_files_path']) > -1:
         gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
@@ -286,7 +287,8 @@ def addFileToPendingTransfers(f):
 
     pathParts = gantryDirPath.split("/")
     filename = pathParts[-1]
-    sensorname = pathParts[-4] if len(pathParts)>3 else "unknown_sensor"
+    sensorname = ("EnvironmentLogger" if (f.find("EnvironmentLogger")>-1 or f.find("EnviromentLogger")>-1)
+                  else (pathParts[-4] if len(pathParts)>3 else "unknown_sensor"))
     timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
     datasetID = sensorname +" - "+timestamp
     gantryDirPath = gantryDirPath.replace(filename, "")
@@ -301,8 +303,8 @@ def addFileToPendingTransfers(f):
             }
         }
     })
-    log("file queued for transfer: "+f)
-
+    status_numPending += 1
+    log("file queued via API: "+f)
 
 """Take line of FTP transfer log and parse a datetime object from it"""
 def parseDateFromFTPLogLine(line):
@@ -337,15 +339,21 @@ class TransferQueue(restful.Resource):
 
     def post(self):
         req = request.get_json(force=True)
+        srcpath = config['globus']['source_path']
 
         # Single file path entry under 'path'
         if 'path' in req:
-            addFileToPendingTransfers(req['path'])
+            p = req['path']
+            if p.find(srcpath) == -1:
+                p = os.path.join(srcpath, p)
+            addFileToPendingTransfers(p)
 
         # Multiple file path entries under 'paths'
         if 'paths' in req:
-            for f in req['paths']:
-                addFileToPendingTransfers(f)
+            for p in req['paths']:
+                if p.find(srcpath) == -1:
+                    p = os.path.join(srcpath, p)
+                addFileToPendingTransfers(p)
 
         writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         return 201
