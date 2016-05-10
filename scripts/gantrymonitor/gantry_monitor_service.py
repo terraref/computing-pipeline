@@ -238,7 +238,14 @@ def cleanPendingTransfers():
     global pendingTransfers
     
     # Iterate across a copy since we'll be changing object
-    allPendingTransfers = copy.deepcopy(pendingTransfers)
+    copied = False
+    while not copied:
+        try:
+            allPendingTransfers = copy.deepcopy(pendingTransfers)
+            copied = True
+        except RuntimeError:
+            time.sleep(0.1)
+
     for ds in allPendingTransfers:
         dsobj = allPendingTransfers[ds]
         if 'files' in dsobj and len(dsobj['files']) == 0:
