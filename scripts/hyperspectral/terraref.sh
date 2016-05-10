@@ -89,7 +89,6 @@ ntl_out='bsq' # [enm] Interleave-type of output
 out_fl='' # [sng] Output file name
 out_xmp='test.nc4' # [sng] Output file for examples
 par_typ='bck' # [sng] Parallelism type
-tmp_fl='terraref_tmp.nc' # [sng] Temporary output file
 typ_out='NC_USHORT' # [enm] netCDF output type
 unq_sfx=".pid${spt_pid}" # [sng] Unique suffix
 
@@ -109,14 +108,12 @@ fi # !gpfs
 out_fl=${in_fl/_raw/.nc} # [sng] Output file name
 
 # Default workflow stages
+anl_flg='Yes' # [sng] Analysis
 att_flg='Yes' # [sng] Add workflow-specific metadata
 clb_flg='Yes' # [sng] Calibrate data
 cmp_flg='No' # [sng] Compress and/or pack data
-d23_flg='Yes' # [sng] Convert 2D->3D
-gdl_flg='No' # [sng] GDAL translate raw data to netCDF
 jsn_flg='Yes' # [sng] Parse metadata from JSON to netCDF
-mrg_flg='Yes' # [sng] Merge JSON metadata with data
-n34_flg='Yes' # [sng] Convert netCDF3 to netCDF4
+mrg_flg='Yes' # [sng] Merge JSON metadata with image data
 rip_flg='Yes' # [sng] Move to final resting place
 trn_flg='Yes' # [sng] Translate flag
 xpt_flg='No' # [sng] Experimental flag
@@ -127,7 +124,6 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     printf "${fnt_rvr}Basic usage:${fnt_nrm} ${fnt_bld}$spt_nm -i in_fl -o out_fl${fnt_nrm}\n\n"
     echo "${fnt_rvr}-c${fnt_nrm} ${fnt_bld}dfl_lvl${fnt_nrm}  Compression level [0..9] (empty means none) (default ${fnt_bld}${dfl_lvl}${fnt_nrm})"
     echo "${fnt_rvr}-d${fnt_nrm} ${fnt_bld}dbg_lvl${fnt_nrm}  Debugging level (default ${fnt_bld}${dbg_lvl}${fnt_nrm})"
-    echo "${fnt_rvr}-g${fnt_nrm} ${fnt_bld}gdl_flg${fnt_nrm}  GDAL translates ENVI to netCDF (default ${fnt_bld}${gdl_flg}${fnt_nrm})"
     echo "${fnt_rvr}-I${fnt_nrm} ${fnt_bld}drc_in${fnt_nrm}   Input directory (empty means none) (default ${fnt_bld}${drc_in}${fnt_nrm})"
     echo "${fnt_rvr}-i${fnt_nrm} ${fnt_bld}in_fl${fnt_nrm}    Input filename (required) (default ${fnt_bld}${in_fl}${fnt_nrm})"
     echo "${fnt_rvr}-j${fnt_nrm} ${fnt_bld}job_nbr${fnt_nrm}  Job simultaneity for parallelism (default ${fnt_bld}${job_nbr}${fnt_nrm})"
@@ -168,21 +164,20 @@ fi # !arg_nbr
 # http://stackoverflow.com/questions/402377/using-getopts-in-bash-shell-script-to-get-long-and-short-command-line-options
 # http://tuxtweaks.com/2014/05/bash-getopts
 cmd_ln="${spt_nm} ${@}"
-while getopts c:d:gI:i:j:N:n:O:o:p:T:t:u:x OPT; do
+while getopts c:d:I:i:j:N:n:O:o:p:T:t:u:x OPT; do
     case ${OPT} in
 	c) dfl_lvl=${OPTARG} ;; # Compression deflate level
 	d) dbg_lvl=${OPTARG} ;; # Debugging level
-	g) gdl_flg='Yes' ;; # GDAL translate
 	I) drc_in=${OPTARG} ;; # Input directory
 	i) in_fl=${OPTARG} ;; # Input file
 	j) job_usr=${OPTARG} ;; # Job simultaneity
-	n) nco_usr=${OPTARG} ;; # NCO options
 	N) ntl_out=${OPTARG} ;; # Interleave-type
+	n) nco_usr=${OPTARG} ;; # NCO options
 	O) drc_usr=${OPTARG} ;; # Output directory
 	o) out_fl=${OPTARG} ;; # Output file
 	p) par_typ=${OPTARG} ;; # Parallelism type
-	t) typ_out=${OPTARG} ;; # Type of netCDF output
 	T) tmp_usr=${OPTARG} ;; # Temporary directory
+	t) typ_out=${OPTARG} ;; # Type of netCDF output
 	u) unq_usr=${OPTARG} ;; # Unique suffix
 	x) xpt_flg='Yes' ;; # EXperimental
 	\?) # Unrecognized option
@@ -212,14 +207,12 @@ if [ -n "${tmp_usr}" ]; then
     # Fancy %/ syntax removes trailing slash (e.g., from $TMPDIR)
     drc_tmp=${tmp_usr%/}
 fi # !tmp_usr
+anl_fl="${drc_tmp}/terraref_tmp_anl.nc" # [sng] Analysis
 att_fl="${drc_tmp}/terraref_tmp_att.nc" # [sng] ncatted file
 clb_fl="${drc_tmp}/terraref_tmp_clb.nc" # [sng] Calibrate file
 cmp_fl="${drc_tmp}/terraref_tmp_cmp.nc" # [sng] Compress/pack file
-d23_fl="${drc_tmp}/terraref_tmp_d23.nc" # [sng] 2D->3D file
 jsn_fl="${drc_tmp}/terraref_tmp_jsn.nc" # [sng] JSON file
 mrg_fl="${drc_tmp}/terraref_tmp_mrg.nc" # [sng] Merge file
-n34_fl="${drc_tmp}/terraref_tmp_n34.nc" # [sng] netCDF3->netCDF4 file
-tmp_fl="${drc_tmp}/${tmp_fl}" # [sng] Temporary output file
 trn_fl="${drc_tmp}/terraref_tmp_trn.nc" # [sng] Translate file
 
 if [ -n "${unq_usr}" ]; then
@@ -233,14 +226,12 @@ if [ -n "${unq_usr}" ]; then
 	fi # !unq_usr
     fi # !unq_usr
 fi # !unq_sfx
+anl_fl=${anl_fl}${unq_sfx}
 att_fl=${att_fl}${unq_sfx}
 clb_fl=${clb_fl}${unq_sfx}
 cmp_fl=${cmp_fl}${unq_sfx}
-d23_fl=${d23_fl}${unq_sfx}
 jsn_fl=${jsn_fl}${unq_sfx}
 mrg_fl=${mrg_fl}${unq_sfx}
-n34_fl=${n34_fl}${unq_sfx}
-tmp_fl=${tmp_fl}${unq_sfx}
 trn_fl=${trn_fl}${unq_sfx}
 
 if [ -n "${dfl_lvl}" ]; then
@@ -558,7 +549,6 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	clb_out="${clb_fl}.fl${idx_prn}.tmp"
 	printf "clb(in)  : ${clb_in}\n"
 	printf "clb(out) : ${clb_out}\n"
-	clb_fl=${n34_fl}
 	cmd_clb[${fl_idx}]="ncap2 -O -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${clb_in} ${clb_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_clb[${fl_idx}]}
@@ -578,7 +568,6 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	cmp_out="${cmp_fl}.fl${idx_prn}.tmp"
 	printf "cmp(in)  : ${cmp_in}\n"
 	printf "cmp(out) : ${cmp_out}\n"
-	cmp_fl=${n34_fl}
 	cmd_cmp[${fl_idx}]="ncks -L ${dfl_lvl} ${cmp_in} ${cmp_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_cmp[${fl_idx}]}
@@ -616,44 +605,28 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     fi # !rip_flg
 
     # 20160330: Entire block made obsolete by ncks conversion capability
-    # Keep in terraref.sh until wavelength capability re-implemented
+    # Keep template in terraref.sh in case parallelization with barrier becomes attractive again
     if [ 0 -eq 1 ]; then
-	# Block 5: Convert 2D->3D
-	# Combine 2D TR image data into single 3D variable
-	# Until then image is split into up to 926 (SWIR) or 955 (VNIR) variables, each a one-band raster
-	# Requires NCO version 4.6.0 or newer
-	# fxm: currently this step is slow, and may need to be rewritten to dedicated routine
-	d23_in=${att_fl}
-	d23_out="${d23_fl}.fl${idx_prn}.tmp"
-	printf "2D  : ${d23_in}\n"
-	printf "3D  : ${d23_out}\n"
-	hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
-	# tr strips invisible and vexing DOS ^M characters from line
-	wvl_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
-	if [ $? -ne 0 ]; then
-	    printf "${spt_nm}: ERROR Failed to find wvl_nbr in ${hdr_fl}. Debug grep command.\n"
-	    exit 1
-	fi # !err
-	if [ ${dbg_lvl} -ge 1 ]; then
-	    echo "dbg: diagnosed band number wvl_nbr = ${wvl_nbr} (nothing invisible afterward)"
-	fi # !dbg
-	cmd_d23[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*wvl_nbr=${wvl_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${d23_in} ${d23_out}"
-	in_fl=${d23_out}
+	anl_in=${att_fl}
+	anl_out="${anl_fl}.fl${idx_prn}.tmp"
+	printf "2D  : ${anl_in}\n"
+	printf "3D  : ${anl_out}\n"
+	cmd_anl[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*wvl_nbr=${wvl_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/new_analysis.nco ${anl_in} ${anl_out}"
 	
 	# Block 5 Loop 2: Execute and/or echo commands
 	if [ ${dbg_lvl} -ge 1 ]; then
-	    echo ${cmd_d23[${fl_idx}]}
+	    echo ${cmd_anl[${fl_idx}]}
 	fi # !dbg
 	if [ ${dbg_lvl} -ne 2 ]; then
 	    if [ -z "${par_opt}" ]; then
-		eval ${cmd_d23[${fl_idx}]}
-		if [ $? -ne 0 ] || [ ! -f ${d23_out} ]; then
-		    printf "${spt_nm}: ERROR Failed to convert 2D->3D. cmd_d23[${fl_idx}] failed. Debug this:\n${cmd_d23[${fl_idx}]}\n"
+		eval ${cmd_anl[${fl_idx}]}
+		if [ $? -ne 0 ] || [ ! -f ${anl_out} ]; then
+		    printf "${spt_nm}: ERROR Failed to convert 2D->3D. cmd_anl[${fl_idx}] failed. Debug this:\n${cmd_anl[${fl_idx}]}\n"
 		    exit 1
 		fi # !err
 	    else # !par_typ
-		eval ${cmd_d23[${fl_idx}]} ${par_opt}
-		d23_pid[${fl_idx}]=$!
+		eval ${cmd_anl[${fl_idx}]} ${par_opt}
+		anl_pid[${fl_idx}]=$!
 	    fi # !par_typ
 	fi # !dbg
 	
@@ -668,9 +641,9 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 		    printf "${spt_nm}: Waiting for batch ${bch_idx} to finish at fl_idx = ${fl_idx}...\n"
 		fi # !dbg
 		for ((pid_idx=${idx_srt};pid_idx<=${idx_end};pid_idx++)); do
-		    wait ${d23_pid[${pid_idx}]}
+		    wait ${anl_pid[${pid_idx}]}
 		    if [ $? -ne 0 ]; then
-			printf "${spt_nm}: ERROR Failed to convert 2D->3D. cmd_d23[${pid_idx}] failed. Debug this:\n${cmd_d23[${pid_idx}]}\n"
+			printf "${spt_nm}: ERROR Failed template analysis. cmd_anl[${pid_idx}] failed. Debug this:\n${cmd_anl[${pid_idx}]}\n"
 			exit 1
 		    fi # !err
 		done # !pid_idx
@@ -692,90 +665,19 @@ if [ 0 -eq 1 ]; then
 	    let bch_idx=$((bch_idx+1))
 	    printf "${spt_nm}: Waiting for (partial) batch ${bch_idx} to finish...\n"
 	    for ((pid_idx=${idx_srt};pid_idx<${fl_nbr};pid_idx++)); do
-		wait ${d23_pid[${pid_idx}]}
+		wait ${anl_pid[${pid_idx}]}
 		if [ $? -ne 0 ]; then
-		    printf "${spt_nm}: ERROR Failed to convert 2D->3D. cmd_d23[${pid_idx}] failed. Debug this:\n${cmd_d23[${pid_idx}]}\n"
+		    printf "${spt_nm}: ERROR Failed template analysis. cmd_anl[${pid_idx}] failed. Debug this:\n${cmd_anl[${pid_idx}]}\n"
 		    exit 1
 		fi # !err
 	    done # !pid_idx
 	fi # !bch_flg
     fi # !par_typ
-
-# Final loop, in serial mode, to finish processing
-for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
-    # fxm: remove this redundant chunk of code to determine in_fl, out_fl
-    in_fl=${fl_in[${fl_idx}]}
-    if [ "$(basename ${in_fl})" = "${in_fl}" ]; then
-	in_fl="${drc_pwd}/${in_fl}"
-    fi # !basename
-    idx_prn=`printf "%02d" ${fl_idx}`
-    printf "Input #${idx_prn}: ${in_fl}\n"
-    if [ "${out_usr_flg}" = 'Yes' ]; then 
-	if [ ${fl_nbr} -ge 2 ]; then 
-	    echo "ERROR: Single output filename specified with -o for multiple input files"
-	    echo "HINT: For multiple input files use -O option to specify output directory and do not use -o option. Output files will have same name as input files, but will be in different directory."
-	    exit 1
-	fi # !fl_nbr
-	if [ -n "${drc_usr}" ]; then
-	    out_fl="${drc_out}/${out_fl}"
-	fi # !drc_usr
-    else # !out_usr_flg
-	out_fl="${drc_out}/$(basename ${in_fl})"
-    fi # !out_fl
-    if [ "${in_fl}" = "${out_fl}" ]; then
-	echo "ERROR: Input file = Output file = ${in_fl}"
-	echo "HINT: To prevent inadvertent data loss, ${spt_nm} insists that Input file and Output filenames differ"
-	exit 1
-    fi # !basename
-
-    # Convert netCDF3 to netCDF4
-    if [ "${n34_flg}" = 'Yes' ]; then
-	n34_in=${d23_out}
-	n34_out=${out_fl}
-	printf "n34(in)  : ${n34_in}\n"
-	printf "n34(out) : ${n34_out}\n"
-	cmd_n34[${fl_idx}]="ncks -O -4 ${n34_in} ${n34_out}"
-	in_fl=${n34_fl}
-	if [ ${dbg_lvl} -ge 1 ]; then
-	    echo ${cmd_n34[${fl_idx}]}
-	fi # !dbg
-	if [ ${dbg_lvl} -ne 2 ]; then
-	    eval ${cmd_n34[${fl_idx}]}
-	    if [ $? -ne 0 ] || [ ! -f ${n34_out} ]; then
-		printf "${spt_nm}: ERROR Failed to convert netCDF3 to netCDF4. Debug this:\n${cmd_n34[${fl_idx}]}\n"
-		exit 1
-	    fi # !err
-	fi # !dbg
-    fi # !n34_flg
-    
-    # Merge JSON metadata with data
-    if [ "${mrg_flg}" = 'Yes' ]; then
-	mrg_in=${jsn_out}
-	mrg_out=${n34_out}
-	printf "mrg(in)  : ${mrg_in}\n"
-	printf "mrg(out) : ${mrg_out}\n"
-	mrg_fl=${n34_fl}
-	cmd_mrg[${fl_idx}]="ncks -A ${mrg_in} ${mrg_out}"
-	in_fl=${mrg_fl}
-	if [ ${dbg_lvl} -ge 1 ]; then
-	    echo ${cmd_mrg[${fl_idx}]}
-	fi # !dbg
-	if [ ${dbg_lvl} -ne 2 ]; then
-	    eval ${cmd_mrg[${fl_idx}]}
-	    if [ $? -ne 0 ] || [ ! -f ${mrg_fl} ]; then
-		printf "${spt_nm}: ERROR Failed to merge JSON metadata with data file. Debug this:\n${cmd_mrg[${fl_idx}]}\n"
-		exit 1
-	    fi # !err
-	fi # !dbg
-    fi # !mrg_flg
-
-done # !fl_idx
-
 fi # !0
 
 if [ "${cln_flg}" = 'Yes' ]; then
     printf "Cleaning-up intermediate files...\n"
-    /bin/rm -f ${att_fl}.fl*.tmp ${clb_fl}.fl*.tmp ${cmp_fl}.fl*.tmp ${d23_fl}.fl*.tmp ${jsn_fl}.fl*.tmp ${mrg_fl}.fl*.tmp ${tmp_fl}.fl*.tmp ${trn_fl}.fl*.tmp
+    /bin/rm -f ${anl_fl}.fl*.tmp ${att_fl}.fl*.tmp ${clb_fl}.fl*.tmp ${cmp_fl}.fl*.tmp ${jsn_fl}.fl*.tmp ${mrg_fl}.fl*.tmp ${trn_fl}.fl*.tmp
 fi # !cln_flg
 
 date_end=$(date +"%s")
