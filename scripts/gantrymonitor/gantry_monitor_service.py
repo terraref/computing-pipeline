@@ -638,11 +638,14 @@ def initializeGlobusTransfer():
         sentSomeMd = False
 
         # Loop over a copy of the list instead of actual thing - other thread will be appending to actual thing
-        try:
-            loopingTransfers = copy.deepcopy(pendingTransfers)
-        except RuntimeError:
-            # If there's a problem accessing this dict, return to it later
-            return
+        copied = False
+        while not copied:
+            try:
+                loopingTransfers = copy.deepcopy(pendingTransfers)
+                copied = True
+            except RuntimeError:
+                # If there's a problem accessing this dict, wait & retry
+                time.sleep(0.1)
 
         # This will hold the leftover pending transfers once we've hit the max size for this transfer
         remainingPendingTransfers = copy.deepcopy(loopingTransfers)
@@ -819,10 +822,11 @@ def globusMonitorLoop():
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if globusWait <= 0:
             if status_numActive < config["globus"]["max_active_tasks"]:
-                log("initializing Globus transfers")
+                log("checking pending file list...")
                 # Clean up the pending object of straggling keys, then initialize Globus transfers
                 cleanPendingTransfers()
                 if pendingTransfers != {}:
+                    log("pending files found. initializing Globus transfers.")
                     writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
                     initializeGlobusTransfer()
 
