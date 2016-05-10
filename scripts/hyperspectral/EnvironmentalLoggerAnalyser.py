@@ -72,17 +72,17 @@ def formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation):
     into a file of JSON array
     '''
     with open(fileLocation, 'r') as fileHandler:
-        tempList, wavelengthList, spectrumList, k, writtingToWavelength =\
+        tempList, wavelengthList, spectrumList, k, writeToWavelength =\
             fileHandler.read().split('\n'), [], [[]], 0, True
         for i in range(len(tempList)):
             if "environment_sensor_set_reading" in tempList[i] and i > 2:
                 linePosition.append(i - 1)
-            if "wavelength" in tempList[i] and writtingToWavelength:
+            if "wavelength" in tempList[i] and writeToWavelength:
                 wavelengthList.append(
                     float(tempList[i][tempList[i].find(':') + 1: -2]))
             if "wavelength" not in tempList[i] and "wavelength" in tempList[i - 4]\
                     and "band" not in tempList[i] and "," not in tempList[i]:
-                writtingToWavelength = False
+                writeToWavelength = False
                 spectrumList.append([])
                 k += 1
             if "spectrum" in tempList[i]:
