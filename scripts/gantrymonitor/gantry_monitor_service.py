@@ -275,7 +275,7 @@ def filenameInActiveTasks(filename):
 
     return False
 
-"""Add a particular file to pendingTransfers, checking for metadata first (used by manual API submissions)"""
+"""Add a particular file to pendingTransfers"""
 def addFileToPendingTransfers(f):
     global pendingTransfers
 
@@ -291,30 +291,18 @@ def addFileToPendingTransfers(f):
     datasetID = sensorname +" - "+timestamp
     gantryDirPath = gantryDirPath.replace(filename, "")
 
-    if filename.find("metadata.json") == -1:
-        pendingTransfers = updateNestedDict(pendingTransfers, {
-            datasetID: {
-                "files": {
-                    filename: {
-                        "name": filename,
-                        "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath
-                    }
+    pendingTransfers = updateNestedDict(pendingTransfers, {
+        datasetID: {
+            "files": {
+                filename: {
+                    "name": filename,
+                    "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath
                 }
             }
-        })
-        log("file queued for transfer: "+f)
+        }
+    })
+    log("file queued for transfer: "+f)
 
-    else:
-        # Found metadata.json, assume it is for dataset
-        mdobj = loadJsonFile(f, True)
-        if mdobj:
-            pendingTransfers = updateNestedDict(pendingTransfers, {
-                datasetID: {
-                    "md": mdobj,
-                    "md_path": gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
-                }
-            })
-            log("dataset metadata found for: "+datasetID)
 
 """Take line of FTP transfer log and parse a datetime object from it"""
 def parseDateFromFTPLogLine(line):
@@ -436,7 +424,6 @@ def getGantryFilesForTransfer():
             if found not in foundFiles:
                 foundFiles.append(found)
 
-    inaccessibleCount = 0
     for f in foundFiles:
         # Get dataset info & path details from found file
         if f.find(gantryDir) > -1:
@@ -446,6 +433,7 @@ def getGantryFilesForTransfer():
 
         pathParts = gantryDirPath.split("/")
         filename = pathParts[-1]
+        # TODO: Don't hardcode ELogger but come up with generalized folder structure parsing
         sensorname = ("EnvironmentLogger" if (f.find("EnvironmentLogger")>-1 or f.find("EnviromentLogger")>-1)
                         else (pathParts[-4] if len(pathParts)>3 else "unknown_sensor"))
         timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
@@ -463,27 +451,12 @@ def getGantryFilesForTransfer():
         if 'files' not in transferQueue[datasetID]: transferQueue[datasetID]['files'] = {}
 
         if filename not in pendingTransfers[datasetID]['files'] and not filenameInActiveTasks(filename):
-            if filename.find("metadata.json") == -1:
-                # TODO: Check for .json file with same name as current file - assume metadata if so
-                transferQueue[datasetID]['files'][filename] = {
-                    "name": filename,
-                    "path": gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
-                    # "md": {}, only include md key if present
-                    # "md_name": "" metadata filename
-                    # "md_path": "" metadata folder
-                }
-            else:
-                mdobj = loadJsonFile(f, True)
-                if mdobj:
-                    # Found metadata.json, assume it is for dataset
-                    transferQueue[datasetID]['md'] = loadJsonFile(f)
-                    transferQueue[datasetID]['md_path'] = gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
-                else:
-                    # File was inaccessible; remove from pending becuase it was logged in appropriate file
-                    inaccessibleCount += 1
+            transferQueue[datasetID]['files'][filename] = {
+                "name": filename,
+                "path": gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
+            }
 
     status_numPending += len(foundFiles)
-    status_numPending -= inaccessibleCount
     return transferQueue
 
 """Check folders in config for files older than the configured age, and queue for transfer"""
@@ -639,10 +612,6 @@ def initializeGlobusTransfer():
                                preserve_timestamp=True)
 
         queueLength = 0
-        # Metadata is handled slightly differently as they aren't files adding to the Globus transfer, but they ARE
-        # metadata.json files in the pending files queue that need to be purged correctly after the transfer starts.
-        mdQueueLength = 0
-        sentSomeMd = False
 
         # Loop over a copy of the list instead of actual thing - other thread will be appending to actual thing
         loopingTransfers = safeCopy(pendingTransfers)
@@ -670,31 +639,12 @@ def initializeGlobusTransfer():
                         del remainingPendingTransfers[ds]['files'][f]
                     else:
                         break
-                if "md" in loopingTransfers[ds]:
-                    mdQueueLength += 1
-                    currentTransferBatch[ds]['md'] = loopingTransfers[ds]['md']
-                    del remainingPendingTransfers[ds]['md']
-                    if "md_path" in loopingTransfers[ds]:
-                        del remainingPendingTransfers[ds]['md_path']
 
                 # Clean up placeholder entries once queue length is exceeded
                 if currentTransferBatch[ds]['files'] == {}:
                     del currentTransferBatch[ds]['files']
                 if currentTransferBatch[ds] == {}:
                     del currentTransferBatch[ds]
-
-            elif "md" in loopingTransfers[ds]:
-                # We have metadata for a dataset, but no files. Just send metadata separately.
-                mdxfer = sendMetadataToMonitor(ds, loopingTransfers[ds]['md'])
-                # Leave metadata in pending if it wasn't successfully posted to Clowder
-                if mdxfer.status_code == 200:
-                    sentSomeMd = True
-                    # Otherwise remove dataset entry since we already know there are no files
-                    status_numPending -= 1
-                    del remainingPendingTransfers[ds]
-                    # Move .json file to deletion queue
-                    createLocalSymlink(os.path.join(config['gantry']['incoming_files_path'], loopingTransfers[ds]['md_path']),
-                                  os.path.join(config['gantry']['deletion_queue'], loopingTransfers[ds]['md_path']), "metadata.json")
 
             if queueLength >= maxQueue:
                 break
@@ -732,16 +682,11 @@ def initializeGlobusTransfer():
 
                 pendingTransfers = remainingPendingTransfers
                 status_numPending -= queueLength
-                status_numPending -= mdQueueLength
                 writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
             else:
                 # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
                 log("globus transfer failed for "+ds+" ("+str(status_code)+": "+str(status_message)+")", "ERROR")
                 return
-        elif sentSomeMd:
-            # If metadata was sent there was still activity, so update pending transfers
-            pendingTransfers = remainingPendingTransfers
-            writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
 
         status_numActive = len(activeTasks)
         cleanPendingTransfers()
@@ -851,7 +796,7 @@ def globusMonitorLoop():
                     # Write out results log
                     writeCompletedTransferToDisk(task)
 
-                    # Move files (and metadata files if needed) to staging area for deletion
+                    # Move files to staging area for deletion
                     if globusStatus == "SUCCEEDED":
                         deleteDir = config['gantry']['deletion_queue']
                         if deleteDir != "":
@@ -861,13 +806,6 @@ def globusMonitorLoop():
                                         fobj = task['contents'][ds]['files'][f]
                                         createLocalSymlink(os.path.join(config['gantry']['incoming_files_path'], fobj['path']),
                                                       os.path.join(deleteDir, fobj['path']), fobj['name'])
-                                        if 'md'in fobj:
-                                            createLocalSymlink(os.path.join(config['gantry']['incoming_files_path'], fobj['md_path']),
-                                                          os.path.join(deleteDir, fobj['md_path']), fobj['md_name'])
-                                if 'md' in task['contents'][ds]:
-                                    dsobj = task['contents'][ds]
-                                    createLocalSymlink(os.path.join(config['gantry']['incoming_files_path'], dsobj['md_path']),
-                                                  os.path.join(deleteDir, dsobj['md_path']), "metadata.json")
 
                             # Crawl and remove empty directories
                             # log("...removing empty directories in "+config['gantry']['incoming_files_path'])

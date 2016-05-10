@@ -547,7 +547,6 @@ def notifyClowderOfCompletedTask(task):
 
             # Add local files to dataset by path
             if 'files' in task['contents'][ds]:
-                log("adding files to dataset "+ds)
                 for f in task['contents'][ds]['files']:
                     fobj = task['contents'][ds]['files'][f]
                     if f.find("metadata.json") == -1:
@@ -566,8 +565,8 @@ def notifyClowderOfCompletedTask(task):
                         else:
                             updatedTask['contents'][ds]['files'][f]['clowder_id'] = json.loads(fi.text)['id']
                     else:
-                        log("adding metadata from file to dataset "+ds)
-                        mdobj = loadJsonFile(f)
+                        log("adding metadata from .json file to dataset "+ds)
+                        mdobj = loadJsonFile(fobj['path'])
                         md = clean_json_keys(mdobj)
 
                         dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
@@ -579,6 +578,7 @@ def notifyClowderOfCompletedTask(task):
                         else:
                             updatedTask['contents'][ds]['files'][f]['metadata_loaded'] = True
                             updatedTask['contents'][ds]['files'][f]['clowder_id'] = "attached to dataset"
+
         writeCompletedTaskToDisk(updatedTask)                    
         return True
     else:
