@@ -19,7 +19,7 @@ Input  filenames must have '.json' extension
 Output filenames will have '.nc' extension
 
 UCI test:
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/environmentlogger_test.json ${DATA}/terraref
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/input ${DATA}/terraref/output
 
 UCI production:
 python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/EnvironmentLogger/2016-04-07/2016-04-07_12-00-07_enviromentlogger.json ~/rgr
@@ -38,11 +38,14 @@ If the output folder does not exist, EnvironmentalLoggerAnalyser.py will create 
 20160503: Add chunksizes parameters for time, which significantly reduces the processing time (and the file size)
           Add timestamps and commandLine the user used for each exported file
           Remind the user currently the script is dealing with which file
-20160506: Formatting issue had been solved by Dr.LeBauer, now the script will open the JSON in read-only mode
-          and reformatting function had been removed
-
-TODO:
-1. reassign the variable "time" as the offset to the base time (temporary it is the UNIX base time)
+20160508: 1. Now the members in "timestamp" array are double-precison floats, with unit of days offset from
+          the UNIX base time (In Gregorian Calender).
+          2. Remove unnecessary I/O (in wavelength, because we only need the wavelengths in the first set of readings)
+----------------------------------------------------------------------------------------
+Note:
+If you need a different base time, it is named "_UNIX_BASETIME" and located at the 
+beginning of the script as a global variable. You could simply change the parameters 
+as they are named.
 ----------------------------------------------------------------------------------------
 Thanks for the advice from Professor Zender and testing data from Mr. Maloney
 ----------------------------------------------------------------------------------------
@@ -52,13 +55,15 @@ import json
 import time
 import sys
 import os
+from datetime import date, datetime
 from netCDF4 import Dataset
 
 _UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hecto-Pascal", u"DegCelsius": "Celsius",
-                    u's': 'second', u'm/s': 'meter second-1', u"mm/h": 'millimeter hour-1',
-                    u"relHumPerCent": "percent", u"?mol/(m^2*s)": "micromole meter-2 second-1",
+                    u's': 'second', u'm/s': 'meter second-1', u"mm/h": 'milimeters hour-1',
+                    u"relHumPerCent": "percent", u"?mol/(m^2*s)": "micromole meters-2 second-1",
                     u'kilo Lux': 'kilo Lux', u'degrees': 'degrees', '': ''}
-_NAMES = {'sensor par': 'Sensor Photosynthetically Active Radiation'}
+_NAMES = {'sensor par': 'Sensor Photosynthetical Active Radiation'}
+_UNIX_BASETIME = date(year=1970, month=1, day=1)
 
 
 def formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation):
@@ -67,27 +72,25 @@ def formattingTheJSONFileAndReturnWavelengthAndSpectrum(fileLocation):
     into a file of JSON array
     '''
     with open(fileLocation, 'r') as fileHandler:
-        tempList, linePosition, wavelengthList, spectrumList, j, k =\
-            fileHandler.read().split('\n'), list(), [[]], [[]], 0, 0
+        tempList, wavelengthList, spectrumList, k, writtingToWavelength =\
+            fileHandler.read().split('\n'), [], [[]], 0, True
         for i in range(len(tempList)):
             if "environment_sensor_set_reading" in tempList[i] and i > 2:
                 linePosition.append(i - 1)
-            if "wavelength" in tempList[i]:
-                wavelengthList[j].append(
+            if "wavelength" in tempList[i] and writtingToWavelength:
+                wavelengthList.append(
                     float(tempList[i][tempList[i].find(':') + 1: -2]))
             if "wavelength" not in tempList[i] and "wavelength" in tempList[i - 4]\
                     and "band" not in tempList[i] and "," not in tempList[i]:
-                wavelengthList.append([])
-                j += 1
+                writtingToWavelength = False
                 spectrumList.append([])
                 k += 1
             if "spectrum" in tempList[i]:
                 spectrumList[k].append(
                     float(tempList[i][tempList[i].find(':') + 1: -2]))
 
-        wavelengthList.remove([])
         spectrumList.remove([])
-        
+
     return wavelengthList, spectrumList
 
 
@@ -112,13 +115,7 @@ def renameTheValue(name):
     elif name in _NAMES:
         name = _NAMES[name]
 
-    returningString = str()
-    for letters in name:
-        if letters == ' ':
-            returningString += '_'
-        else:
-            returningString += letters
-    return returningString
+    return name.replace(" ", "_")
 
 
 def getSpectrometerInformation(arrayOfJSON):
@@ -148,23 +145,40 @@ def getListOfRawValue(arrayOfJSON, dataName):
 
 
 def _timeStamp():
+    '''
+    Record the time the script is triggered
+    '''
     return time.strftime("%a %b %d %H:%M:%S %Y",  time.localtime(int(time.time())))
+
+
+def translateTime(timeString):
+    '''
+    Translate the time the metadata included as the days offset to the basetime.
+    '''
+    timeUnpack = datetime.strptime(timeString, "%Y.%m.%d-%I:%M:%S").timetuple()
+    timeSplit  = date(year=timeUnpack.tm_year, month=timeUnpack.tm_mon,
+                     day=timeUnpack.tm_mday) - _UNIX_BASETIME
+
+    return (timeSplit.total_seconds() + timeUnpack.tm_hour * 3600.0 + timeUnpack.tm_min * 60.0 +
+            timeUnpack.tm_sec) / (3600.0 * 24.0)
 
 
 def main(JSONArray, outputFileName, wavelength=None, spectrum=None, recordTime=None, commandLine=None):
     '''
     Main netCDF handler, write data to the netCDF file indicated.
     '''
-    netCDFHandler = Dataset(outputFileName, 'w', format='NETCDF4')
-    dataMemberList = [JSONMembers[u"environment_sensor_set_reading"]
+    netCDFHandler    = Dataset(outputFileName, 'w', format='NETCDF4')
+    dataMemberList   = [JSONMembers[u"environment_sensor_set_reading"]
                       for JSONMembers in JSONArray]
-    timeStampList = [JSONMembers[u'timestamp']
+    timeStampList    = [translateTime(JSONMembers[u'timestamp'])
                      for JSONMembers in dataMemberList]
-    timeDimension = netCDFHandler.createDimension("time", None)
+    timeDimension    = netCDFHandler.createDimension("time", None)
     tempTimeVariable = netCDFHandler.createVariable(
-        'time', str, ('time',), chunksizes=(1,))
+        'timestamps', 'f8', ('time',), chunksizes=(1,))
     for i in range(len(timeStampList)):  # Assign Times
         tempTimeVariable[i] = timeStampList[i]
+    setattr(tempTimeVariable, "unit",     "days since 1970.01.01-00:00:00 (UNIX base time)")
+    setattr(tempTimeVariable, "calender", "Gregorian")
 
     for data in dataMemberList[0]:
         if data != 'spectrometer' and type(dataMemberList[0][data]) not in (str, unicode):
@@ -189,11 +203,9 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, recordTime=N
                 getSpectrometerInformation(dataMemberList)[1]
 
     if wavelength and spectrum:
-        netCDFHandler.createDimension("wavelength", len(wavelength[0]))
+        netCDFHandler.createDimension("wavelength", len(wavelength))
         netCDFHandler.createVariable("wavelength", 'f4', ('wavelength',))[
-            :] = wavelength[0]
-        setattr(netCDFHandler.variables['wavelength'], 'units', 'nanometers')
-        setattr(netCDFHandler.variables['wavelength'], 'long_name', 'Wavelength')
+            :] = wavelength
         netCDFHandler.createVariable("spectrum", 'f4', ('time', 'wavelength'))[
             :, :] = spectrum
 

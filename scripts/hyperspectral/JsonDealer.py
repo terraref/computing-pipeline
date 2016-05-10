@@ -45,6 +45,10 @@ Update 4.25:
 Attributes and variables now looks nicer.
 Rename "Velocity ..." as "Gantry Speed ..."
 Set the "default bands" variable from the header file as attributes of "exposure" variable.
+
+Update 5.9:
+Now the JsonDealer.py will also parse the data from frameIndex.txt
+the time-related variable (except history) will be recorded as the offset to the _UNIX_BASETIME
 ----------------------------------------------------------------------------------------
 '''
 
@@ -54,6 +58,7 @@ import sys
 import os
 import platform
 import struct
+from datetime import date, datetime
 from netCDF4 import Dataset
 
 _CONSTRUCTOR_TEMPLATE  = '''self.{var} = source[u'lemnatec_measurement_metadata'][u'{var}']'''
@@ -63,6 +68,8 @@ _VELOCITY_DICTIONARY = {'x': 'u', 'y': 'v', 'z': 'w'}
 DATATYPE = {'1': ('H', 2), '2': ('i', 4), '3': ('l', 4), '4': ('f', 4), '5': (
     'd', 8), '12': ('H', 4), '13': ('L', 4), '14': ('q', 8), '15': ('Q', 8)}
 _RAW_VERSION = platform.python_version()[0]
+_UNIX_BASETIME = date(year=1970, month=1, day=1)
+
 
 
 # class JsonError(Exception):
@@ -127,11 +134,13 @@ class DataContainer(object):
         # file
         setattr(self, "header_info", None)
         netCDFHandler = _fileExistingCheck(outputFilePath, self)
+        yearMonthDate = str()
         delattr(self, "header_info")
 
         if netCDFHandler == 0:
             return
 
+        ##### Write the data from metadata to netCDF #####
         for members in self.__dict__:
             tempGroup = netCDFHandler.createGroup(members)
             for submembers in self.__dict__[members]:
@@ -140,32 +149,45 @@ class DataContainer(object):
                             self.__dict__[members][submembers])
 
                 else:
+                    if "Time" in self.__dict__[members]:
+                        yearMonthDate = self.__dict__[members]["Time"]
                     setattr(tempGroup, _replaceIllegalChar(submembers),
                             self.__dict__[members][submembers])
                     nameSet = _spliter(submembers)
 
                     if 'Velocity' in submembers or 'Position' in submembers:
                         tempVariable = tempGroup.createVariable(
-                            nameSet[0][-1], 'f4')
+                            nameSet[0][-1], 'f8')
                         setattr(tempVariable, 'long_name', nameSet[0][0])
                         setattr(tempVariable, 'units',      nameSet[1])
                     else:
                         tempVariable = tempGroup.createVariable(
-                            nameSet[0], 'f4')
+                            nameSet[0], 'f8')
                         setattr(tempVariable, 'long_name', nameSet[0])
 
                     tempVariable.assignValue(
                         float(self.__dict__[members][submembers]))
 
+        ##### Write the data from header files to netCDF #####
         wavelength = getWavelength(inputFilePath)
         netCDFHandler.createDimension("wavelength", len(wavelength))
         tempWavelength = netCDFHandler.createVariable(
-            "wavelength", 'f4', 'wavelength')
+            "wavelength", 'f8', 'wavelength')
         setattr(tempWavelength, 'long_name', 'Hyperspectral Wavelength')
         setattr(tempWavelength, 'units', 'nanometers')
         tempWavelength[:] = wavelength
-
         writeHeaderFile(inputFilePath, netCDFHandler)
+
+        ##### Write the data from frameIndex files to netCDF #####
+        tempFrameTime = frameIndexParser(inputFilePath.strip("raw")+"frameIndex.txt", yearMonthDate)
+        netCDFHandler.createDimension("y", len(tempFrameTime))
+        frameTime    = netCDFHandler.createVariable("frametime", "f8", ("y",))
+        frameTime[:] = tempFrameTime
+        setattr(frameTime, "unit",     " days since 1970.01.01-00:00:00 (UNIX basetime)")
+        setattr(frameTime, "calender", "Gregorian")
+
+
+        ##### Write the history to netCDF #####
         netCDFHandler.history = _timeStamp() + ': python ' + commandLine
 
         netCDFHandler.close()
@@ -239,6 +261,9 @@ def _fileExistingCheck(filePath, dataContainer):
                 elif userChoice is 'O' or 'A':
                     os.remove(filePath)
                     return Dataset(filePath, 'w', format='NETCDF4')
+        else:
+            os.remove(filePath)
+            return Dataset(filePath, 'w', format='NETCDF4')
 
     else:
         return Dataset(filePath, 'w', format='NETCDF4')
@@ -247,7 +272,7 @@ def _fileExistingCheck(filePath, dataContainer):
 def isDigit(string):
     '''
     This method will check whether the string can be convert to int or float
-    Similar to .isdigit method in built-in string class, but python's will not check whether it is a float
+    Similar to .isdight method in built-in string class, but python's will not check whether it is a float
     '''
     try:
         if '.' in string:
@@ -263,7 +288,6 @@ def _replaceIllegalChar(string):
     '''
     This method will replace spaces (' '), slashes('/')
     '''
-    rtn = str()
     if "current setting" in string:
         string = string.split(' ')[-1]
     elif "Velocity" in string:
@@ -271,19 +295,14 @@ def _replaceIllegalChar(string):
     elif "Position" in string:
         string = 'Position in ' + string[-1].upper() + ' Direction'
 
-    for members in string:
-        if members == '/':
-            rtn += '_per_'
-        elif members == ' ':
-            rtn += '_'
-        else:
-            rtn += members
+    string.replace('/', '_per_')
+    string.replace(' ', '_')
     if '(' in string:
-        rtn = rtn[:rtn.find('(') - 1]
+        string = string[:string.find('(') - 1]
     elif '[' in string:
-        rtn = rtn[:rtn.find('[') - 1]
+        string = string[:string.find('[') - 1]
 
-    return rtn
+    return string
 
 
 def _spliter(string):
@@ -344,6 +363,22 @@ def printOnVersion(prompt):
         exec("print(prompt)")
 
 
+def translateTime(timeString, yearMonthDate):
+    hourUnpack = datetime.strptime(timeString, "%H:%M:%S").timetuple()
+    timeUnpack = datetime.strptime(yearMonthDate, "%m/%d/%Y %H:%M:%S").timetuple()
+    timeSplit  = date(year=timeUnpack.tm_year, month=timeUnpack.tm_mon,
+                     day=timeUnpack.tm_mday) - _UNIX_BASETIME
+
+    return (timeSplit.total_seconds() + hourUnpack.tm_hour * 3600.0 + hourUnpack.tm_min * 60.0 +
+            hourUnpack.tm_sec) / (3600.0 * 24.0)
+
+
+def frameIndexParser(fileName, yearMonthDate):
+    with open(fileName) as fileHandler:
+        return [translateTime(dataMembers.split()[1], yearMonthDate) for dataMembers in fileHandler.readlines()[1:]]
+
+
+
 def writeHeaderFile(fileName, netCDFHandler):
     '''
     The main function, reading the data and exporting netCDF file
@@ -383,11 +418,11 @@ def writeHeaderFile(fileName, netCDFHandler):
 
     try:
         headerInfo.createVariable(
-            'red_band_index', 'u2').assignValue(threeColorBands[0])
+            'red_band_index', 'f8').assignValue(threeColorBands[0])
         headerInfo.createVariable(
-            'green_band_index', 'u2').assignValue(threeColorBands[1])
+            'green_band_index', 'f8').assignValue(threeColorBands[1])
         headerInfo.createVariable(
-            'blue_band_index', 'u2').assignValue(threeColorBands[2])
+            'blue_band_index', 'f8').assignValue(threeColorBands[2])
 
         setattr(netCDFHandler.groups['sensor_variable_metadata'].variables[
                 'exposure'], 'red_band_index',   threeColorBands[0])
