@@ -181,8 +181,8 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, recordTime=N
         'timestamps', 'f8', ('time',), chunksizes=(1,))
     for i in range(len(timeStampList)):  # Assign Times
         tempTimeVariable[i] = timeStampList[i]
-    setattr(tempTimeVariable, "units",     "days since 1970.01.01-00:00:00 (UNIX base time)")
-    setattr(tempTimeVariable, "calender", "Gregorian")
+    setattr(tempTimeVariable, "units",     days since 1970-01-01 00:00:00")
+    setattr(tempTimeVariable, "calender", "gregorian")
 
     for data in dataMemberList[0]:
         if data != 'spectrometer' and type(dataMemberList[0][data]) not in (str, unicode):
