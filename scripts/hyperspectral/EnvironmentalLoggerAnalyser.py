@@ -178,7 +178,7 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, recordTime=N
                      for JSONMembers in dataMemberList]
     timeDimension    = netCDFHandler.createDimension("time", None)
     tempTimeVariable = netCDFHandler.createVariable(
-        'timestamps', 'f8', ('time',), chunksizes=(1,))
+        'time', 'f8', ('time',), chunksizes=(1,))
     for i in range(len(timeStampList)):  # Assign Times
         tempTimeVariable[i] = timeStampList[i]
     setattr(tempTimeVariable, "units",    "days since 1970-01-01 00:00:00")
