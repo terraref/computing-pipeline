@@ -64,10 +64,10 @@ import os
 from datetime import date, datetime
 from netCDF4 import Dataset
 
-_UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hecto-Pascal", u"DegCelsius": "Celsius",
+_UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hectopascal", u"DegCelsius": "Celsius",
                     u's': 'second', u'm/s': 'meter second-1', u"mm/h": 'millimeter hour-1',
-                    u"relHumPerCent": "percent", u"?mol/(m^2*s)": "micromole meter-2 second-1",
-                    u'kilo Lux': 'kilo Lux', u'degrees': 'degrees', '': ''}
+                    u"relHumPerCent": "percent", u"?mol/(m^2*s)": "micromole meter-2 second-1", u"umol/(m^2*s)": "micromole meter-2 second-1",
+                    u'kilo Lux': 'kilolux', u'degrees': 'degrees', u'?s': 'microsecond', u'us': 'microsecond', '': ''}
 _NAMES = {'sensor par': 'Sensor Photosynthetically Active Radiation'}
 _UNIX_BASETIME = date(year=1970, month=1, day=1)
 
