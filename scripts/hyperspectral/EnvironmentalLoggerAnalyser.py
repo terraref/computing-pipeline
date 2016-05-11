@@ -19,7 +19,7 @@ Input  filenames must have '.json' extension
 Output filenames will have '.nc' extension
 
 UCI test:
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/input ${DATA}/terraref/output
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/environmentlogger_test.json ${DATA}/terraref
 
 UCI production:
 python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/EnvironmentLogger/2016-04-07/2016-04-07_12-00-07_enviromentlogger.json ~/rgr
@@ -41,6 +41,12 @@ If the output folder does not exist, EnvironmentalLoggerAnalyser.py will create 
 20160508: 1. Now the members in "timestamp" array are double-precison floats, with unit of days offset from
           the UNIX base time (In Gregorian Calender).
           2. Remove unnecessary I/O (in wavelength, because we only need the wavelengths in the first set of readings)
+20160509: 1. Retrieve the adjustment Professor Zender made in version a38ca7d, May 4th.
+          2. Rename the wavelength variable and dimension as "wvl_lgr" to avoid the naming
+          collision with nco
+
+TODO:
+1. Create a time array including string of timestamps (dimension=time). 
 ----------------------------------------------------------------------------------------
 Note:
 If you need a different base time, it is named "_UNIX_BASETIME" and located at the 
@@ -62,7 +68,7 @@ _UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hecto-Pascal", u"DegCelsius": "Celsi
                     u's': 'second', u'm/s': 'meter second-1', u"mm/h": 'millimeter hour-1',
                     u"relHumPerCent": "percent", u"?mol/(m^2*s)": "micromole meter-2 second-1",
                     u'kilo Lux': 'kilo Lux', u'degrees': 'degrees', '': ''}
-_NAMES = {'sensor par': 'Sensor Photosynthetic Active Radiation'}
+_NAMES = {'sensor par': 'Sensor Photosynthetically Active Radiation'}
 _UNIX_BASETIME = date(year=1970, month=1, day=1)
 
 
@@ -175,7 +181,7 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, recordTime=N
         'timestamps', 'f8', ('time',), chunksizes=(1,))
     for i in range(len(timeStampList)):  # Assign Times
         tempTimeVariable[i] = timeStampList[i]
-    setattr(tempTimeVariable, "unit",     "days since 1970.01.01-00:00:00 (UNIX base time)")
+    setattr(tempTimeVariable, "units",     "days since 1970.01.01-00:00:00 (UNIX base time)")
     setattr(tempTimeVariable, "calender", "Gregorian")
 
     for data in dataMemberList[0]:
@@ -201,10 +207,12 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, recordTime=N
                 getSpectrometerInformation(dataMemberList)[1]
 
     if wavelength and spectrum:
-        netCDFHandler.createDimension("wavelength", len(wavelength))
-        netCDFHandler.createVariable("wavelength", 'f4', ('wavelength',))[
+        netCDFHandler.createDimension("wvl_lgr", len(wavelength))
+        netCDFHandler.createVariable("wvl_lgr", 'f4', ('wvl_lgr',))[
             :] = wavelength
-        netCDFHandler.createVariable("spectrum", 'f4', ('time', 'wavelength'))[
+        setattr(netCDFHandler.variables['wvl_lgr'], 'units', 'nanometers')
+        setattr(netCDFHandler.variables['wvl_lgr'], 'long_name', 'Wavelength')
+        netCDFHandler.createVariable("spectrum", 'f4', ('time', 'wvl_lgr'))[
             :, :] = spectrum
 
     netCDFHandler.history = recordTime + ': python ' + commandLine
