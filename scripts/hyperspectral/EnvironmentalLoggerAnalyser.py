@@ -181,7 +181,7 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, recordTime=N
         'timestamps', 'f8', ('time',), chunksizes=(1,))
     for i in range(len(timeStampList)):  # Assign Times
         tempTimeVariable[i] = timeStampList[i]
-    setattr(tempTimeVariable, "units",     days since 1970-01-01 00:00:00")
+    setattr(tempTimeVariable, "units",    "days since 1970-01-01 00:00:00")
     setattr(tempTimeVariable, "calender", "gregorian")
 
     for data in dataMemberList[0]:
