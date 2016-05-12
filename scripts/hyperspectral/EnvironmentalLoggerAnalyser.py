@@ -272,7 +272,7 @@ def translateTime(timeString):
     '''
     Translate the time the metadata included as the days offset to the basetime.
     '''
-    timeUnpack = datetime.strptime(timeString, "%Y.%m.%d-%I:%M:%S").timetuple()
+    timeUnpack = datetime.strptime(timeString, "%Y.%m.%d-%H:%M:%S").timetuple()
     timeSplit = date(year=timeUnpack.tm_year, month=timeUnpack.tm_mon,
                      day=timeUnpack.tm_mday) - _UNIX_BASETIME
 
