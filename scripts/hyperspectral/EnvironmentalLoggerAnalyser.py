@@ -340,19 +340,19 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingF
     setattr(netCDFHandler.variables[
             'wvl_dlt'], 'long_name', "Bandwidth of environmental sensor")
 
-    netCDFHandler.createVariable("flx_sns", "f8", ("wvl_lgr",))[:] = _FLX_SNS
+    netCDFHandler.createVariable("flx_sns", "f4", ("wvl_lgr",))[:] = _FLX_SNS
     setattr(netCDFHandler.variables['flx_sns'],
-            'units', 'microwatts meter-2')
+            'units', 'microwatt meter-2')
     setattr(netCDFHandler.variables['flx_sns'], 'long_name',
             'Flux sensitivity of each band (irradiance per count)')
     setattr(netCDFHandler.variables['flx_sns'], 'provenance', "EnvironmentalLogger calibration information from file\
     S05673_08062015.IrradCal provided by TinoDornbusch and discussed here:\
     https://github.com/terraref/reference-data/issues/30#issuecomment-217518434")
 
-    netCDFHandler.createVariable("flx_dwn", 'f8', ('time',))[
+    netCDFHandler.createVariable("flx_dwn", 'f4', ('time',))[
         :] = downwellingFlux
     setattr(netCDFHandler.variables['flx_dwn'],
-            'units', 'watts meter-2')
+            'units', 'watt meter-2')
     setattr(netCDFHandler.variables['flx_dwn'], 'long_name', 'DownwellingFlux')
 
     netCDFHandler.history = recordTime + ': python ' + commandLine
