@@ -24,6 +24,8 @@
     "destination_endpoint_id": "",
     "username": "globus_username",
     "password": "globus_password",
+    "authentication_username": "source_endpoint_login",
+    "authentication_password": "source_endpoint_password",
     "authentication_refresh_frequency_secs": 43200,
     "max_transfer_file_count": 500,
     "max_active_tasks": 100

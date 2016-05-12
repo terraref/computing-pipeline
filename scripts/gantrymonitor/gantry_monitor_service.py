@@ -388,6 +388,13 @@ def activateEndpoints():
 
     generateAuthToken()
     api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+    # TODO: Can't use autoactivate; must populate credentials
+    """try:
+        actList = api.endpoint_activation_requirements(src)[2]
+        actList.set_requirement_value('myproxy', 'username', 'data_mover')
+        actList.set_requirement_value('myproxy', 'passphrase', 'terraref2016')
+        actList.set_requirement_value('delegate_proxy', 'proxy_chain', 'some PEM cert w public key')
+    except:"""
     api.endpoint_autoactivate(src)
     api.endpoint_autoactivate(dest)
 
