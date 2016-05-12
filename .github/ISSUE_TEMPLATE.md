@@ -1,6 +1,6 @@
 <!--- Provide a general summary of the issue in the Title above -->
 
-## Detailed Description
+## Description
 <!--- What change or feature do you propose? -->
 
 ## Context
