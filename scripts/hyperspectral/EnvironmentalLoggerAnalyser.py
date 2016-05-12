@@ -189,6 +189,7 @@ def wavelengthSpectrumAndDownwellingFlux(fileLocation):
     with open(fileLocation, 'r') as fileHandler:
         tempList, wavelengthList, spectrumList, k, writeToWavelength =\
             fileHandler.read().split('\n'), [], [[]], 0, True
+
         for i in range(len(tempList)):
             if "wavelength" in tempList[i] and writeToWavelength:
                 wavelengthList.append(
@@ -373,7 +374,7 @@ if __name__ == '__main__':
         else:
             outputFileName = os.path.split(fileInputLocation)[-1]
             main(tempJSONMasterList, os.path.join(fileOutputLocation,
-                                                  outputFileName.strip('.json') + '.nc'), wavelength, spectrum,
+                                                  outputFileName.strip('.json') + '.nc'), wavelength, spectrum, downwellingFlux,
                  _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
     else:  # Read and Export netCDF to folder
         for filePath, fileDirectory, fileName in os.walk(fileInputLocation):
