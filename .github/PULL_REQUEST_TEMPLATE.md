@@ -11,8 +11,6 @@
 <!--- How have you tested your changes? -->
 <!--- Have you added or updated test.sh script (and included these in the pull request)? -->
 
-## Screenshots (if appropriate):
-
 ## Types of changes
 <!--- What types of changes does your code introduce? Put an `x` in all the boxes that apply: -->
 - [ ] Bug fix (non-breaking change which fixes an issue) <!-- please add issue number -->
