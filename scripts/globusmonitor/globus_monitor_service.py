@@ -107,6 +107,20 @@ def openLog():
 
     return open(logPath, 'a+')
 
+"""Create copy of dict in safe manner for multi-thread access (won't change during copy iteration)"""
+def safeCopy(obj):
+    # Iterate across a copy since we'll be changing object
+    copied = False
+    while not copied:
+        try:
+            newObj = copy.deepcopy(obj)
+            copied = True
+        except RuntimeError:
+            # This can occur on the deepcopy step if another thread is accessing object
+            time.sleep(0.1)
+
+    return newObj
+
 """If metadata keys have periods in them, Clowder will reject the metadata"""
 def clean_json_keys(jsonobj):
     clean_json = {}
@@ -525,7 +539,7 @@ def notifyClowderOfCompletedTask(task):
         sess = requests.Session()
         sess.auth = (clowderUser, clowderPass)
 
-        updatedTask = copy.deepcopy(task)
+        updatedTask = safeCopy(task)
         for ds in task['contents']:
             dsid = fetchDatasetByName(ds, sess)
 
@@ -603,7 +617,7 @@ def globusMonitorLoop():
         # Check with Globus for any status updates on monitored tasks
         if globWait >= config['globus']['transfer_update_frequency_secs']:
             # Use copy of task list so it doesn't change during iteration
-            currentActiveTasks = copy.deepcopy(activeTasks)
+            currentActiveTasks = safeCopy(activeTasks)
             for globusID in currentActiveTasks:
                 task = activeTasks[globusID]
                 globusStatus = getGlobusStatus(task)
@@ -656,7 +670,7 @@ def clowderSubmissionLoop():
 
         # Check with Globus for any status updates on monitored tasks
         if clowderWait >= config['clowder']['globus_processing_frequency']:
-            toHandle = copy.deepcopy(unprocessedTasks)
+            toHandle = safeCopy(unprocessedTasks)
 
             for globusID in toHandle:
                 logPath = os.path.join(config['completed_tasks_path'], globusID[:2], globusID[2:4], globusID[4:6], globusID[6:8], globusID+".json")

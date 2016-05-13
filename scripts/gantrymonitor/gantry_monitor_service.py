@@ -109,6 +109,7 @@ def safeCopy(obj):
             newObj = copy.deepcopy(obj)
             copied = True
         except RuntimeError:
+            # This can occur on the deepcopy step if another thread is accessing object
             time.sleep(0.1)
 
     return newObj
