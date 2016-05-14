@@ -251,7 +251,7 @@ flx_sns={ // [uW m-2 xps-1] 10 sensitivities per line, 1024 total
 2.62283407e-4,2.63904910e-4,2.65792030e-4,2.67956880e-4,2.70494493e-4,2.73225853e-4,2.76170072e-4,2.79055057e-4,2.81984548e-4,2.88500954e-4,
 2.89109910e-4,2.93129400e-4,2.92536512e-4,2.92536512e-4};
 // Change flux sensitivity from [uW m-2 xps-1] to [W m-2 xps-1] (SI)
-flx_sns/=1.0e-6;
+flx_sns*=1.0e-6;
 
 // Change Hyperspectral Imager wavelengths from nm to m (SI)
 wavelength*=1.0e-9;

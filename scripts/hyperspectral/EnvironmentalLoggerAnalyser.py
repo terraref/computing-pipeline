@@ -45,7 +45,7 @@ If the output folder does not exist, EnvironmentalLoggerAnalyser.py will create 
           2. Rename the wavelength variable and dimension as "wvl_lgr" to avoid the naming
           collision with nco
 20160511: This update mainly adds the variables and calculations from terraref.nco. They include wvl_dlt and
-          flx_sns. A new array flx_dwn (downwellingFlux) is also added to the netCDF file, which is the result
+          flx_sns. A new array flx_dwn (downwelling spectral flux) is also added to the netCDF file, which is the result
           from matrix multiplication between flx_sns and spectrum.
 20160512: Recalculate downwellingFlux, save Flux sensitivity in SI.
 
@@ -180,7 +180,6 @@ _FLX_SNS =\
      2.51747840e-4, 2.52951109e-4, 2.54188859e-4, 2.55386833e-4, 2.56298369e-4, 2.57479006e-4, 2.58213101e-4, 2.59065147e-4, 2.60018887e-4, 2.61076885e-4,
      2.62283407e-4, 2.63904910e-4, 2.65792030e-4, 2.67956880e-4, 2.70494493e-4, 2.73225853e-4, 2.76170072e-4, 2.79055057e-4, 2.81984548e-4, 2.88500954e-4,
      2.89109910e-4, 2.93129400e-4, 2.92536512e-4, 2.92536512e-4]
-
 
 def wavelengthSpectrumAndDownwellingFlux(fileLocation):
     '''
@@ -353,8 +352,8 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingF
     netCDFHandler.createVariable("flx_dwn", 'f4', ('time','wvl_lgr'))[
         :,:] = downwellingFlux
     setattr(netCDFHandler.variables['flx_dwn'],
-            'units', 'watt meter-2')
-    setattr(netCDFHandler.variables['flx_dwn'], 'long_name', 'DownwellingFlux')
+            'units', 'watt meter-2 meter-1')
+    setattr(netCDFHandler.variables['flx_dwn'], 'long_name', 'Downwelling Spectral Flux')
 
     netCDFHandler.history = recordTime + ': python ' + commandLine
     netCDFHandler.close()
