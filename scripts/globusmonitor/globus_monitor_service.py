@@ -675,8 +675,10 @@ def clowderSubmissionLoop():
             for globusID in toHandle:
                 logPath = os.path.join(config['completed_tasks_path'], globusID[:2], globusID[2:4], globusID[4:6], globusID[6:8], globusID+".json")
                 if os.path.exists(logPath):
+                    log("Attempting to notify Clowder of completed task "+globusID)
                     clowderDone = notifyClowderOfCompletedTask(loadJsonFile(logPath))
                     if clowderDone:
+                        log("Successfully processed task "+globusID)
                         unprocessedTasks.remove(globusID)
                         writeDataToDisk(config['unprocessed_tasks_path'], unprocessedTasks)
                 else:
