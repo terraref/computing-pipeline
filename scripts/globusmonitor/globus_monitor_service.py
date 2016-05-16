@@ -562,9 +562,10 @@ def notifyClowderOfCompletedTask(task):
 
             # Add local files to dataset by path
             if 'files' in task['contents'][ds]:
+                log("iterating through files belonging to "+ds)
                 for f in task['contents'][ds]['files']:
                     fobj = task['contents'][ds]['files'][f]
-                    if ('clowder_id' not in fobj or fobj['clowder_id'] == ""):
+                    if 'clowder_id' not in fobj or fobj['clowder_id'] == "":
                         if f.find("metadata.json") == -1:
                             log("adding file '"+fobj['path'])
                             # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
@@ -596,6 +597,8 @@ def notifyClowderOfCompletedTask(task):
                                 updatedTask['contents'][ds]['files'][f]['metadata_loaded'] = True
                                 updatedTask['contents'][ds]['files'][f]['clowder_id'] = "attached to dataset"
                                 writeCompletedTaskToDisk(updatedTask)
+                    else:
+                        log("skipping (already has clowder ID): "+f )
 
         writeCompletedTaskToDisk(updatedTask)
         return True
