@@ -337,7 +337,6 @@ def fetchCollectionByName(collectionName, requestsSession):
 
 """Add dataset to Space and Sensor, Date Collections"""
 def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
-    log("space coll")
     sensorName = datasetName.split(" - ")[0]
     timestamp = datasetName.split(" - ")[1].split("__")[0]
 
@@ -358,8 +357,6 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
         sp = requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addDatasetToSpace/%s" % (spid, datasetID))
         if sp.status_code != 200:
             log("cannot add ds "+datasetID+" to space "+spid+" ("+str(sp.status_code)+")")
-
-    log("space coll done")
 
 # ----------------------------------------------------------
 # API COMPONENTS
@@ -574,37 +571,29 @@ def notifyClowderOfCompletedTask(task):
 
             if len(fileFormData)>0 or datasetMD:
                 dsid = fetchDatasetByName(ds, sess)
-                log("0")
 
                 if len(fileFormData)>0:
                     # Upload collected files for this dataset
                     # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
-                    log("1")
                     (content, header) = encode_multipart_formdata(fileFormData)
                     fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
                                    headers={'Content-Type':header},
                                    data=content)
                     if fi.status_code != 200:
-                        log("2")
                         log("cannot upload files ("+str(fi.status_code)+" - "+fi.text+")", "ERROR")
                         return False
                     else:
-                        log("3")
                         loaded = fi.json()
                         if 'ids' in loaded:
-                            log("4")
                             for fobj in loaded['ids']:
                                 log("++ added file "+fobj['name'])
                                 updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
                         else:
-                            log("5")
                             log("++ added file "+lastFile)
                             updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
-                        log("6")
                         writeCompletedTaskToDisk(updatedTask)
 
                 if datasetMD:
-                    log("7")
                     # Upload metadata
                     dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
                                      headers={'Content-Type':'application/json'},
@@ -622,10 +611,7 @@ def notifyClowderOfCompletedTask(task):
                             log("++ added metadata to dataset "+ds)
                             del updatedTask['contents'][ds]['md']
                         writeCompletedTaskToDisk(updatedTask)
-                    log("8")
 
-                log("9")
-        log("9")
         writeCompletedTaskToDisk(updatedTask)
         return True
     else:
