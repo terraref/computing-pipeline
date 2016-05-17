@@ -256,7 +256,7 @@ def fetchDatasetByName(datasetName, requestsSession):
         if ds.status_code == 200:
             dsid = ds.json()['id']
             datasetMap[datasetName] = dsid
-            log("created dataset "+datasetName+" ("+dsid+")")
+            log("+ created dataset "+datasetName+" ("+dsid+")")
             writeDataToDisk(config['dataset_map_path'], datasetMap)
             addDatasetToSpacesCollections(datasetName, dsid, requestsSession)
             return dsid
@@ -269,7 +269,7 @@ def fetchDatasetByName(datasetName, requestsSession):
         dsid = datasetMap[datasetName]
         ds = requestsSession.get(config['clowder']['host']+"/api/datasets/"+dsid)
         if ds.status_code == 200:
-            log("dataset "+datasetName+" already exists ("+dsid+")")
+            log("...dataset "+datasetName+" already exists ("+dsid+")")
             return dsid
         else:
             # Query the database just in case, before giving up and creating a new dataset
@@ -299,7 +299,7 @@ def fetchCollectionByName(collectionName, requestsSession):
         if coll.status_code == 200:
             collid = coll.json()['id']
             collectionMap[collectionName] = collid
-            log("created collection "+collectionName+" ("+collid+")")
+            log("+ created collection "+collectionName+" ("+collid+")")
             writeDataToDisk(config['collection_map_path'], collectionMap)
             # Add new collection to primary space if defined
             if config['clowder']['primary_space'] != "":
@@ -315,7 +315,7 @@ def fetchCollectionByName(collectionName, requestsSession):
         collid = collectionMap[collectionName]
         coll = requestsSession.get(config['clowder']['host']+"/api/collections/"+collid)
         if coll.status_code == 200:
-            log("collection "+collectionName+" already exists ("+collid+")")
+            #log("...collection "+collectionName+" already exists ("+collid+")")
             return collid
         else:
             # Query the database just in case, before giving up and creating a new dataset
@@ -586,10 +586,10 @@ def notifyClowderOfCompletedTask(task):
                         loaded = fi.json()
                         if 'ids' in loaded:
                             for fobj in loaded['ids']:
-                                log("added file '"+fobj['name'])
+                                log("++ added file '"+fobj['name'])
                                 updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
                         else:
-                            log("added file '"+lastFile)
+                            log("++ added file '"+lastFile)
                             updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
                         writeCompletedTaskToDisk(updatedTask)
 
@@ -603,12 +603,12 @@ def notifyClowderOfCompletedTask(task):
                         return False
                     else:
                         if datasetMDFile:
-                            log("added metadata from .json file to dataset "+ds)
+                            log("++ added metadata from .json file to dataset "+ds)
                             updatedTask['contents'][ds]['files'][datasetMDFile]['metadata_loaded'] = True
                             updatedTask['contents'][ds]['files'][datasetMDFile]['clowder_id'] = "attached to dataset"
                         else:
                             # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
-                            log("added metadata to dataset "+ds)
+                            log("++ added metadata to dataset "+ds)
                             del updatedTask['contents'][ds]['md']
                         writeCompletedTaskToDisk(updatedTask)
 
@@ -639,7 +639,7 @@ def globusMonitorLoop():
 
                 # If this isn't done yet, leave the task active so we can try again next time
                 if globusStatus in ["SUCCEEDED", "FAILED"]:
-                    log("status update for "+globusID+": "+globusStatus)
+                    log("STATUS UPDATE FOR "+globusID+": "+globusStatus)
 
                     # Update task parameters
                     task['status'] = globusStatus
