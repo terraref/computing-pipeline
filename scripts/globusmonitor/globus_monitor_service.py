@@ -693,7 +693,7 @@ def globusMonitorLoop():
 def clowderSubmissionLoop():
     global unprocessedTasks
 
-    clowderWait = 0
+    clowderWait = config['clowder']['globus_processing_frequency'] - 1
     while True:
         time.sleep(1)
         clowderWait += 1
