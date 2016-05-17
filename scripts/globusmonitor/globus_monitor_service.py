@@ -337,6 +337,7 @@ def fetchCollectionByName(collectionName, requestsSession):
 
 """Add dataset to Space and Sensor, Date Collections"""
 def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
+    log("space coll")
     sensorName = datasetName.split(" - ")[0]
     timestamp = datasetName.split(" - ")[1].split("__")[0]
 
@@ -357,6 +358,8 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
         sp = requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addDatasetToSpace/%s" % (spid, datasetID))
         if sp.status_code != 200:
             log("cannot add ds "+datasetID+" to space "+spid+" ("+str(sp.status_code)+")")
+
+    log("space coll done")
 
 # ----------------------------------------------------------
 # API COMPONENTS
@@ -571,6 +574,7 @@ def notifyClowderOfCompletedTask(task):
 
             if len(fileFormData)>0 or datasetMD:
                 dsid = fetchDatasetByName(ds, sess)
+                log("0")
 
                 if len(fileFormData)>0:
                     # Upload collected files for this dataset
@@ -620,6 +624,7 @@ def notifyClowderOfCompletedTask(task):
                         writeCompletedTaskToDisk(updatedTask)
                     log("8")
 
+                log("9")
         log("9")
         writeCompletedTaskToDisk(updatedTask)
         return True
