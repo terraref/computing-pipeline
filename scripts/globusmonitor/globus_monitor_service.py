@@ -569,7 +569,6 @@ def notifyClowderOfCompletedTask(task):
 
             # Add local files to dataset by path
             if 'files' in task['contents'][ds]:
-                log("iterating through files belonging to "+ds)
                 for f in task['contents'][ds]['files']:
                     fobj = task['contents'][ds]['files'][f]
                     if 'clowder_id' not in fobj or fobj['clowder_id'] == "":
@@ -585,6 +584,7 @@ def notifyClowderOfCompletedTask(task):
                             datasetMDFile = f
 
             if len(fileFormData)>0 or datasetMD:
+                log("uploading unprocessed files belonging to "+ds)
                 dsid = fetchDatasetByName(ds, sess)
 
                 if dsid:
@@ -605,10 +605,11 @@ def notifyClowderOfCompletedTask(task):
                                 for fobj in loaded['ids']:
                                     log("++ added file "+fobj['name'])
                                     updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
+                                    writeCompletedTaskToDisk(updatedTask)
                             else:
                                 log("++ added file "+lastFile)
                                 updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
-                            writeCompletedTaskToDisk(updatedTask)
+                                writeCompletedTaskToDisk(updatedTask)
 
                     if datasetMD:
                         # Upload metadata
@@ -623,11 +624,12 @@ def notifyClowderOfCompletedTask(task):
                                 log("++ added metadata from .json file to dataset "+ds)
                                 updatedTask['contents'][ds]['files'][datasetMDFile]['metadata_loaded'] = True
                                 updatedTask['contents'][ds]['files'][datasetMDFile]['clowder_id'] = "attached to dataset"
+                                writeCompletedTaskToDisk(updatedTask)
                             else:
                                 # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
                                 log("++ added metadata to dataset "+ds)
                                 del updatedTask['contents'][ds]['md']
-                            writeCompletedTaskToDisk(updatedTask)
+                                writeCompletedTaskToDisk(updatedTask)
                 else:
                     log("dataset id for "+ds+" could not be found/created")
                     allDone = False
