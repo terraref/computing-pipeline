@@ -316,7 +316,7 @@ def fetchCollectionByName(collectionName, requestsSession):
         collid = collectionMap[collectionName]
         coll = requestsSession.get(config['clowder']['host']+"/api/collections/"+collid)
         if coll.status_code == 200:
-            #log("...collection "+collectionName+" already exists ("+collid+")")
+            log("...collection "+collectionName+" already exists ("+collid+")")
             return collid
         else:
             # Query the database just in case, before giving up and creating a new dataset
@@ -341,24 +341,30 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
     sensorName = datasetName.split(" - ")[0]
     timestamp = datasetName.split(" - ")[1].split("__")[0]
 
+    log("...adding ds "+datasetID+" to collections/spaces for "+datasetName)
     sensColl = fetchCollectionByName(sensorName, requestsSession)
     if sensColl:
         sc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (sensColl, datasetID))
         if sc.status_code != 200:
             log("could not add ds "+datasetID+" to coll "+sensColl+" ("+str(sc.status_code)+" - "+sc.text+")")
+        else:
+            log("......collection "+sensorName+" OK")
 
     timeColl = fetchCollectionByName(timestamp, requestsSession)
     if timeColl:
         tc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (timeColl, datasetID))
         if tc.status_code != 200:
             log("could not add ds "+datasetID+" to coll "+timeColl+" ("+str(tc.status_code)+" - "+tc.text+")")
+        else:
+            log("......collection "+timestamp+" OK")
 
     if config['clowder']['primary_space'] != "":
         spid = config['clowder']['primary_space']
         sp = requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addDatasetToSpace/%s" % (spid, datasetID))
         if sp.status_code != 200:
             log("could not add ds "+datasetID+" to space "+spid+" ("+str(sp.status_code)+" - "+sp.text+")")
-
+        else:
+            log("......space "+spid+" OK")
 # ----------------------------------------------------------
 # API COMPONENTS
 # ----------------------------------------------------------
