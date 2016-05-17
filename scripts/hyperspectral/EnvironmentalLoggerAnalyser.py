@@ -45,7 +45,7 @@ If the output folder does not exist, EnvironmentalLoggerAnalyser.py will create 
           2. Rename the wavelength variable and dimension as "wvl_lgr" to avoid the naming
           collision with nco
 20160511: This update mainly adds the variables and calculations from terraref.nco. They include wvl_dlt and
-          flx_sns. A new array flx_dwn (downwelling spectral flux) is also added to the netCDF file, which is the result
+          flx_sns. A new array flx_spc_dwn (downwelling spectral flux) is also added to the netCDF file, which is the result
           from matrix multiplication between flx_sns and spectrum.
 20160512: Recalculate downwellingFlux, save Flux sensitivity in SI.
 
@@ -204,7 +204,7 @@ def wavelengthSpectrumAndDownwellingFlux(fileLocation):
                     float(tempList[i][tempList[i].find(':') + 1: -2]))
 
         spectrumList.remove([])
-        downwellingFlux = [[_FLX_SNS[i]*spectrumList[j][i] for i in range(len(_FLX_SNS))] for \
+        downwellingFlux = [[_FLX_SNS[i]*spectrumList[j][i]/_WVL_DLT for i in range(len(_FLX_SNS))] for \
                           j in range(len(spectrumList))]
 
     return wavelengthList, spectrumList, downwellingFlux
@@ -345,15 +345,13 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingF
             'units', 'watt meter-2 count-1')
     setattr(netCDFHandler.variables['flx_sns'], 'long_name',
             'Flux sensitivity of each band (irradiance per count)')
-    setattr(netCDFHandler.variables['flx_sns'], 'provenance', "EnvironmentalLogger calibration information from file\
-    S05673_08062015.IrradCal provided by TinoDornbusch and discussed here:\
-    https://github.com/terraref/reference-data/issues/30#issuecomment-217518434")
+    setattr(netCDFHandler.variables['flx_sns'], 'provenance', "EnvironmentalLogger calibration information from file S05673_08062015.IrradCal provided by TinoDornbusch and discussed here: https://github.com/terraref/reference-data/issues/30#issuecomment-217518434")
 
-    netCDFHandler.createVariable("flx_dwn", 'f4', ('time','wvl_lgr'))[
+    netCDFHandler.createVariable("flx_spc_dwn", 'f4', ('time','wvl_lgr'))[
         :,:] = downwellingFlux
-    setattr(netCDFHandler.variables['flx_dwn'],
+    setattr(netCDFHandler.variables['flx_spc_dwn'],
             'units', 'watt meter-2 meter-1')
-    setattr(netCDFHandler.variables['flx_dwn'], 'long_name', 'Downwelling Spectral Flux')
+    setattr(netCDFHandler.variables['flx_spc_dwn'], 'long_name', 'Downwelling Spectral Flux')
 
     netCDFHandler.history = recordTime + ': python ' + commandLine
     netCDFHandler.close()
