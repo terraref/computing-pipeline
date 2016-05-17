@@ -540,25 +540,17 @@ def notifyClowderOfCompletedTask(task):
         sess.auth = (clowderUser, clowderPass)
 
         updatedTask = safeCopy(task)
+
+        # Prepare upload object with all file(s) found
         for ds in task['contents']:
-            dsid = fetchDatasetByName(ds, sess)
+            fileFormData = []
+            datasetMD = None
+            datasetMDFile = False
+            lastFile = None
 
             # Assign dataset-level metadata if provided
             if "md" in task['contents'][ds]:
-                log("adding metadata to dataset "+ds)
-
-                md = clean_json_keys(task['contents'][ds]['md'])
-
-                dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
-                          headers={'Content-Type':'application/json'},
-                          data=json.dumps(md))
-                if dsmd.status_code != 200:
-                    log("cannot add dataset metadata ("+str(dsmd.status_code)+" - "+dsmd.text+")", "ERROR")
-                    return False
-                else:
-                    # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
-                    del updatedTask['contents'][ds]['md']
-                    writeCompletedTaskToDisk(updatedTask)
+                datasetMD = clean_json_keys(task['contents'][ds]['md'])
 
             # Add local files to dataset by path
             if 'files' in task['contents'][ds]:
@@ -567,38 +559,58 @@ def notifyClowderOfCompletedTask(task):
                     fobj = task['contents'][ds]['files'][f]
                     if 'clowder_id' not in fobj or fobj['clowder_id'] == "":
                         if f.find("metadata.json") == -1:
-                            log("adding file '"+fobj['path'])
-                            # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
-                            (content, header) = encode_multipart_formdata([
-                                ("file",'{"path":"%s"%s}' % (
-                                    fobj['path'],
-                                    ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else ""
-                                ))])
-
-                            fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid, data=content, headers={'Content-Type':header})
-                            if fi.status_code != 200:
-                                log("cannot upload file "+fobj['path']+" ("+str(fi.status_code)+")", "ERROR")
-                                return False
-                            else:
-                                updatedTask['contents'][ds]['files'][f]['clowder_id'] = json.loads(fi.text)['id']
-                                writeCompletedTaskToDisk(updatedTask)
+                            fileFormData.append(
+                                    ("file",'{"path":"%s"%s}' % (fobj['path'],
+                                        ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else ""
+                                ))
+                            )
+                            lastFile = f
                         else:
-                            log("adding metadata from .json file to dataset "+ds)
-                            mdobj = loadJsonFile(fobj['path'])
-                            md = clean_json_keys(mdobj)
+                            datasetMD = clean_json_keys(loadJsonFile(fobj['path']))
+                            datasetMDFile = f
 
-                            dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
-                                             headers={'Content-Type':'application/json'},
-                                             data=json.dumps(md))
-                            if dsmd.status_code != 200:
-                                log("cannot add dataset metadata ("+str(dsmd.status_code)+" - "+dsmd.text+")", "ERROR")
-                                return False
-                            else:
-                                updatedTask['contents'][ds]['files'][f]['metadata_loaded'] = True
-                                updatedTask['contents'][ds]['files'][f]['clowder_id'] = "attached to dataset"
-                                writeCompletedTaskToDisk(updatedTask)
+            if len(fileFormData)>0 or datasetMD:
+                dsid = fetchDatasetByName(ds, sess)
+
+                if len(fileFormData)>0:
+                    # Upload collected files for this dataset
+                    # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
+                    (content, header) = encode_multipart_formdata(fileFormData)
+                    fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
+                                   headers={'Content-Type':header},
+                                   data=content)
+                    if fi.status_code != 200:
+                        log("cannot upload files ("+str(fi.status_code)+" - "+fi.text+")", "ERROR")
+                        return False
                     else:
-                        log("skipping (already has clowder ID): "+f )
+                        loaded = fi.json()
+                        if 'ids' in loaded:
+                            for fobj in loaded['ids']:
+                                log("added file '"+fobj['name'])
+                                updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
+                        else:
+                            log("added file '"+lastFile)
+                            updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
+                        writeCompletedTaskToDisk(updatedTask)
+
+                if datasetMD:
+                    # Upload metadata
+                    dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
+                                     headers={'Content-Type':'application/json'},
+                                     data=json.dumps(datasetMD))
+                    if dsmd.status_code != 200:
+                        log("cannot add dataset metadata ("+str(dsmd.status_code)+" - "+dsmd.text+")", "ERROR")
+                        return False
+                    else:
+                        if datasetMDFile:
+                            log("added metadata from .json file to dataset "+ds)
+                            updatedTask['contents'][ds]['files'][datasetMDFile]['metadata_loaded'] = True
+                            updatedTask['contents'][ds]['files'][datasetMDFile]['clowder_id'] = "attached to dataset"
+                        else:
+                            # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
+                            log("added metadata to dataset "+ds)
+                            del updatedTask['contents'][ds]['md']
+                        writeCompletedTaskToDisk(updatedTask)
 
         writeCompletedTaskToDisk(updatedTask)
         return True
