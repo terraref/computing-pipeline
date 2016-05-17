@@ -178,6 +178,7 @@ def getStatus():
         "active_task_count": activeTaskCount,
         "datasets_created": datasetsCreated,
         "completed_globus_tasks": completedTasks,
+        "unprocessed_task_count": len(unprocessedTasks),
         "next_unprocessed_task": unprocessedTasks[0] if len(unprocessedTasks) > 0 else ""
     }
 
