@@ -254,6 +254,7 @@ def fetchDatasetByName(datasetName, requestsSession):
         ds = requestsSession.post(config['clowder']['host']+"/api/datasets/createempty",
                                   headers={"Content-Type": "application/json"},
                                   data='{"name": "%s"}' % datasetName)
+        time.sleep(1)
 
         if ds.status_code == 200:
             dsid = ds.json()['id']
@@ -297,6 +298,7 @@ def fetchCollectionByName(collectionName, requestsSession):
         coll = requestsSession.post(config['clowder']['host']+"/api/collections",
                                   headers={"Content-Type": "application/json"},
                                   data='{"name": "%s", "description": ""}' % collectionName)
+        time.sleep(1)
 
         if coll.status_code == 200:
             collid = coll.json()['id']
@@ -366,6 +368,7 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
             log("could not add ds "+datasetID+" to space "+spid+" ("+str(sp.status_code)+" - "+sp.text+")")
         else:
             log("......space "+spid+" OK")
+
 # ----------------------------------------------------------
 # API COMPONENTS
 # ----------------------------------------------------------
