@@ -624,7 +624,6 @@ def notifyClowderOfCompletedTask(task):
                                 log("++ added metadata to dataset "+ds)
                                 del updatedTask['contents'][ds]['md']
                             writeCompletedTaskToDisk(updatedTask)
-                    writeCompletedTaskToDisk(updatedTask)
                 else:
                     log("dataset id for "+ds+" could not be found/created")
                     allDone = False
