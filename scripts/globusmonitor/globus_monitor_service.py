@@ -653,6 +653,7 @@ def globusMonitorLoop():
 
         # Check with Globus for any status updates on monitored tasks
         if globWait >= config['globus']['transfer_update_frequency_secs']:
+            log("Checking for Globus updates")
             # Use copy of task list so it doesn't change during iteration
             currentActiveTasks = safeCopy(activeTasks)
             for globusID in currentActiveTasks:
@@ -707,6 +708,7 @@ def clowderSubmissionLoop():
 
         # Check with Globus for any status updates on monitored tasks
         if clowderWait >= config['clowder']['globus_processing_frequency']:
+            log("Checking unprocessed tasks")
             toHandle = safeCopy(unprocessedTasks)
 
             for globusID in toHandle:
