@@ -93,7 +93,6 @@ def openFileToAppend(fpath=None):
 def lockFile(f):
     # From http://tilde.town/~cristo/file-locking-in-python.html
     while True:
-        retryCount += 1
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return
@@ -559,7 +558,6 @@ def getNewFilesFromFTPLogs():
                             foundFiles.append(fullname)
 
                 if status_numPending+len(foundFiles) >= maxPending:
-                    log("maximum number of pending files reached")
                     break
 
         # If we didn't find last line in this file, look into the previous file
