@@ -346,7 +346,8 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingF
     setattr(netCDFHandler.variables['flx_spc_dwn'],'units', 'watt meter-2 meter-1')
     setattr(netCDFHandler.variables['flx_spc_dwn'], 'long_name', 'Downwelling Spectral Flux')
 
-    netCDFHandler.history = recordTime + ': python ' + commandLine netCDFHandler.close()
+    netCDFHandler.history = recordTime + ': python ' + commandLine
+    netCDFHandler.close()
 
 if __name__ == '__main__':
     fileInputLocation, fileOutputLocation = sys.argv[1], sys.argv[2]
