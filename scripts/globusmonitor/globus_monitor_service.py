@@ -586,7 +586,7 @@ def notifyClowderOfCompletedTask(task):
                             datasetMDFile = f
 
             if len(fileFormData)>0 or datasetMD:
-                log("uploading unprocessed files belonging to "+ds)
+                log("uploading unprocessed files belonging to %s" % ds)
                 dsid = fetchDatasetByName(ds, sess)
 
                 if dsid:
@@ -599,17 +599,17 @@ def notifyClowderOfCompletedTask(task):
                                        headers={'Content-Type':header},
                                        data=content)
                         if fi.status_code != 200:
-                            log("cannot upload files ("+str(fi.status_code)+" - "+fi.text+")", "ERROR")
+                            log("cannot upload files (%s - %s)" % (fi.status_code, fi.text), "ERROR")
                             return False
                         else:
                             loaded = fi.json()
                             if 'ids' in loaded:
                                 for fobj in loaded['ids']:
-                                    log("++ added file "+fobj['name'])
+                                    log("++ added file %s" % fobj['name'])
                                     updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
                                     writeCompletedTaskToDisk(updatedTask)
                             else:
-                                log("++ added file "+lastFile)
+                                log("++ added file %s" % lastFile)
                                 updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
                                 writeCompletedTaskToDisk(updatedTask)
 
@@ -623,21 +623,21 @@ def notifyClowderOfCompletedTask(task):
                             return False
                         else:
                             if datasetMDFile:
-                                log("++ added metadata from .json file to dataset "+ds)
+                                log("++ added metadata from .json file to dataset %s" % ds)
                                 updatedTask['contents'][ds]['files'][datasetMDFile]['metadata_loaded'] = True
                                 updatedTask['contents'][ds]['files'][datasetMDFile]['clowder_id'] = "attached to dataset"
                                 writeCompletedTaskToDisk(updatedTask)
                             else:
                                 # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
-                                log("++ added metadata to dataset "+ds)
+                                log("++ added metadata to dataset %s" % ds)
                                 del updatedTask['contents'][ds]['md']
                                 writeCompletedTaskToDisk(updatedTask)
                 else:
-                    log("dataset id for "+ds+" could not be found/created")
+                    log("dataset id for %s could not be found/created" % ds)
                     allDone = False
         return allDone
     else:
-        log("cannot find clowder user credentials for Globus user "+globUser, "ERROR")
+        log("cannot find clowder user credentials for Globus user %s" % globUser, "ERROR")
         return False
 
 """Continually check Globus API for task updates"""
@@ -720,6 +720,8 @@ def clowderSubmissionLoop():
                         log("Successfully processed task "+globusID)
                         unprocessedTasks.remove(globusID)
                         writeDataToDisk(config['unprocessed_tasks_path'], unprocessedTasks)
+                    else:
+                        log("")
                 else:
                     log("Unprocessed task "+globusID+" not found in completed tasks", "ERROR")
 

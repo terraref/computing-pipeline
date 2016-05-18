@@ -748,7 +748,7 @@ def getTransferStatusFromMonitor(globusID):
             return "UNKNOWN"
     except requests.ConnectionError as e:
         log("cannot connect to NCSA API", "ERROR")
-        return "NOT FOUND"
+        return None
 
 """Continually initiate transfers from pending queue and contact NCSA API for status updates"""
 def globusMonitorLoop():
@@ -819,6 +819,10 @@ def globusMonitorLoop():
                 # If the Globus monitor isn't even aware of this transfer, try to notify it!
                 elif globusStatus == "NOT FOUND":
                     notifyMonitorOfNewTransfer(globusID, task['contents'])
+
+                else:
+                    # Couldn't connect to NCSA API, wait for next loop to try again
+                    break
 
             status_numActive = len(activeTasks)
 
