@@ -208,7 +208,9 @@ def loadDataFromDisk(logPath, emptyValue="{}"):
     else:
         log("...loading data from "+logPath)
 
-    return loadJsonFile(logPath)
+    d = loadJsonFile(logPath)
+    log("...load OK.")
+    return d
 
 """Save object into a log file from memory, moving existing file to .backup if it exists"""
 def writeDataToDisk(logPath, logData):
@@ -736,6 +738,7 @@ if __name__ == '__main__':
     unprocessedTasks = loadDataFromDisk(config['unprocessed_tasks_path'], '[]')
     generateAuthTokens()
 
+    log("initializing services")
     # Create thread for service to begin monitoring
     thread.start_new_thread(globusMonitorLoop, ())
     log("*** Service now monitoring Globus tasks ***")
