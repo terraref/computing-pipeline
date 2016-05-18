@@ -93,6 +93,7 @@ def openFileToAppend(fpath=None):
 def lockFile(f):
     # From http://tilde.town/~cristo/file-locking-in-python.html
     while True:
+        retryCount += 1
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return
@@ -128,7 +129,7 @@ def updateNestedDict(existing, new):
             existing = {k: new[k]}
     return existing
 
-"""Print log message to console and write it to log file"""
+"""Print log message to console and append it to log file"""
 def log(message, type="INFO"):
     print("["+type+"] "+message)
     logFile = openFileToAppend()
@@ -137,10 +138,6 @@ def log(message, type="INFO"):
 
 """Return small JSON object with information about monitor health"""
 def getStatus():
-    global status_lastFTPLogLine
-    global status_numActive
-    global status_numPending
-
     completedTasks = 0
     for root, dirs, filelist in os.walk(config['completed_tasks_path']):
         completedTasks += len(filelist)
@@ -250,28 +247,29 @@ def createLocalSymlink(srcPath, destPath, filename):
 """Clear out any datasets from pendingTransfers without files or metadata"""
 def cleanPendingTransfers():
     global pendingTransfers
+    global status_numPending
 
+    log("tidying up pending transfer queue")
+
+    status_numPending = 0
     allPendingTransfers = safeCopy(pendingTransfers)
+
     for ds in allPendingTransfers:
         dsobj = allPendingTransfers[ds]
-        if 'files' in dsobj and len(dsobj['files']) == 0:
-            del pendingTransfers[ds]['files']
+        if 'files' in dsobj:
+            status_numPending += len(dsobj['files'])
+            if len(dsobj['files']) == 0:
+                del pendingTransfers[ds]['files']
+
         if 'md' in dsobj and len(dsobj['md']) == 0:
             del pendingTransfers[ds]['md']
             if 'md_path' in dsobj:
                 del pendingTransfers[ds]['md_path']
+
         if 'files' not in pendingTransfers[ds] and 'md' not in pendingTransfers[ds]:
             del pendingTransfers[ds]
-    updatePendingCount()
 
-def updatePendingCount():
-    global status_numPending
 
-    allPendingTransfers = safeCopy(pendingTransfers)
-    for ds in allPendingTransfers:
-        if 'files' in allPendingTransfers[ds]:
-            for f in allPendingTransfers[ds]['files']:
-                status_numPending += 1
 
 """Add a particular file to pendingTransfers"""
 def addFileToPendingTransfers(f):
@@ -401,19 +399,20 @@ def generateGlobusSubmissionID():
     try:
         api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
         status_code, status_message, submission_id = api.submission_id()
-    except (APIError, ClientError) as e:
+    except:
         try:
             # Try activating endpoints and retrying
             activateEndpoints()
             api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
             status_code, status_message, submission_id = api.submission_id()
-        except (APIError, ClientError) as e:
-            log("problem generating submission ID for globus transfer", "ERROR")
-            status_code = 503
+        except:
+            log("exception generating submission ID for globus transfer", "ERROR")
+            return None
 
     if status_code == 200:
         return submission_id['value']
     else:
+        log("could not generate new Globus submission ID (%s: %s)" % (status_code, status_message), "ERROR")
         return None
 
 """Check for files ready for transmission and return list"""
@@ -431,12 +430,11 @@ def getGantryFilesForTransfer():
 
     # Get list of files from watched folders, if folders are specified  (and de-duplicate from FTP list)
     if status_numPending+len(foundFiles) < maxPending:
-        fileList = getNewFilesFromWatchedFolders()
+        fileList = getNewFilesFromWatchedFolders(len(foundFiles))
         for found in fileList:
             if found not in foundFiles:
                 foundFiles.append(found)
 
-    queuedCount = 0
     for f in foundFiles:
         # Get dataset info & path details from found file
         if f.find(gantryDir) > -1:
@@ -468,12 +466,11 @@ def getGantryFilesForTransfer():
                 "name": filename,
                 "path": gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
             }
-            queuedCount += 1
 
     return transferQueue
 
 """Check folders in config for files older than the configured age, and queue for transfer"""
-def getNewFilesFromWatchedFolders():
+def getNewFilesFromWatchedFolders(alreadyFound):
     foundFiles = []
 
     # Get list of files last modified more than X minutes ago
@@ -484,12 +481,13 @@ def getNewFilesFromWatchedFolders():
     for currDir in watchDirs:
         # TODO: Check for hidden files beginning with "." or just allow them?
         foundList = subprocess.check_output(["find", currDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
-        if len(foundList)+len(foundFiles)+status_numPending > maxPending:
+        if len(foundList)+len(foundFiles)+alreadyFound+status_numPending > maxPending:
             break
         else:
             for f in foundList:
                 foundFiles.append(f)
 
+    log("found "+str(len(foundFiles))+" files from watched folders")
     return foundFiles
 
 """Check FTP log files to determine new files that were successfully moved to staging area"""
@@ -560,7 +558,7 @@ def getNewFilesFromFTPLogs():
                             fullname = fullname.replace(config['globus']['source_path'],"")
                             foundFiles.append(fullname)
 
-                if len(foundFiles)+status_numPending >= maxPending:
+                if status_numPending+len(foundFiles) >= maxPending:
                     log("maximum number of pending files reached")
                     break
 
@@ -599,7 +597,7 @@ def getNewFilesFromFTPLogs():
         else:
             handledBackLog = True
 
-    log("queued "+str(len(foundFiles))+" files from log")
+    log("found "+str(len(foundFiles))+" files from log")
     status_lastFTPLogLine = current_lastFTPLogLine
     return foundFiles
 
@@ -679,8 +677,7 @@ def initializeGlobusTransfer():
             if status_code == 200 or status_code == 202:
                 # Notify NCSA monitor of new task, and add to activeTasks for logging
                 globusID = transfer_data['task_id']
-
-                log("Globus transfer task started: "+globusID+" ("+str(queueLength)+" files)")
+                log("Globus transfer task started: %s (%s files)" % (globusID, queueLength))
 
                 activeTasks[globusID] = {
                     "globus_id": globusID,
@@ -691,12 +688,11 @@ def initializeGlobusTransfer():
                 writeTasksToDisk(config['active_tasks_path'], activeTasks)
 
                 notifyMonitorOfNewTransfer(globusID, currentTransferBatch)
-
                 pendingTransfers = remainingPendingTransfers
                 writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
             else:
                 # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
-                log("globus transfer failed for "+ds+" ("+str(status_code)+": "+str(status_message)+")", "ERROR")
+                log("globus transfer failed for %s (%s: %s)" % (ds, status_code, status_message), "ERROR")
                 return
 
         status_numActive = len(activeTasks)
@@ -707,7 +703,7 @@ def notifyMonitorOfNewTransfer(globusID, contents):
     sess = requests.Session()
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
-    log("notifying Globus monitor of "+globusID)
+    log("notifying Globus monitor of %s" % globusID)
     try:
         status = sess.post(config['ncsa_api']['host']+"/tasks", data=json.dumps({
             "user": config['globus']['username'],
