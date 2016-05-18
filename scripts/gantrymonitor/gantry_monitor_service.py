@@ -263,18 +263,14 @@ def cleanPendingTransfers():
         if 'files' not in pendingTransfers[ds] and 'md' not in pendingTransfers[ds]:
             del pendingTransfers[ds]
 
-"""Return true if a file is currently part of an active transfer"""
-def filenameInActiveTasks(filename):
-    allActive = safeCopy(activeTasks)
-    for globusID in allActive:
-        for ds in allActive[globusID]['contents']:
-            dsobj = allActive[globusID]['contents'][ds]
-            if 'files' in dsobj:
-                for f in dsobj['files']:
-                    if f == filename:
-                        return True
+def updatePendingCount():
+    global status_numPending
 
-    return False
+    allPendingTransfers = safeCopy(pendingTransfers)
+    for ds in allPendingTransfers:
+        if 'files' in allPendingTransfers[ds]:
+            for f in allPendingTransfers[ds]['files']:
+                status_numPending += 1
 
 """Add a particular file to pendingTransfers"""
 def addFileToPendingTransfers(f):
@@ -421,7 +417,6 @@ def generateGlobusSubmissionID():
 
 """Check for files ready for transmission and return list"""
 def getGantryFilesForTransfer():
-    global status_numPending
     transferQueue = {}
     foundFiles = []
 
@@ -440,6 +435,7 @@ def getGantryFilesForTransfer():
             if found not in foundFiles:
                 foundFiles.append(found)
 
+    queuedCount = 0
     for f in foundFiles:
         # Get dataset info & path details from found file
         if f.find(gantryDir) > -1:
@@ -466,18 +462,17 @@ def getGantryFilesForTransfer():
         if datasetID not in transferQueue: transferQueue[datasetID] = {}
         if 'files' not in transferQueue[datasetID]: transferQueue[datasetID]['files'] = {}
 
-        if filename not in pendingTransfers[datasetID]['files'] and not filenameInActiveTasks(filename):
+        if filename not in pendingTransfers[datasetID]['files']:
             transferQueue[datasetID]['files'][filename] = {
                 "name": filename,
                 "path": gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
             }
+            queuedCount += 1
 
-    status_numPending += len(foundFiles)
     return transferQueue
 
 """Check folders in config for files older than the configured age, and queue for transfer"""
 def getNewFilesFromWatchedFolders():
-    global status_numPending
     foundFiles = []
 
     # Get list of files last modified more than X minutes ago
@@ -494,13 +489,11 @@ def getNewFilesFromWatchedFolders():
             for f in foundList:
                 foundFiles.append(f)
 
-    status_numPending += len(foundFiles)
     return foundFiles
 
 """Check FTP log files to determine new files that were successfully moved to staging area"""
 def getNewFilesFromFTPLogs():
     global status_lastFTPLogLine
-    global status_numPending
 
     current_lastFTPLogLine = ""
     maxPending = config["gantry"]["max_pending_files"]
@@ -567,6 +560,7 @@ def getNewFilesFromFTPLogs():
                             foundFiles.append(fullname)
 
                 if len(foundFiles)+status_numPending >= maxPending:
+                    log("maximum number of pending files reached")
                     break
 
         # If we didn't find last line in this file, look into the previous file
@@ -586,6 +580,7 @@ def getNewFilesFromFTPLogs():
 
         # If we filled up the pending queue handling backlog, don't move onto newer files yet
         elif len(foundFiles)+status_numPending >= maxPending:
+            log("maximum number of pending files reached")
             handledBackLog = True
 
         # If we found last line in a previous file, climb back up to current file and get its contents too
@@ -697,7 +692,6 @@ def initializeGlobusTransfer():
                 notifyMonitorOfNewTransfer(globusID, currentTransferBatch)
 
                 pendingTransfers = remainingPendingTransfers
-                status_numPending -= queueLength
                 writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
             else:
                 # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
@@ -706,7 +700,8 @@ def initializeGlobusTransfer():
 
         status_numActive = len(activeTasks)
         cleanPendingTransfers()
-        if pendingTransfers != {} and status_numActive < config['globus']['max_active_tasks']:
+        updatePendingCount()
+        if status_numPending > 0 and status_numActive < config['globus']['max_active_tasks']:
             # If pendingTransfers not empty, we still have remaining files and need to start more Globus transfers
             initializeGlobusTransfer()
 
@@ -860,7 +855,8 @@ def gantryMonitorLoop():
 
                 # Clean up the pending object of straggling keys, then initialize Globus transfer
                 cleanPendingTransfers()
-                if pendingTransfers != {}:
+                updatePendingCount()
+                if status_numPending > 0:
                     writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
 
             # Reset wait to check gantry incoming directory again
@@ -889,10 +885,8 @@ if __name__ == '__main__':
     status_numActive = len(activeTasks)
     pendingTransfers = loadTasksFromDisk(config['pending_transfers_path'])
     cleanPendingTransfers()
-    for ds in pendingTransfers:
-        if 'files' in pendingTransfers[ds]:
-            for f in pendingTransfers[ds]['files']:
-                status_numPending += 1
+    updatePendingCount()
+
 
     log("loaded data from active and pending log files")
     log(str(status_numPending)+" pending files")
