@@ -545,7 +545,8 @@ def getNewFilesFromFTPLogs():
                     foundResumePoint = True
 
                 elif foundResumePoint:
-                    current_lastFTPLogLine = line
+                    if line != "":
+                        current_lastFTPLogLine = line
 
                     # We're past the last scanned line, so capture these lines if complete & ending in 'c'
                     if re.search('ftp \d \* c', line.rstrip()):
