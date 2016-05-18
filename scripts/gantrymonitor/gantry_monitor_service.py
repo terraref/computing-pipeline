@@ -262,6 +262,7 @@ def cleanPendingTransfers():
                 del pendingTransfers[ds]['md_path']
         if 'files' not in pendingTransfers[ds] and 'md' not in pendingTransfers[ds]:
             del pendingTransfers[ds]
+    updatePendingCount()
 
 def updatePendingCount():
     global status_numPending
@@ -700,10 +701,6 @@ def initializeGlobusTransfer():
 
         status_numActive = len(activeTasks)
         cleanPendingTransfers()
-        updatePendingCount()
-        if status_numPending > 0 and status_numActive < config['globus']['max_active_tasks']:
-            # If pendingTransfers not empty, we still have remaining files and need to start more Globus transfers
-            initializeGlobusTransfer()
 
 """Send message to NCSA Globus monitor API that a new task has begun"""
 def notifyMonitorOfNewTransfer(globusID, contents):
@@ -781,8 +778,8 @@ def globusMonitorLoop():
                 log("checking pending file list...")
                 # Clean up the pending object of straggling keys, then initialize Globus transfers
                 cleanPendingTransfers()
-                if pendingTransfers != {}:
-                    log("pending files found. initializing Globus transfers.")
+                while status_numPending > 0 and status_numActive < config['globus']['max_active_tasks']:
+                    log("pending files found. initializing Globus transfer.")
                     writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
                     initializeGlobusTransfer()
 
@@ -855,7 +852,6 @@ def gantryMonitorLoop():
 
                 # Clean up the pending object of straggling keys, then initialize Globus transfer
                 cleanPendingTransfers()
-                updatePendingCount()
                 if status_numPending > 0:
                     writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
 
@@ -885,8 +881,6 @@ if __name__ == '__main__':
     status_numActive = len(activeTasks)
     pendingTransfers = loadTasksFromDisk(config['pending_transfers_path'])
     cleanPendingTransfers()
-    updatePendingCount()
-
 
     log("loaded data from active and pending log files")
     log(str(status_numPending)+" pending files")
