@@ -214,10 +214,10 @@ def wavelengthSpectrumAnddownwellingSpectralFlux(fileLocation):
     delta.insert(0, 2*(wvl_ntf[0] - wvl_lgr[0]))
     delta.insert(-1, 2*(wvl_lgr[-1] - wvl_ntf[-1]))
     downwellingSpectralFlux = np.array(_FLX_SNS) * np.array(spectrum) * 1.0e-6 / np.array(delta)
-    #Spectrometer_Integration_Time_In_Microseconds=5000.0
-    #Spectrometer_Integration_Time=Spectrometer_Integration_Time_In_Microseconds/1.0e6
-    #Area=3.141*(3900.0*1.0e-6*3900.0*1.0e-6)/4.0
-    #downwellingSpectralFlux = downwellingSpectralFlux/Area/Spectrometer_Integration_Time
+    Spectrometer_Integration_Time_In_Microseconds=5000.0
+    Spectrometer_Integration_Time=Spectrometer_Integration_Time_In_Microseconds/1.0e6
+    Area=3.141*(3900.0*1.0e-6*3900.0*1.0e-6)/4.0
+    downwellingSpectralFlux = downwellingSpectralFlux/Area/Spectrometer_Integration_Time
 
     return wvl_lgr, spectrum, downwellingSpectralFlux
 
