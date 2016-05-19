@@ -189,34 +189,34 @@ def wavelengthSpectrumAnddownwellingSpectralFlux(fileLocation):
     into a file of JSON array
     '''
     with open(fileLocation, 'r') as fileHandler:
-        tempList, wavelengthList, spectrumList, k, writeToWavelength =\
+        tempList, wvl_lgr, spectrum, k, writeToWavelength =\
             fileHandler.read().split('\n'), [], [[]], 0, True
 
         for i in range(len(tempList)):
             if "wavelength" in tempList[i] and writeToWavelength:
-                wavelengthList.append(
+                wvl_lgr.append(
                     float(tempList[i][tempList[i].find(':') + 1: -2]) * 1e-9)
             if "wavelength" not in tempList[i] and "wavelength" in tempList[i - 4]\
                     and "band" not in tempList[i] and "," not in tempList[i]:
                 writeToWavelength = False
-                spectrumList.append([])
+                spectrum.append([])
                 k += 1
             if "spectrum" in tempList[i]:
-                spectrumList[k].append(
+                spectrum[k].append(
                     float(tempList[i][tempList[i].find(':') + 1: -2]))
 
-        spectrumList.remove([])
+        spectrum.remove([])
 
         # Downwelling Spectral Flux is calculated by
         #_FLX_SNS * spectrum * 1e-6 (to convert unit from [uW m-2 xps-1] to [W m-2 xps-1]) / _wvl_dlt
-    midPointList  = [np.average([wavelengthList[i], wavelengthList[i+1]]) for i in range(len(wavelengthList)-1)]
-    bandwidthList = [midPointList[i+1] - midPointList[i] for i in range(len(midPointList) - 1)]
-    bandwidthList.insert(0, 2*(midPointList[0] - wavelengthList[0]))
-    bandwidthList.insert(-1, 2*(wavelengthList[-1] - midPointList[-1]))
-    downwellingSpectralFlux = np.array(_FLX_SNS) * np.array(spectrumList) * 1e-6 / np.array(bandwidthList)
-    #np.divide(np.multiply(np.multiply(_FLX_SNS, spectrumList), 1e-6), bandwidthList)
+    wvl_ntf  = [np.average([wvl_lgr[i], wvl_lgr[i+1]]) for i in range(len(wvl_lgr)-1)]
+    delta = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
+    delta.insert(0, 2*(wvl_ntf[0] - wvl_lgr[0]))
+    delta.insert(-1, 2*(wvl_lgr[-1] - wvl_ntf[-1]))
+    downwellingSpectralFlux = np.array(_FLX_SNS) * np.array(spectrum) * 1e-6 / np.array(delta)
+    #np.divide(np.multiply(np.multiply(_FLX_SNS, spectrum), 1e-6), delta)
 
-    return wavelengthList, spectrumList, downwellingSpectralFlux
+    return wvl_lgr, spectrum, downwellingSpectralFlux
 
 
 def JSONHandler(fileLocation):
@@ -341,13 +341,13 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
         netCDFHandler.createVariable("spectrum", 'f4', ('time', 'wvl_lgr'))[
             :, :] = spectrum
 
-    midPointList  = [np.average([wavelength[i], wavelength[i+1]]) for i in range(len(wavelength)-1)]
-    bandwidthList = [midPointList[i+1] - midPointList[i] for i in range(len(midPointList) - 1)]
-    bandwidthList.insert(0, 2*(midPointList[0] - wavelength[0]))
-    bandwidthList.insert(-1, 2*(wavelength[-1] - midPointList[-1]))
+    wvl_ntf  = [np.average([wavelength[i], wavelength[i+1]]) for i in range(len(wavelength)-1)]
+    delta = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
+    delta.insert(0, 2*(wvl_ntf[0] - wavelength[0]))
+    delta.insert(-1, 2*(wavelength[-1] - wvl_ntf[-1]))
 
     # Add data from terraref.nco
-    netCDFHandler.createVariable("wvl_dlt", 'f8', ("wvl_lgr",))[:] = bandwidthList
+    netCDFHandler.createVariable("wvl_dlt", 'f8', ("wvl_lgr",))[:] = delta
     setattr(netCDFHandler.variables['wvl_dlt'], 'units', 'meter')
     setattr(netCDFHandler.variables['wvl_dlt'], 'notes',"Best information available is that bandwidth is uniform 0.4 nm across all channels")
     setattr(netCDFHandler.variables['wvl_dlt'], 'long_name', "Bandwidth of environmental sensor")
