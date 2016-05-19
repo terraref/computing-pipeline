@@ -48,8 +48,11 @@ If the output folder does not exist, EnvironmentalLoggerAnalyser.py creates it.
           Add new array flx_spc_dwn (downwelling spectral flux) to the netCDF file
 20160512: Recalculate downwellingSpectralFlux, save Flux sensitivity in SI
 20160517: Implement variable wavelength
-20160518: Add numpy module, now the array calculation will be done by numpy to improve efficiency
-          Add Downwelling Flux (the previous one is recognized and renamed as Downwelling spectral flux)
+20160518: 1. Add numpy module, now the array calculation will be done by numpy to improve efficiency
+          2. Add Downwelling Flux (the previous one is recognized and renamed as Downwelling spectral flux)
+20160519: 1. Recalculate and double check the method used for calculating downwelling spectral flux
+          2. Reinstate the integration time and area (based on the discussion about the dimension of the flux sensitivity)
+          3. Clean up based on Professor Zender's adjustment
 
 TODO:
 1. Convert all units to SI
@@ -77,7 +80,7 @@ _UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hectopascal", u"DegCelsius": "celsiu
                     u'kilo Lux': 'kilolux', u'degrees': 'degrees', u'?s': 'microsecond', u'us': 'microsecond', '': ''}
 _NAMES = {'sensor par': 'Sensor Photosynthetically Active Radiation'}
 _UNIX_BASETIME = date(year=1970, month=1, day=1)
-_FLX_SNS =\
+_FLX_SNS = \
     [2.14905162e-3, 2.14905162e-3, 2.13191329e-3, 2.09958721e-3, 2.07255014e-3, 2.04042869e-3, 2.01065201e-3, 1.98247712e-3, 1.95695595e-3, 1.93084270e-3,
      1.90570597e-3, 1.87482001e-3, 1.85556117e-3, 1.83111292e-3, 1.80493827e-3, 1.78204243e-3, 1.76011709e-3, 1.74298970e-3, 1.72493868e-3, 1.70343113e-3,
      1.68553722e-3, 1.66631622e-3, 1.65443041e-3, 1.63642311e-3, 1.61846215e-3, 1.60545573e-3, 1.59131286e-3, 1.57713520e-3, 1.56105571e-3, 1.54524417e-3,
@@ -207,17 +210,19 @@ def wavelengthSpectrumAnddownwellingSpectralFlux(fileLocation):
 
         spectrum.remove([])
 
-        # Downwelling Spectral Flux is calculated by
-        #_FLX_SNS * spectrum * 1.0e-6 (to convert unit from [uW m-2 xps-1] to [W m-2 xps-1]) / _wvl_dlt
     wvl_ntf  = [np.average([wvl_lgr[i], wvl_lgr[i+1]]) for i in range(len(wvl_lgr)-1)]
     delta = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
     delta.insert(0, 2*(wvl_ntf[0] - wvl_lgr[0]))
     delta.insert(-1, 2*(wvl_lgr[-1] - wvl_ntf[-1]))
-    downwellingSpectralFlux = np.array(_FLX_SNS) * np.array(spectrum) * 1.0e-6 / np.array(delta)
-    Spectrometer_Integration_Time_In_Microseconds=5000.0
-    Spectrometer_Integration_Time=Spectrometer_Integration_Time_In_Microseconds/1.0e6
-    Area=3.141*(3900.0*1.0e-6*3900.0*1.0e-6)/4.0
-    downwellingSpectralFlux = downwellingSpectralFlux/Area/Spectrometer_Integration_Time
+
+    Spectrometer_Integration_Time_In_Microseconds = 5000.0
+    Spectrometer_Integration_Time = Spectrometer_Integration_Time_In_Microseconds / 1.0e6
+
+    Area= np.pi * (3900.0*1.0e-6) ** 2 / 4.0
+
+    #General formula used in calculating downwelling spectral flux:
+    #Downwelling Spectral Flux = flx_sns * spectrum / bandwidth / area / time
+    downwellingSpectralFlux = np.array(_FLX_SNS) * np.array(spectrum) * 1.0e-6 / np.array(delta) / Area / Spectrometer_Integration_Time
 
     return wvl_lgr, spectrum, downwellingSpectralFlux
 
@@ -368,6 +373,19 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     netCDFHandler.createVariable("flx_dwn", 'f4').assignValue(np.sum(downwellingSpectralFlux))
     setattr(netCDFHandler.variables["flx_dwn"], "units", "watt meter-2")
     setattr(netCDFHandler.variables['flx_dwn'], 'long_name', 'Downwelling Irradiance')
+
+    #Other Constants used in calculation
+    #Integration Time
+    netCDFHandler.createVariable("int_tme", 'f4').assignValue(5000.0/1.0e-6)
+    setattr(netCDFHandler.variables["flx_dwn"], "units", "second")
+    setattr(netCDFHandler.variables['flx_dwn'], 'long_name', 'Spectraometer integration time')
+
+    #Spectrometer Area
+    netCDFHandler.createVariable("area", "f4").assignValue(np.pi * (3900.0*1.0e-6) ** 2 / 4.0)
+    setattr(netCDFHandler.variables["area"], "units", "meter2")
+    setattr(netCDFHandler.variables['area'], 'long_name', 'Spectraometer Area')
+
+
 
     netCDFHandler.history = recordTime + ': python ' + commandLine
     netCDFHandler.close()
