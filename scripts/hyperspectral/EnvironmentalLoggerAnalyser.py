@@ -180,7 +180,7 @@ _FLX_SNS =\
      2.43313474e-4, 2.44175726e-4, 2.44734401e-4, 2.45486851e-4, 2.45993980e-4, 2.46800743e-4, 2.47463201e-4, 2.48445219e-4, 2.49488279e-4, 2.50569021e-4,
      2.51747840e-4, 2.52951109e-4, 2.54188859e-4, 2.55386833e-4, 2.56298369e-4, 2.57479006e-4, 2.58213101e-4, 2.59065147e-4, 2.60018887e-4, 2.61076885e-4,
      2.62283407e-4, 2.63904910e-4, 2.65792030e-4, 2.67956880e-4, 2.70494493e-4, 2.73225853e-4, 2.76170072e-4, 2.79055057e-4, 2.81984548e-4, 2.88500954e-4,
-     2.89109910e-4, 2.93129400e-4, 2.92536512e-4, 2.92536512e-4]
+     2.89109910e-4, 2.93129400e-4, 2.92536512e-4, 2.92536512e-4] #[uW m-2 xps-1] 10 sensitivities per line, 1024 total
 
 
 def wavelengthSpectrumAnddownwellingSpectralFlux(fileLocation):
@@ -208,12 +208,13 @@ def wavelengthSpectrumAnddownwellingSpectralFlux(fileLocation):
         spectrumList.remove([])
 
         # Downwelling Spectral Flux is calculated by
-        #_FLX_SNS * spectrum * 1e-6 (to convert unit) / _wvl_dlt
+        #_FLX_SNS * spectrum * 1e-6 (to convert unit from [uW m-2 xps-1] to [W m-2 xps-1]) / _wvl_dlt
     midPointList  = [np.average([wavelengthList[i], wavelengthList[i+1]]) for i in range(len(wavelengthList)-1)]
     bandwidthList = [midPointList[i+1] - midPointList[i] for i in range(len(midPointList) - 1)]
     bandwidthList.insert(0, 2*(midPointList[0] - wavelengthList[0]))
     bandwidthList.insert(-1, 2*(wavelengthList[-1] - midPointList[-1]))
-    downwellingSpectralFlux = np.divide(np.multiply(np.multiply(_FLX_SNS, spectrumList), 1e-6), bandwidthList)
+    downwellingSpectralFlux = np.array(_FLX_SNS) * np.array(spectrumList) * 1e-6 / np.array(bandwidthList)
+    #np.divide(np.multiply(np.multiply(_FLX_SNS, spectrumList), 1e-6), bandwidthList)
 
     return wavelengthList, spectrumList, downwellingSpectralFlux
 
