@@ -208,13 +208,16 @@ def wavelengthSpectrumAnddownwellingSpectralFlux(fileLocation):
         spectrum.remove([])
 
         # Downwelling Spectral Flux is calculated by
-        #_FLX_SNS * spectrum * 1e-6 (to convert unit from [uW m-2 xps-1] to [W m-2 xps-1]) / _wvl_dlt
+        #_FLX_SNS * spectrum * 1.0e-6 (to convert unit from [uW m-2 xps-1] to [W m-2 xps-1]) / _wvl_dlt
     wvl_ntf  = [np.average([wvl_lgr[i], wvl_lgr[i+1]]) for i in range(len(wvl_lgr)-1)]
     delta = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
     delta.insert(0, 2*(wvl_ntf[0] - wvl_lgr[0]))
     delta.insert(-1, 2*(wvl_lgr[-1] - wvl_ntf[-1]))
-    downwellingSpectralFlux = np.array(_FLX_SNS) * np.array(spectrum) * 1e-6 / np.array(delta)
-    #np.divide(np.multiply(np.multiply(_FLX_SNS, spectrum), 1e-6), delta)
+    downwellingSpectralFlux = np.array(_FLX_SNS) * np.array(spectrum) * 1.0e-6 / np.array(delta)
+    #Spectrometer_Integration_Time_In_Microseconds=5000.0
+    #Spectrometer_Integration_Time=Spectrometer_Integration_Time_In_Microseconds/1.0e6
+    #Area=3.141*(3900.0*1.0e-6*3900.0*1.0e-6)/4.0
+    #downwellingSpectralFlux = downwellingSpectralFlux/Area/Spectrometer_Integration_Time
 
     return wvl_lgr, spectrum, downwellingSpectralFlux
 
@@ -359,7 +362,7 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
 
     netCDFHandler.createVariable("flx_spc_dwn", 'f4', ('time','wvl_lgr'))[:,:] = downwellingSpectralFlux
     setattr(netCDFHandler.variables['flx_spc_dwn'],'units', 'watt meter-2 meter-1')
-    setattr(netCDFHandler.variables['flx_spc_dwn'], 'long_name', 'Downwelling Spectral Flux')
+    setattr(netCDFHandler.variables['flx_spc_dwn'], 'long_name', 'Downwelling Spectral Irradiance')
 
     # Downwelling Flux = summation of (delta lambda(_wvl_dlt) * downwellingSpectralFlux)
     netCDFHandler.createVariable("flx_dwn", 'f4').assignValue(np.sum(downwellingSpectralFlux))
