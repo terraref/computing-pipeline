@@ -77,7 +77,7 @@ _UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hectopascal", u"DegCelsius": "celsiu
                     u'kilo Lux': 'kilolux', u'degrees': 'degrees', u'?s': 'microsecond', u'us': 'microsecond', '': ''}
 _NAMES = {'sensor par': 'Sensor Photosynthetically Active Radiation'}
 _UNIX_BASETIME = date(year=1970, month=1, day=1)
-_WVL_DLT = 337.7e-9 #wavelength, bandwidth unknown, will be bandwidth
+_WVL_DLT = 0.9e-4 #wavelength, bandwidth unknown, will be bandwidth
 _FLX_SNS =\
     [2.14905162e-3, 2.14905162e-3, 2.13191329e-3, 2.09958721e-3, 2.07255014e-3, 2.04042869e-3, 2.01065201e-3, 1.98247712e-3, 1.95695595e-3, 1.93084270e-3,
      1.90570597e-3, 1.87482001e-3, 1.85556117e-3, 1.83111292e-3, 1.80493827e-3, 1.78204243e-3, 1.76011709e-3, 1.74298970e-3, 1.72493868e-3, 1.70343113e-3,
@@ -352,7 +352,11 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     setattr(netCDFHandler.variables['flx_spc_dwn'], 'long_name', 'Downwelling Spectral Flux')
 
     #Downwelling Flux = summation of (delta lambda(_wvl_dlt) * downwellingSpectralFlux)
-    netCDFHandler.createVariable("flx_dwn", 'f4').assignValue(np.sum(downwellingSpectralFlux) * _WVL_DLT)
+    midPointList  = [np.average([wavelength[i], wavelength[i+1]]) for i in range(len(wavelength)-1)]
+    bandwidthList = [midPointList[i+1] - midPointList[i] for i in range(len(midPointList) - 1)]
+    bandwidthList.insert(0, 2*(midPointList[0] - wavelength[0]))
+    bandwidthList.insert(-1, 2*(wavelength[-1] - midPointList[-1]))
+    netCDFHandler.createVariable("flx_dwn", 'f4', ('time','wvl_lgr')) [:,:] = np.multiply(bandwidthList, downwellingSpectralFlux)
     setattr(netCDFHandler.variables["flx_dwn"], "units", "watt meter-2")
     setattr(netCDFHandler.variables['flx_dwn'], 'long_name', 'Downwelling Flux')
 
