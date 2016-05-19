@@ -27,7 +27,7 @@ UCI production:
 python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py ${DATA}/terraref/EnvironmentLogger/2016-04-07/2016-04-07_12-00-07_enviromentlogger.json ~/rgr
 
 Roger production:
-module add gdal-stack-2.7.10 
+module add gdal-stack-2.7.10
 python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py /projects/arpae/terraref/raw_data/ua-mac/EnvironmentLogger/2016-04-07/2016-04-07_12-00-07_enviromentlogger.json ~/rgr
 
 EnvironmentalLoggerAnalyser.py takes the first argument as the input folder (containing JSON files,
@@ -52,11 +52,11 @@ If the output folder does not exist, EnvironmentalLoggerAnalyser.py creates it.
           Add Downwelling Flux (the previous one is recognized and renamed as Downwelling spectral flux)
 
 TODO:
-1. Convert all units to SI 
+1. Convert all units to SI
 ----------------------------------------------------------------------------------------
 Note:
-If you need a different base time, it is named "_UNIX_BASETIME" and located at the 
-beginning of the script as a global variable. You could simply change the parameters 
+If you need a different base time, it is named "_UNIX_BASETIME" and located at the
+beginning of the script as a global variable. You could simply change the parameters
 as they are named.
 
 ----------------------------------------------------------------------------------------
@@ -77,7 +77,6 @@ _UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hectopascal", u"DegCelsius": "celsiu
                     u'kilo Lux': 'kilolux', u'degrees': 'degrees', u'?s': 'microsecond', u'us': 'microsecond', '': ''}
 _NAMES = {'sensor par': 'Sensor Photosynthetically Active Radiation'}
 _UNIX_BASETIME = date(year=1970, month=1, day=1)
-_WVL_DLT = 0.9e-4 #wavelength, bandwidth unknown, will be bandwidth
 _FLX_SNS =\
     [2.14905162e-3, 2.14905162e-3, 2.13191329e-3, 2.09958721e-3, 2.07255014e-3, 2.04042869e-3, 2.01065201e-3, 1.98247712e-3, 1.95695595e-3, 1.93084270e-3,
      1.90570597e-3, 1.87482001e-3, 1.85556117e-3, 1.83111292e-3, 1.80493827e-3, 1.78204243e-3, 1.76011709e-3, 1.74298970e-3, 1.72493868e-3, 1.70343113e-3,
@@ -183,6 +182,7 @@ _FLX_SNS =\
      2.62283407e-4, 2.63904910e-4, 2.65792030e-4, 2.67956880e-4, 2.70494493e-4, 2.73225853e-4, 2.76170072e-4, 2.79055057e-4, 2.81984548e-4, 2.88500954e-4,
      2.89109910e-4, 2.93129400e-4, 2.92536512e-4, 2.92536512e-4]
 
+
 def wavelengthSpectrumAnddownwellingSpectralFlux(fileLocation):
     '''
     This function will format the source JSON file including multiple JSON objects
@@ -207,9 +207,13 @@ def wavelengthSpectrumAnddownwellingSpectralFlux(fileLocation):
 
         spectrumList.remove([])
 
-        #Downwelling Spectral Flux is calculated by
+        # Downwelling Spectral Flux is calculated by
         #_FLX_SNS * spectrum * 1e-6 (to convert unit) / _wvl_dlt
-        downwellingSpectralFlux = np.divide(np.multiply(np.multiply(_FLX_SNS, spectrumList), 1e-6), _WVL_DLT)
+    midPointList  = [np.average([wavelengthList[i], wavelengthList[i+1]]) for i in range(len(wavelengthList)-1)]
+    bandwidthList = [midPointList[i+1] - midPointList[i] for i in range(len(midPointList) - 1)]
+    bandwidthList.insert(0, 2*(midPointList[0] - wavelengthList[0]))
+    bandwidthList.insert(-1, 2*(wavelengthList[-1] - midPointList[-1]))
+    downwellingSpectralFlux = np.divide(np.multiply(np.multiply(_FLX_SNS, spectrumList), 1e-6), bandwidthList)
 
     return wavelengthList, spectrumList, downwellingSpectralFlux
 
@@ -336,8 +340,13 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
         netCDFHandler.createVariable("spectrum", 'f4', ('time', 'wvl_lgr'))[
             :, :] = spectrum
 
+    midPointList  = [np.average([wavelength[i], wavelength[i+1]]) for i in range(len(wavelength)-1)]
+    bandwidthList = [midPointList[i+1] - midPointList[i] for i in range(len(midPointList) - 1)]
+    bandwidthList.insert(0, 2*(midPointList[0] - wavelength[0]))
+    bandwidthList.insert(-1, 2*(wavelength[-1] - midPointList[-1]))
+
     # Add data from terraref.nco
-    netCDFHandler.createVariable("wvl_dlt", 'f8').assignValue(_WVL_DLT)
+    netCDFHandler.createVariable("wvl_dlt", 'f8', ("wvl_lgr",))[:] = bandwidthList
     setattr(netCDFHandler.variables['wvl_dlt'], 'units', 'meter')
     setattr(netCDFHandler.variables['wvl_dlt'], 'notes',"Best information available is that bandwidth is uniform 0.4 nm across all channels")
     setattr(netCDFHandler.variables['wvl_dlt'], 'long_name', "Bandwidth of environmental sensor")
@@ -351,14 +360,10 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     setattr(netCDFHandler.variables['flx_spc_dwn'],'units', 'watt meter-2 meter-1')
     setattr(netCDFHandler.variables['flx_spc_dwn'], 'long_name', 'Downwelling Spectral Flux')
 
-    #Downwelling Flux = summation of (delta lambda(_wvl_dlt) * downwellingSpectralFlux)
-    midPointList  = [np.average([wavelength[i], wavelength[i+1]]) for i in range(len(wavelength)-1)]
-    bandwidthList = [midPointList[i+1] - midPointList[i] for i in range(len(midPointList) - 1)]
-    bandwidthList.insert(0, 2*(midPointList[0] - wavelength[0]))
-    bandwidthList.insert(-1, 2*(wavelength[-1] - midPointList[-1]))
-    netCDFHandler.createVariable("flx_dwn", 'f4', ('time','wvl_lgr')) [:,:] = np.multiply(bandwidthList, downwellingSpectralFlux)
+    # Downwelling Flux = summation of (delta lambda(_wvl_dlt) * downwellingSpectralFlux)
+    netCDFHandler.createVariable("flx_dwn", 'f4').assignValue(np.sum(downwellingSpectralFlux))
     setattr(netCDFHandler.variables["flx_dwn"], "units", "watt meter-2")
-    setattr(netCDFHandler.variables['flx_dwn'], 'long_name', 'Downwelling Flux')
+    setattr(netCDFHandler.variables['flx_dwn'], 'long_name', 'Downwelling Irradiance')
 
     netCDFHandler.history = recordTime + ': python ' + commandLine
     netCDFHandler.close()
