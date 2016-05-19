@@ -192,21 +192,17 @@ def wavelengthSpectrumAnddownwellingSpectralFlux(fileLocation):
     into a file of JSON array
     '''
     with open(fileLocation, 'r') as fileHandler:
-        tempList, wvl_lgr, spectrum, k, writeToWavelength =\
-            fileHandler.read().split('\n'), [], [[]], 0, True
+        tempList, wvl_lgr, spectrum, k, writeToWavelength = fileHandler.read().split('\n'), [], [[]], 0, True
 
         for i in range(len(tempList)):
             if "wavelength" in tempList[i] and writeToWavelength:
-                wvl_lgr.append(
-                    float(tempList[i][tempList[i].find(':') + 1: -2]) * 1e-9)
-            if "wavelength" not in tempList[i] and "wavelength" in tempList[i - 4]\
-                    and "band" not in tempList[i] and "," not in tempList[i]:
+                wvl_lgr.append(float(tempList[i][tempList[i].find(':') + 1: -2]) * 1e-9)
+            if "wavelength" not in tempList[i] and "wavelength" in tempList[i - 4] and "band" not in tempList[i] and "," not in tempList[i]:
                 writeToWavelength = False
                 spectrum.append([])
                 k += 1
             if "spectrum" in tempList[i]:
-                spectrum[k].append(
-                    float(tempList[i][tempList[i].find(':') + 1: -2]))
+                spectrum[k].append(float(tempList[i][tempList[i].find(':') + 1: -2]))
 
         spectrum.remove([])
 
@@ -255,10 +251,8 @@ def getSpectrometerInformation(arrayOfJSON):
     '''
     Collect information from spectrometer with special care
     '''
-    maxFixedIntensity = [int(intensityMembers["spectrometer"]["maxFixedIntensity"]) for intensityMembers in
-                         arrayOfJSON]
-    integrationTime = [int(integrateMembers["spectrometer"]["integration time in ?s"]) for integrateMembers in
-                       arrayOfJSON]
+    maxFixedIntensity = [int(intensityMembers["spectrometer"]["maxFixedIntensity"]) for intensityMembers in arrayOfJSON]
+    integrationTime = [int(integrateMembers["spectrometer"]["integration time in ?s"]) for integrateMembers in arrayOfJSON]
 
     return maxFixedIntensity, integrationTime
 
@@ -289,11 +283,9 @@ def translateTime(timeString):
     Translate the time the metadata included as the days offset to the basetime.
     '''
     timeUnpack = datetime.strptime(timeString, "%Y.%m.%d-%H:%M:%S").timetuple()
-    timeSplit = date(year=timeUnpack.tm_year, month=timeUnpack.tm_mon,
-                     day=timeUnpack.tm_mday) - _UNIX_BASETIME
+    timeSplit = date(year=timeUnpack.tm_year, month=timeUnpack.tm_mon, day=timeUnpack.tm_mday) - _UNIX_BASETIME
 
-    return (timeSplit.total_seconds() + timeUnpack.tm_hour * 3600.0 + timeUnpack.tm_min * 60.0 +
-            timeUnpack.tm_sec) / (3600.0 * 24.0)
+    return (timeSplit.total_seconds() + timeUnpack.tm_hour * 3600.0 + timeUnpack.tm_min * 60.0 + timeUnpack.tm_sec) / (3600.0 * 24.0)
 
 
 def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingSpectralFlux=None, recordTime=None, commandLine=None):
@@ -301,12 +293,9 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     Main netCDF handler, write data to the netCDF file indicated.
     '''
     netCDFHandler         = Dataset(outputFileName, 'w', format='NETCDF4')
-    dataMemberList        = [JSONMembers[u"environment_sensor_set_reading"]
-                      for JSONMembers in JSONArray]
-    timeList              = [translateTime(JSONMembers[u'timestamp'])
-                for JSONMembers in dataMemberList]
-    timeStampList         = [JSONMembers[u'timestamp']
-                     for JSONMembers in dataMemberList]
+    dataMemberList        = [JSONMembers[u"environment_sensor_set_reading"] for JSONMembers in JSONArray]
+    timeList              = [translateTime(JSONMembers[u'timestamp']) for JSONMembers in dataMemberList]
+    timeStampList         = [JSONMembers[u'timestamp'] for JSONMembers in dataMemberList]
     timeDimension         = netCDFHandler.createDimension("time", None)
     tempTimeStampVariable = netCDFHandler.createVariable("timestamp", str, ("time",), chunksizes=(1,))
     for i in range(len(timeStampList)):
@@ -325,29 +314,22 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
             tempVariable[:] = getListOfValue(
                 dataMemberList, data)  # Assign "values"
             if 'unit' in dataMemberList[0][data]:  # Assign Units
-                setattr(tempVariable, 'units', _UNIT_DICTIONARY[
-                        dataMemberList[0][data]['unit']])
+                setattr(tempVariable, 'units', _UNIT_DICTIONARY[dataMemberList[0][data]['unit']])
             if 'rawValue' in dataMemberList[0][data]:  # Assign "rawValues"
-                netCDFHandler.createVariable(renameTheValue(data) + '_rawValue', 'f4', ('time',))[:] =\
-                    getListOfRawValue(dataMemberList, data)
+                netCDFHandler.createVariable(renameTheValue(data) + '_rawValue', 'f4', ('time',))[:] =getListOfRawValue(dataMemberList, data)
         elif type(dataMemberList[0][data]) in (str, unicode) and data != "timestamp":
-            netCDFHandler.createVariable(renameTheValue(data), str)[
-                0] = dataMemberList[0][data]
+            netCDFHandler.createVariable(renameTheValue(data), str)[0] = dataMemberList[0][data]
 
         if data == 'spectrometer':  # Special care for spectrometers :)
-            netCDFHandler.createVariable('Spectrometer_maxFixedIntensity', 'f4', ('time',))[:] =\
-                getSpectrometerInformation(dataMemberList)[0]
-            netCDFHandler.createVariable('Spectrometer_Integration_Time_In_Microseconds', 'f4', ('time',))[:] =\
-                getSpectrometerInformation(dataMemberList)[1]
+            netCDFHandler.createVariable('Spectrometer_maxFixedIntensity', 'f4', ('time',))[:] = getSpectrometerInformation(dataMemberList)[0]
+            netCDFHandler.createVariable('Spectrometer_Integration_Time_In_Microseconds', 'f4', ('time',))[:] = getSpectrometerInformation(dataMemberList)[1]
 
     if wavelength and spectrum:
         netCDFHandler.createDimension("wvl_lgr", len(wavelength))
-        netCDFHandler.createVariable("wvl_lgr", 'f4', ('wvl_lgr',))[
-            :] = wavelength
+        netCDFHandler.createVariable("wvl_lgr", 'f4', ('wvl_lgr',))[:] = wavelength
         setattr(netCDFHandler.variables['wvl_lgr'], 'units', 'meter')
         setattr(netCDFHandler.variables['wvl_lgr'], 'long_name', 'Wavelength')
-        netCDFHandler.createVariable("spectrum", 'f4', ('time', 'wvl_lgr'))[
-            :, :] = spectrum
+        netCDFHandler.createVariable("spectrum", 'f4', ('time', 'wvl_lgr'))[:, :] = spectrum
 
     wvl_ntf  = [np.average([wavelength[i], wavelength[i+1]]) for i in range(len(wavelength)-1)]
     delta = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
@@ -397,24 +379,17 @@ if __name__ == '__main__':
 
     if not os.path.isdir(fileInputLocation) or fileOutputLocation.endswith('.nc'):
         print "Processing", fileInputLocation + '....'
-        tempJSONMasterList, wavelength, spectrum, downwellingSpectralFlux = JSONHandler(
-            fileInputLocation)
+        tempJSONMasterList, wavelength, spectrum, downwellingSpectralFlux = JSONHandler(fileInputLocation)
         if not os.path.isdir(fileOutputLocation):
-            main(tempJSONMasterList, fileOutputLocation, wavelength, spectrum, downwellingSpectralFlux,
-                 _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
+            main(tempJSONMasterList, fileOutputLocation, wavelength, spectrum, downwellingSpectralFlux, _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
         else:
             outputFileName = os.path.split(fileInputLocation)[-1]
-            main(tempJSONMasterList, os.path.join(fileOutputLocation,
-                                                  outputFileName.strip('.json') + '.nc'), wavelength, spectrum, downwellingSpectralFlux,
-                 _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
+            main(tempJSONMasterList, os.path.join(fileOutputLocation, outputFileName.strip('.json') + '.nc'), wavelength, spectrum, downwellingSpectralFlux, _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
     else:  # Read and Export netCDF to folder
         for filePath, fileDirectory, fileName in os.walk(fileInputLocation):
             for members in fileName:
                 if os.path.join(filePath, members).endswith('.json'):
                     print "Processing", members + '....'
                     outputFileName = members.strip('.json') + '.nc'
-                    tempJSONMasterList, wavelength, spectrum, downwellingSpectralFlux = JSONHandler(
-                        os.path.join(filePath, members))
-                    main(tempJSONMasterList, os.path.join(
-                        fileOutputLocation, outputFileName),
-                        wavelength, spectrum, downwellingSpectralFlux, _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
+                    tempJSONMasterList, wavelength, spectrum, downwellingSpectralFlux = JSONHandler(os.path.join(filePath, members))
+                    main(tempJSONMasterList, os.path.join(fileOutputLocation, outputFileName), wavelength, spectrum, downwellingSpectralFlux, _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
