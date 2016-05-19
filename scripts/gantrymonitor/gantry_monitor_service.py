@@ -493,7 +493,7 @@ def getNewFilesFromWatchedFolders(alreadyFound):
 def getNewFilesFromFTPLogs():
     global status_lastFTPLogLine
 
-    current_lastFTPLogLine = ""
+    current_lastFTPLogLine = status_lastFTPLogLine
     maxPending = config["gantry"]["max_pending_files"]
     foundFiles = []
 
