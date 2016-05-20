@@ -837,6 +837,7 @@ if __name__ == '__main__':
 
     # Initialize logger handlers
     logger.addHandler(TimedRotatingFileHandler(config["log_path"], when='D'))
+    logger.addHandler(logging.StreamHandler())
 
     # TODO: How to handle big errors, e.g. NCSA API not responding? admin email notification?
 

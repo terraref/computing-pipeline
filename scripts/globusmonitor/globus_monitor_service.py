@@ -718,6 +718,7 @@ if __name__ == '__main__':
 
     # Initialize logger handlers
     logger.addHandler(TimedRotatingFileHandler(config["log_path"], when='D'))
+    logger.addHandler(logging.StreamHandler())
 
     datasetMap = loadDataFromDisk(config['dataset_map_path'])
     collectionMap = loadDataFromDisk(config['collection_map_path'])
