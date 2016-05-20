@@ -592,6 +592,7 @@ def notifyClowderOfCompletedTask(task):
                 if dsid:
                     updatedTask = safeCopy(task)
                     if len(fileFormData)>0:
+
                         # Upload collected files for this dataset
                         # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
                         (content, header) = encode_multipart_formdata(fileFormData)

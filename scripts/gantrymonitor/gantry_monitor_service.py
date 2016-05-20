@@ -18,7 +18,7 @@
     queued for deletion.
 """
 
-import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip
+import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip, logging
 import requests
 from io import BlockingIOError
 from flask import Flask, request, Response
@@ -28,6 +28,9 @@ from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIErr
 rootPath = "/home/gantry"
 
 config = {}
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)-8s %(message)s')
+logger = logging.getLogger(__name__)
 
 # Used by the FTP log reader to track progress
 status_lastFTPLogLine = ""
@@ -69,26 +72,6 @@ api = restful.Api(app)
 # ----------------------------------------------------------
 # SHARED UTILS
 # ----------------------------------------------------------
-def openFileToAppend(fpath=None):
-    if not fpath:
-        fpath = config["log_path"]
-
-    # Create directories if necessary
-    dirs = fpath.replace(os.path.basename(fpath), "")
-    if not os.path.exists(dirs):
-        os.makedirs(dirs)
-
-    # Determine today's date (log_YYYYMMDD.txt)
-    currD = time.strftime("%Y%m%d")
-    fpath = fpath.replace(".txt", "_"+currD+".txt")
-
-    # If there's a current log file, store it as log1.txt, log2.txt, etc.
-    if os.path.exists(fpath):
-        backupLog = fpath.replace(".txt", "_backup.txt")
-        shutil.copyfile(fpath, backupLog)
-
-    return open(fpath, 'a+')
-
 """Attempt to lock a file so API and monitor don't write at once, and wait if unable"""
 def lockFile(f):
     # From http://tilde.town/~cristo/file-locking-in-python.html
@@ -128,13 +111,6 @@ def updateNestedDict(existing, new):
             existing = {k: new[k]}
     return existing
 
-"""Print log message to console and append it to log file"""
-def log(message, type="INFO"):
-    print("["+type+"] "+message)
-    logFile = openFileToAppend()
-    logFile.write("["+type+"] "+message+"\n")
-    logFile.close()
-
 """Return small JSON object with information about monitor health"""
 def getStatus():
     completedTasks = 0
@@ -149,21 +125,14 @@ def getStatus():
     }
 
 """Load contents of .json file into a JSON object"""
-def loadJsonFile(filename, markInaccessible=False):
+def loadJsonFile(filename):
     try:
         f = open(filename)
         jsonObj = json.load(f)
         f.close()
         return jsonObj
     except IOError:
-        if not markInaccessible:
-            log("unable to open "+filename+", returning {}")
-        else:
-            # Write filename to inaccessible list
-            iaf = openFileToAppend(config['inaccessible_files_path'])
-            iaf.write(filename+"\n")
-            iaf.close()
-            return False
+        logger.error("- unable to open or parse JSON from %s" % filename)
         return {}
 
 """Load active or pending tasks from file into memory"""
@@ -171,7 +140,7 @@ def loadTasksFromDisk(filePath, emptyVal="{}"):
     # Prefer to load from primary file, try to use backup if primary is missing
     if not os.path.exists(filePath):
         if os.path.exists(filePath+".backup"):
-            log("...loading tasks from "+filePath+".backup")
+            logger.info("- loading data from %s.backup" % filePath)
             shutil.copyfile(filePath+".backup", filePath)
         else:
             # Create an empty file if primary+backup don't exist
@@ -179,14 +148,14 @@ def loadTasksFromDisk(filePath, emptyVal="{}"):
             f.write(emptyVal)
             f.close()
     else:
-        log("...loading tasks from "+filePath)
+        logger.info("- loading data from %s" % filePath)
 
     return loadJsonFile(filePath)
 
 """Write active or pending tasks from memory into file"""
 def writeTasksToDisk(filePath, taskObj):
     # Write current file to backup location before writing current file
-    log("...writing "+os.path.basename(filePath))
+    logger.debug("- writing %s" % os.path.basename(filePath))
 
     # Create directories if necessary
     dirs = filePath.replace(os.path.basename(filePath), "")
@@ -216,14 +185,14 @@ def writeCompletedTransferToDisk(transfer):
 
     # Write to json file with task ID as filename
     dest = os.path.join(logPath, taskID+".json")
-    log("...complete: "+dest)
+    logger.info("%s complete (%s)" % (taskID, dest))
     f = open(dest, 'w')
     f.write(json.dumps(transfer))
     f.close()
 
 """Move file from src to dest directory, creating dirs as needed"""
 def moveLocalFile(srcPath, destPath, filename):
-    log("...moving "+filename+" to "+destPath)
+    logger.info("- moving %s to %s" % (filename, destPath))
 
     if not os.path.isdir(destPath):
         os.makedirs(destPath)
@@ -236,11 +205,11 @@ def createLocalSymlink(srcPath, destPath, filename):
         if not os.path.isdir(destPath):
             os.makedirs(destPath)
 
-        log("...creating symlink to "+filename+" in "+destPath)
+        logger.info("- creating symlink to %s in %s" % (filename, destPath))
         os.symlink(os.path.join(srcPath, filename),
                    os.path.join(destPath, filename))
     except OSError:
-        #log("Unable to create dirs for "+destPath, "ERROR")
+        logger.error("- unable to create directories for %s" % destPath)
         return
 
 """Clear out any datasets from pendingTransfers without files or metadata"""
@@ -248,7 +217,7 @@ def cleanPendingTransfers():
     global pendingTransfers
     global status_numPending
 
-    log("tidying up pending transfer queue")
+    logger.info("- tidying up pending transfer queue")
 
     status_numPending = 0
     allPendingTransfers = safeCopy(pendingTransfers)
@@ -267,8 +236,6 @@ def cleanPendingTransfers():
 
         if 'files' not in pendingTransfers[ds] and 'md' not in pendingTransfers[ds]:
             del pendingTransfers[ds]
-
-
 
 """Add a particular file to pendingTransfers"""
 def addFileToPendingTransfers(f):
@@ -299,7 +266,7 @@ def addFileToPendingTransfers(f):
         }
     })
     status_numPending += 1
-    log("file queued via API: "+f)
+    logger.info("- file queued via API: %s" % f)
 
 """Take line of FTP transfer log and parse a datetime object from it"""
 def parseDateFromFTPLogLine(line):
@@ -368,13 +335,13 @@ api.add_resource(MonitorStatus, '/status')
 # ----------------------------------------------------------
 """Use globus goauth tool to get access token for config account"""
 def generateAuthToken():
-    log("generating auth token for "+config['globus']['username'])
+    logger.info("- generating auth token for "+config['globus']['username'])
     t = goauth.get_access_token(
             username=config['globus']['username'],
             password=config['globus']['password']
     ).token
     config['globus']['auth_token'] = t
-    log("...generated: "+t)
+    logger.debug("- generated: "+t)
 
 """Refresh auth token and send autoactivate message to source and destination Globus endpoints"""
 def activateEndpoints():
@@ -405,13 +372,13 @@ def generateGlobusSubmissionID():
             api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
             status_code, status_message, submission_id = api.submission_id()
         except:
-            log("exception generating submission ID for globus transfer", "ERROR")
+            logger.error("- exception generating submission ID for Globus transfer")
             return None
 
     if status_code == 200:
         return submission_id['value']
     else:
-        log("could not generate new Globus submission ID (%s: %s)" % (status_code, status_message), "ERROR")
+        logger.error("- could not generate new Globus submission ID (%s: %s)" % (status_code, status_message))
         return None
 
 """Check for files ready for transmission and return list"""
@@ -486,7 +453,7 @@ def getNewFilesFromWatchedFolders(alreadyFound):
             for f in foundList:
                 foundFiles.append(f)
 
-    log("found "+str(len(foundFiles))+" files from watched folders")
+    logger.info("- found %s files from watched folders" % len(foundFiles))
     return foundFiles
 
 """Check FTP log files to determine new files that were successfully moved to staging area"""
@@ -497,7 +464,7 @@ def getNewFilesFromFTPLogs():
     maxPending = config["gantry"]["max_pending_files"]
     foundFiles = []
 
-    log("checking log files starting from >> "+status_lastFTPLogLine)
+    logger.info("- reading logs from: "+status_lastFTPLogLine)
     logDir = config["gantry"]["ftp_log_path"]
     if logDir == "":
         # Don't perform a scan if no log file is defined
@@ -521,7 +488,7 @@ def getNewFilesFromFTPLogs():
     handledBackLog = True
     while not (foundResumePoint and handledBackLog):
         with (open(currLog, 'r+') if currLog.find(".gz")==-1 else gzip.open(currLog, 'r+')) as f:
-            log("scanning "+currLog)
+            logger.info("- scanning "+currLog)
             # If no most recent scanned line available, just start from beginning of current log file
             if lastLine == "":
                 initialLine = False
@@ -541,7 +508,7 @@ def getNewFilesFromFTPLogs():
                         break
 
                 if line == lastLine:
-                    log("found the resume point")
+                    logger.debug("- found the resume point")
                     foundResumePoint = True
 
                 elif foundResumePoint:
@@ -574,11 +541,11 @@ def getNewFilesFromFTPLogs():
             else:
                 currLog = os.path.join(logDir, lognames[-backLog])
 
-            log("walking back to "+currLog)
+            logger.debug("- walking back to %s" % currLog)
 
         # If we filled up the pending queue handling backlog, don't move onto newer files yet
         elif len(foundFiles)+status_numPending >= maxPending:
-            log("maximum number of pending files reached")
+            logger.debug("- maximum number of pending files reached")
             handledBackLog = True
 
         # If we found last line in a previous file, climb back up to current file and get its contents too
@@ -590,13 +557,13 @@ def getNewFilesFromFTPLogs():
             else:
                 currLogName = "xferlog"
             currLog = os.path.join(logDir, currLogName)
-            log("walking up to "+currLog)
+            logger.debug("- walking up to %s" % currLog)
 
         # If we found the line and handled all backlogged files, we're ready to go
         else:
             handledBackLog = True
 
-    log("found "+str(len(foundFiles))+" files from log")
+    logger.info("- found % files from logs" % len(foundFiles))
     status_lastFTPLogLine = current_lastFTPLogLine
     return foundFiles
 
@@ -669,14 +636,14 @@ def initializeGlobusTransfer():
                     api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
                     status_code, status_message, transfer_data = api.transfer(transferObj)
                 except (APIError, ClientError) as e:
-                    log("problem initializing Globus transfer", "ERROR")
+                    logger.error("- problem initializing Globus transfer")
                     status_code = 503
                     status_message = e
 
             if status_code == 200 or status_code == 202:
                 # Notify NCSA monitor of new task, and add to activeTasks for logging
                 globusID = transfer_data['task_id']
-                log("Globus transfer task started: %s (%s files)" % (globusID, queueLength))
+                logger.info("%s new Globus transfer task started (%s files)" % (globusID, queueLength))
 
                 activeTasks[globusID] = {
                     "globus_id": globusID,
@@ -691,7 +658,7 @@ def initializeGlobusTransfer():
                 writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
             else:
                 # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
-                log("globus transfer failed for %s (%s: %s)" % (ds, status_code, status_message), "ERROR")
+                logger.error("- Globus transfer initialization failed for %s (%s: %s)" % (ds, status_code, status_message))
                 return
 
         status_numActive = len(activeTasks)
@@ -702,7 +669,7 @@ def notifyMonitorOfNewTransfer(globusID, contents):
     sess = requests.Session()
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
-    log("notifying Globus monitor of %s" % globusID)
+    logger.info("%s being sent to NCSA Globus monitor" % globusID)
     try:
         status = sess.post(config['ncsa_api']['host']+"/tasks", data=json.dumps({
             "user": config['globus']['username'],
@@ -711,7 +678,7 @@ def notifyMonitorOfNewTransfer(globusID, contents):
         }))
         return status
     except requests.ConnectionError as e:
-        log("cannot connect to NCSA API", "ERROR")
+        logger.error("- cannot connect to NCSA API")
         return {'status_code':503}
 
 """Send message to NCSA Globus monitor API with metadata for a dataset, without other files"""
@@ -720,7 +687,7 @@ def sendMetadataToMonitor(datasetName, metadata):
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
     # Check with Globus monitor rather than Globus itself, to make sure file was handled properly before deleting from src
-    log("sending metadata for "+datasetName)
+    logger.info("- sending metadata for %s" % datasetName)
     try:
         status = sess.post(config['ncsa_api']['host']+"/metadata", data=json.dumps({
             "user": config['globus']['username'],
@@ -729,7 +696,7 @@ def sendMetadataToMonitor(datasetName, metadata):
         }))
         return status
     except requests.ConnectionError as e:
-        log("cannot connect to NCSA API", "ERROR")
+        logger.error("- cannot connect to NCSA API")
         return {'status_code':503}
 
 """Contact NCSA Globus monitor API to check whether task was completed successfully"""
@@ -745,10 +712,10 @@ def getTransferStatusFromMonitor(globusID):
         elif st.status_code == 404:
             return "NOT FOUND"
         else:
-            log("monitor status check failed for task "+globusID+" ("+str(st.status_code)+": "+st.status_message+")", "ERROR")
+            logger.error("%s monitor status check failed (%s: %s)" % (globusID, st.status_code, st.status_message))
             return "UNKNOWN"
     except requests.ConnectionError as e:
-        log("cannot connect to NCSA API", "ERROR")
+        logger.error("- cannot connect to NCSA API")
         return None
 
 """Continually initiate transfers from pending queue and contact NCSA API for status updates"""
@@ -770,11 +737,11 @@ def globusMonitorLoop():
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if globusWait <= 0:
             if status_numActive < config["globus"]["max_active_tasks"]:
-                log("checking pending file list...")
+                logger.info("- checking pending file list...")
                 # Clean up the pending object of straggling keys, then initialize Globus transfers
                 cleanPendingTransfers()
                 while status_numPending > 0 and status_numActive < config['globus']['max_active_tasks']:
-                    log("pending files found. initializing Globus transfer.")
+                    logger.info("- pending files found. initializing Globus transfer.")
                     writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
                     initializeGlobusTransfer()
 
@@ -784,7 +751,7 @@ def globusMonitorLoop():
 
         # Check with NCSA Globus monitor API for completed transfers
         if apiWait <= 0:
-            log("checking status of active transfers with NCSA")
+            logger.info("- checking status of active transfers with NCSA Globus monitor")
             # Use copy of task list so it doesn't change during iteration
             currentActiveTasks = safeCopy(activeTasks)
             for globusID in currentActiveTasks:
@@ -792,7 +759,7 @@ def globusMonitorLoop():
 
                 globusStatus = getTransferStatusFromMonitor(globusID)
                 if globusStatus in ["SUCCEEDED", "FAILED"]:
-                    log("status update received for "+globusID+": "+globusStatus)
+                    logger.info("%s status update received: %s" % (globusID, globusStatus))
                     task['status'] = globusStatus
                     task['completed'] = str(datetime.datetime.now())
 
@@ -811,7 +778,7 @@ def globusMonitorLoop():
                                                       os.path.join(deleteDir, fobj['path']), fobj['name'])
 
                             # Crawl and remove empty directories
-                            # log("...removing empty directories in "+config['gantry']['incoming_files_path'])
+                            # logger.info("- removing empty directories in "+config['gantry']['incoming_files_path'])
                             # subprocess.call(["find", config['gantry']['incoming_files_path'], "-type", "d", "-empty", "-delete"])
 
                     del activeTasks[globusID]
@@ -866,7 +833,9 @@ if __name__ == '__main__':
         config = updateNestedDict(config, loadJsonFile(os.path.join(rootPath, "data/config_custom.json")))
     else:
         print("...no custom configuration file found. using default values")
-    activateEndpoints()
+
+    # Initialize logger handlers
+    logger.addHandler(logging.handlers.TimedRotatingFileHandler(config["log_path"], when='D'))
 
     # TODO: How to handle big errors, e.g. NCSA API not responding? admin email notification?
 
@@ -881,17 +850,19 @@ if __name__ == '__main__':
     pendingTransfers = loadTasksFromDisk(config['pending_transfers_path'])
     cleanPendingTransfers()
 
-    log("loaded data from active and pending log files")
-    log(str(status_numPending)+" pending files")
-    log(str(status_numActive)+" active Globus tasks")
+    logger.info("- loaded data from active and pending log files")
+    logger.info("- %s pending files" % status_numPending)
+    logger.info("- %s active Globus tasks" % status_numActive)
+
+    activateEndpoints()
 
     # Create thread for service to begin monitoring log file & transfer queue
-    log("*** Service now monitoring gantry transfer queue ***")
+    logger.info("*** Service now monitoring gantry transfer queue ***")
     thread.start_new_thread(globusMonitorLoop, ())
-    log("*** Service now checking for new files via FTP logs/folder monitoring ***")
+    logger.info("*** Service now checking for new files via FTP logs/folder monitoring ***")
     thread.start_new_thread(gantryMonitorLoop, ())
 
     # Create thread for API to begin listening - requires valid Globus user/pass
     apiPort = os.getenv('MONITOR_API_PORT', config['api']['port'])
-    log("*** API now listening on "+config['api']['ip_address']+":"+apiPort+" ***")
+    logger.info("*** API now listening on %s:%s ***" % (config['api']['ip_address'],apiPort))
     app.run(host=config['api']['ip_address'], port=int(apiPort), debug=False)
