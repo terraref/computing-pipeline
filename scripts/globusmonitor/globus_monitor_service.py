@@ -8,7 +8,7 @@
     succeeded or failed, and notify Clowder accordingly.
 """
 
-import os, shutil, json, time, datetime, thread, copy, atexit, collections, fcntl
+import os, shutil, json, time, datetime, thread, copy, atexit, collections, fcntl, logging
 import requests
 from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
@@ -17,6 +17,7 @@ from flask import Flask, request, Response
 from flask.ext import restful
 from flask_restful import reqparse, abort, Api, Resource
 from globusonline.transfer.api_client import TransferAPIClient, APIError, ClientError, goauth
+from logging.handlers import TimedRotatingFileHandler
 
 rootPath = "/home/globusmonitor/computing-pipeline/scripts/globusmonitor"
 
@@ -43,6 +44,9 @@ Config file has 2 important entries which do not have default values:
     }
 """
 config = {}
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)-8s %(message)s')
+logger = logging.getLogger(__name__)
 
 """activeTasks tracks which Globus IDs are being monitored, and is of the format:
 {"globus_id": {
@@ -88,25 +92,6 @@ api = restful.Api(app)
 # ----------------------------------------------------------
 # SHARED UTILS
 # ----------------------------------------------------------
-def openLog():
-    logPath = config["log_path"]
-
-    # Create directories if necessary
-    dirs = logPath.replace(os.path.basename(logPath), "")
-    if not os.path.exists(dirs):
-        os.makedirs(dirs)
-
-    # Determine today's date (log_YYYYMMDD.txt)
-    currD = time.strftime("%Y%m%d")
-    logPath = logPath.replace(".txt", "_"+currD+".txt")
-
-    # If there's a current log file, store it as log1.txt, log2.txt, etc.
-    if os.path.exists(logPath):
-        backupLog = logPath.replace(".txt", "_backup.txt")
-        shutil.copyfile(logPath, backupLog)
-
-    return open(logPath, 'a+')
-
 """Create copy of dict in safe manner for multi-thread access (won't change during copy iteration)"""
 def safeCopy(obj):
     # Iterate across a copy since we'll be changing object
@@ -158,13 +143,6 @@ def updateNestedDict(existing, new):
             existing = {k: new[k]}
     return existing
 
-"""Print log message to console and write it to log file"""
-def log(message, type="INFO"):
-    print("["+type+"] "+message)
-    logFile = openLog()
-    logFile.write("["+type+"] "+message+"\n")
-    logFile.close()
-
 """Return small JSON object with information about monitor health"""
 def getStatus():
     activeTaskCount = len(activeTasks)
@@ -190,7 +168,7 @@ def loadJsonFile(filename):
         f.close()
         return jsonObj
     except IOError:
-        log("unable to open "+filename+", returning {}")
+        loger.error("- unable to open %s" % filename)
         return {}
 
 """Load object into memory from a log file, checking for .backup if main file does not exist"""
@@ -198,7 +176,7 @@ def loadDataFromDisk(logPath, emptyValue="{}"):
     # Prefer to load from primary file, try to use backup if primary is missing
     if not os.path.exists(logPath):
         if os.path.exists(logPath+".backup"):
-            log("...loading data from "+logPath+".backup")
+            logger.info("- loading data from %s.backup" % logPath)
             shutil.copyfile(logPath+".backup", logPath)
         else:
             # Create an empty file if primary+backup don't exist
@@ -206,15 +184,14 @@ def loadDataFromDisk(logPath, emptyValue="{}"):
             f.write(emptyValue)
             f.close()
     else:
-        log("...loading data from "+logPath)
+        logger.info("- loading data from "+logPath)
 
     d = loadJsonFile(logPath)
-    log("...load OK.")
     return d
 
 """Save object into a log file from memory, moving existing file to .backup if it exists"""
 def writeDataToDisk(logPath, logData):
-    log("...writing "+os.path.basename(logPath))
+    logger.info("- writing %s" % os.path.basename(logPath))
 
     # Create directories if necessary
     dirs = logPath.replace(os.path.basename(logPath), "")
@@ -245,7 +222,7 @@ def writeCompletedTaskToDisk(task):
 
     # Write to json file with task ID as filename
     dest = os.path.join(logPath, taskID+".json")
-    log("...complete: "+dest)
+    logger.info("%s complete: %s" % (taskID, dest))
     f = open(dest, 'w')
     f.write(json.dumps(task))
     f.close()
@@ -261,12 +238,12 @@ def fetchDatasetByName(datasetName, requestsSession):
         if ds.status_code == 200:
             dsid = ds.json()['id']
             datasetMap[datasetName] = dsid
-            log("+ created dataset "+datasetName+" ("+dsid+")")
+            logger.info("++ created dataset %s (%s)" % (datasetName, dsid))
             writeDataToDisk(config['dataset_map_path'], datasetMap)
             addDatasetToSpacesCollections(datasetName, dsid, requestsSession)
             return dsid
         else:
-            log("cannot create dataset ("+str(ds.status_code)+")", "ERROR")
+            logger.error("- cannot create dataset (%s: %s)" % (ds.status_code, ds.status_message))
             return None
 
     else:
@@ -274,7 +251,7 @@ def fetchDatasetByName(datasetName, requestsSession):
         dsid = datasetMap[datasetName]
         ds = requestsSession.get(config['clowder']['host']+"/api/datasets/"+dsid)
         if ds.status_code == 200:
-            log("...dataset "+datasetName+" already exists ("+dsid+")")
+            logger.info("- dataset %s already exists (%s)" % (datasetName, dsid))
             return dsid
         else:
             # Query the database just in case, before giving up and creating a new dataset
@@ -284,12 +261,12 @@ def fetchDatasetByName(datasetName, requestsSession):
                 if len(results) > 0:
                     return results[0]['id']
                 else:
-                    log("cannot find dataset "+dsid+"; creating new dataset "+datasetName)
+                    logger.error("- cannot find dataset %s; creating new dataset %s" % (dsid, datasetName))
                     # Could not find dataset so we'll just delete the record and create a new one
                     del datasetMap[datasetName]
                     return fetchDatasetByName(datasetName, requestsSession)
             else:
-                log("cannot find dataset "+dsid+"; creating new dataset "+datasetName)
+                logger.error("- cannot find dataset %s; creating new dataset %s" % (dsid, datasetName))
                 # Could not find dataset so we'll just delete the record and create a new one
                 del datasetMap[datasetName]
                 return fetchDatasetByName(datasetName, requestsSession)
@@ -305,7 +282,7 @@ def fetchCollectionByName(collectionName, requestsSession):
         if coll.status_code == 200:
             collid = coll.json()['id']
             collectionMap[collectionName] = collid
-            log("+ created collection "+collectionName+" ("+collid+")")
+            logger.info("++ created collection %s (%s)" % (collectionName, collid))
             writeDataToDisk(config['collection_map_path'], collectionMap)
             # Add new collection to primary space if defined
             if config['clowder']['primary_space'] != "":
@@ -313,7 +290,7 @@ def fetchCollectionByName(collectionName, requestsSession):
                                      (config['clowder']['primary_space'], collid))
             return collid
         else:
-            log("cannot create collection ("+str(coll.status_code)+")", "ERROR")
+            logger.error("- cannot create collection (%s: %s)" % (coll.status_code, coll.status_message))
             return None
 
     else:
@@ -321,7 +298,7 @@ def fetchCollectionByName(collectionName, requestsSession):
         collid = collectionMap[collectionName]
         coll = requestsSession.get(config['clowder']['host']+"/api/collections/"+collid)
         if coll.status_code == 200:
-            log("...collection "+collectionName+" already exists ("+collid+")")
+            logger.info("- collection %s already exists (%s)" % (collectionName, collid))
             return collid
         else:
             # Query the database just in case, before giving up and creating a new dataset
@@ -331,12 +308,12 @@ def fetchCollectionByName(collectionName, requestsSession):
                 if len(results) > 0:
                     return results[0]['id']
                 else:
-                    log("cannot find collection "+collid+"; creating new collection "+collectionName)
+                    logger.error("- cannot find collection %s; creating new collection %s" % (collid, collectionName))
                     # Could not find collection so we'll just delete the record and create a new one
                     del collectionMap[collectionName]
                     return fetchCollectionByName(collectionName, requestsSession)
             else:
-                log("cannot find collection "+collid+"; creating new collection "+collectionName)
+                logger.error("- cannot find collection %s; creating new collection %s" % (collid, collectionName))
                 # Could not find collection so we'll just delete the record and create a new one
                 del collectionMap[collectionName]
                 return fetchCollectionByName(collectionName, requestsSession)
@@ -346,30 +323,30 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
     sensorName = datasetName.split(" - ")[0]
     timestamp = datasetName.split(" - ")[1].split("__")[0]
 
-    log("...adding ds "+datasetID+" to collections/spaces for "+datasetName)
+    logger.info("- adding ds %s to collections/spaces for %s" % (datasetID, datasetName))
     sensColl = fetchCollectionByName(sensorName, requestsSession)
     if sensColl:
         sc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (sensColl, datasetID))
         if sc.status_code != 200:
-            log("could not add ds "+datasetID+" to coll "+sensColl+" ("+str(sc.status_code)+" - "+sc.text+")")
+            logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, sensColl, sc.status_code, sc.status_message))
         else:
-            log("......collection "+sensorName+" OK")
+            logger.info("- collection %s OK" % sensorName)
 
     timeColl = fetchCollectionByName(timestamp, requestsSession)
     if timeColl:
         tc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (timeColl, datasetID))
         if tc.status_code != 200:
-            log("could not add ds "+datasetID+" to coll "+timeColl+" ("+str(tc.status_code)+" - "+tc.text+")")
+            logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, timeColl, tc.status_code, tc.status_message))
         else:
-            log("......collection "+timestamp+" OK")
+            logger.info("- collection %s OK" % timestamp)
 
     if config['clowder']['primary_space'] != "":
         spid = config['clowder']['primary_space']
         sp = requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addDatasetToSpace/%s" % (spid, datasetID))
         if sp.status_code != 200:
-            log("could not add ds "+datasetID+" to space "+spid+" ("+str(sp.status_code)+" - "+sp.text+")")
+            logger.error("- could not add ds "+datasetID+" to space "+spid+" ("+str(sp.status_code)+" - "+sp.text+")")
         else:
-            log("......space "+spid+" OK")
+            logger.info("- space %s OK" % spid)
 
 # ----------------------------------------------------------
 # API COMPONENTS
@@ -414,7 +391,7 @@ class GlobusMonitor(restful.Resource):
 
         # Add to active list if globus username is known, and write log to disk
         if taskUser in config['globus']['valid_users']:
-            log("now monitoring task from "+taskUser+": "+task['globus_id'])
+            logger.info("%s now being monitored from user %s" % (task['globus_id'], taskUser))
 
             activeTasks[task['globus_id']] = {
                 "user": taskUser,
@@ -482,13 +459,13 @@ class MetadataLoader(restful.Resource):
         md = clean_json_keys(req['md'])
         dsid = fetchDatasetByName(req['dataset'], sess)
         if dsid:
-            log("adding metadata to dataset "+dsid)
+            logger.info("- adding metadata to dataset "+dsid)
             dsmd = sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata",
                              headers={'Content-Type':'application/json'},
                              data=json.dumps(md))
 
             if dsmd.status_code != 200:
-                log("cannot add dataset metadata ("+str(dsmd.status_code)+" - "+dsmd.text+")", "ERROR")
+                logger.error("- cannot add dataset metadata (%s: %s)" % (dsmd.status_code, dsmd.text))
 
             return dsmd.status_code
         else:
@@ -512,7 +489,7 @@ api.add_resource(MonitorStatus, '/status')
 """Use globus goauth tool to get access tokens for valid accounts"""
 def generateAuthTokens():
     for validUser in config['globus']['valid_users']:
-        log("...generating auth token for "+validUser)
+        logger.info("- generating auth token for %s" % validUser)
         config['globus']['valid_users'][validUser]['auth_token'] = goauth.get_access_token(
                 username=validUser,
                 password=config['globus']['valid_users'][validUser]['password']
@@ -532,7 +509,7 @@ def getGlobusStatus(task):
             api = TransferAPIClient(username=task['user'], goauth=authToken)
             status_code, status_message, task_data = api.task(task['globus_id'])
         except (APIError, ClientError) as e:
-            log("problem checking Globus transfer status", "ERROR")
+            logger.error("- error checking with Globus for transfer status")
             status_code = 503
 
     if status_code == 200:
@@ -547,7 +524,7 @@ def notifyClowderOfCompletedTask(task):
     userMap = config['clowder']['user_map']
 
     if globUser in userMap:
-        log("notifying Clowder of task completion: "+task['globus_id'])
+        logger.info("%s task complete; notifying Clowder" % task['globus_id'])
         clowderHost = config['clowder']['host']
         clowderUser = userMap[globUser]['clowder_user']
         clowderPass = userMap[globUser]['clowder_pass']
@@ -586,7 +563,7 @@ def notifyClowderOfCompletedTask(task):
                             datasetMDFile = f
 
             if len(fileFormData)>0 or datasetMD:
-                log("uploading unprocessed files belonging to %s" % ds)
+                logger.info("- uploading unprocessed files belonging to %s" % ds)
                 dsid = fetchDatasetByName(ds, sess)
 
                 if dsid:
@@ -599,18 +576,19 @@ def notifyClowderOfCompletedTask(task):
                         fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
                                        headers={'Content-Type':header},
                                        data=content)
+                        # TODO: time.sleep(1) here?
                         if fi.status_code != 200:
-                            log("cannot upload files (%s - %s)" % (fi.status_code, fi.text), "ERROR")
+                            logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.status_message))
                             return False
                         else:
                             loaded = fi.json()
                             if 'ids' in loaded:
                                 for fobj in loaded['ids']:
-                                    log("++ added file %s" % fobj['name'])
+                                    logger.info("++ added file %s" % fobj['name'])
                                     updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
                                     writeCompletedTaskToDisk(updatedTask)
                             else:
-                                log("++ added file %s" % lastFile)
+                                logger.info("++ added file %s" % lastFile)
                                 updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
                                 writeCompletedTaskToDisk(updatedTask)
 
@@ -619,26 +597,27 @@ def notifyClowderOfCompletedTask(task):
                         dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
                                          headers={'Content-Type':'application/json'},
                                          data=json.dumps(datasetMD))
+                        # TODO: time.sleep(1) here?
                         if dsmd.status_code != 200:
-                            log("cannot add dataset metadata ("+str(dsmd.status_code)+" - "+dsmd.text+")", "ERROR")
+                            logger.error("- cannot add dataset metadata (%s: %s)" % (dsmd.status_code, dsmd.text))
                             return False
                         else:
                             if datasetMDFile:
-                                log("++ added metadata from .json file to dataset %s" % ds)
+                                logger.info("++ added metadata from .json file to dataset %s" % ds)
                                 updatedTask['contents'][ds]['files'][datasetMDFile]['metadata_loaded'] = True
                                 updatedTask['contents'][ds]['files'][datasetMDFile]['clowder_id'] = "attached to dataset"
                                 writeCompletedTaskToDisk(updatedTask)
                             else:
                                 # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
-                                log("++ added metadata to dataset %s" % ds)
+                                logger.info("++ added metadata to dataset %s" % ds)
                                 del updatedTask['contents'][ds]['md']
                                 writeCompletedTaskToDisk(updatedTask)
                 else:
-                    log("dataset id for %s could not be found/created" % ds)
+                    logger.error("- dataset id for %s could not be found/created" % ds)
                     allDone = False
         return allDone
     else:
-        log("cannot find clowder user credentials for Globus user %s" % globUser, "ERROR")
+        logger.error("- cannot find clowder user credentials for Globus user %s" % globUser)
         return False
 
 """Continually check Globus API for task updates"""
@@ -654,7 +633,7 @@ def globusMonitorLoop():
 
         # Check with Globus for any status updates on monitored tasks
         if globWait >= config['globus']['transfer_update_frequency_secs']:
-            log("Checking for Globus updates")
+            logger.info("- checking for Globus updates")
             # Use copy of task list so it doesn't change during iteration
             currentActiveTasks = safeCopy(activeTasks)
             for globusID in currentActiveTasks:
@@ -663,7 +642,7 @@ def globusMonitorLoop():
 
                 # If this isn't done yet, leave the task active so we can try again next time
                 if globusStatus in ["SUCCEEDED", "FAILED"]:
-                    log("STATUS UPDATE FOR "+globusID+": "+globusStatus)
+                    logger.info("%s STATUS UPDATE: %s" % (globusID, globusStatus))
 
                     # Update task parameters
                     task['status'] = globusStatus
@@ -709,22 +688,22 @@ def clowderSubmissionLoop():
 
         # Check with Globus for any status updates on monitored tasks
         if clowderWait >= config['clowder']['globus_processing_frequency']:
-            log("Checking unprocessed tasks")
+            logger.info("- checking unprocessed tasks")
             toHandle = safeCopy(unprocessedTasks)
 
             for globusID in toHandle:
                 logPath = os.path.join(config['completed_tasks_path'], globusID[:2], globusID[2:4], globusID[4:6], globusID[6:8], globusID+".json")
                 if os.path.exists(logPath):
-                    log("Attempting to notify Clowder of completed task "+globusID)
+                    logger.info("%s task being sent to Clowder" % globusID)
                     clowderDone = notifyClowderOfCompletedTask(loadJsonFile(logPath))
                     if clowderDone:
-                        log("Successfully processed task "+globusID)
+                        logger.info("%s task successfully processed!" % globusID)
                         unprocessedTasks.remove(globusID)
                         writeDataToDisk(config['unprocessed_tasks_path'], unprocessedTasks)
                     else:
-                        log("")
+                        logger.error("%s not successfully sent" % globusID)
                 else:
-                    log("Unprocessed task "+globusID+" not found in completed tasks", "ERROR")
+                    logger.error("%s unprocessed task record not found in completed tasks" % globusID)
 
             clowderWait = 0
 
@@ -737,20 +716,23 @@ if __name__ == '__main__':
     else:
         print("...no custom configuration file found. using default values")
 
+    # Initialize logger handlers
+    logger.addHandler(TimedRotatingFileHandler(config["log_path"], when='D'))
+
     datasetMap = loadDataFromDisk(config['dataset_map_path'])
     collectionMap = loadDataFromDisk(config['collection_map_path'])
     activeTasks = loadDataFromDisk(config['active_tasks_path'])
     unprocessedTasks = loadDataFromDisk(config['unprocessed_tasks_path'], '[]')
     generateAuthTokens()
 
-    log("initializing services")
+    logger.info("- initializing services")
     # Create thread for service to begin monitoring
     thread.start_new_thread(globusMonitorLoop, ())
-    log("*** Service now monitoring Globus tasks ***")
+    logger.info("*** Service now monitoring Globus tasks ***")
     thread.start_new_thread(clowderSubmissionLoop, ())
-    log("*** Service now waiting to process completed tasks into Clowder ***")
+    logger.info("*** Service now waiting to process completed tasks into Clowder ***")
 
     # Create thread for API to begin listening - requires valid Globus user/pass
     apiPort = os.getenv('MONITOR_API_PORT', config['api']['port'])
-    log("*** API now listening on "+config['api']['ip_address']+":"+apiPort+" ***")
+    logger.info("*** API now listening on %s:%s ***" % (config['api']['ip_address'], apiPort))
     app.run(host=config['api']['ip_address'], port=int(apiPort), debug=False)
