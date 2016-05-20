@@ -24,6 +24,7 @@ from io import BlockingIOError
 from flask import Flask, request, Response
 from flask.ext import restful
 from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIError, ClientError, goauth
+from logging.handlers import TimedRotatingFileHandler
 
 rootPath = "/home/gantry"
 
@@ -835,7 +836,7 @@ if __name__ == '__main__':
         print("...no custom configuration file found. using default values")
 
     # Initialize logger handlers
-    logger.addHandler(logging.handlers.TimedRotatingFileHandler(config["log_path"], when='D'))
+    logger.addHandler(TimedRotatingFileHandler(config["log_path"], when='D'))
 
     # TODO: How to handle big errors, e.g. NCSA API not responding? admin email notification?
 
