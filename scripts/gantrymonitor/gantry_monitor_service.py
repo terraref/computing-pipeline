@@ -563,7 +563,7 @@ def getNewFilesFromFTPLogs():
         else:
             handledBackLog = True
 
-    logger.info("- found % files from logs" % str(len(foundFiles)))
+    logger.info("- found %s files from logs" % len(foundFiles))
     status_lastFTPLogLine = current_lastFTPLogLine
     return foundFiles
 
