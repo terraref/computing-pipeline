@@ -242,7 +242,7 @@ def fetchDatasetByName(datasetName, requestsSession):
             addDatasetToSpacesCollections(datasetName, dsid, requestsSession)
             return dsid
         else:
-            logger.error("- cannot create dataset (%s: %s)" % (ds.status_code, ds.status_message))
+            logger.error("- cannot create dataset (%s: %s)" % (ds.status_code, ds.text))
             return None
 
     else:
@@ -289,7 +289,7 @@ def fetchCollectionByName(collectionName, requestsSession):
                                      (config['clowder']['primary_space'], collid))
             return collid
         else:
-            logger.error("- cannot create collection (%s: %s)" % (coll.status_code, coll.status_message))
+            logger.error("- cannot create collection (%s: %s)" % (coll.status_code, coll.text))
             return None
 
     else:
@@ -327,7 +327,7 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
     if sensColl:
         sc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (sensColl, datasetID))
         if sc.status_code != 200:
-            logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, sensColl, sc.status_code, sc.status_message))
+            logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, sensColl, sc.status_code, sc.text))
         else:
             logger.info("- collection %s OK" % sensorName)
 
@@ -335,7 +335,7 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
     if timeColl:
         tc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (timeColl, datasetID))
         if tc.status_code != 200:
-            logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, timeColl, tc.status_code, tc.status_message))
+            logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, timeColl, tc.status_code, tc.text))
         else:
             logger.info("- collection %s OK" % timestamp)
 
@@ -577,7 +577,8 @@ def notifyClowderOfCompletedTask(task):
                                        data=content)
                         logger.info("3")
                         if fi.status_code != 200:
-                            logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.status_message))
+                            logger.info("3fail")
+                            logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.text))
                             return False
                         else:
                             logger.info("4")
