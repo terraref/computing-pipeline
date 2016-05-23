@@ -718,11 +718,11 @@ if __name__ == '__main__':
     # Initialize logger
     logFmt = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
     trfh = TimedRotatingFileHandler(config["log_path"], when='D')
-    sh = logging.StreamHandler()
+    #sh = logging.StreamHandler()
     trfh.setFormatter(logFmt)
-    sh.setFormatter(logFmt)
+    #sh.setFormatter(logFmt)
     logger.addHandler(trfh)
-    logger.addHandler(sh)
+    #logger.addHandler(sh)
 
     datasetMap = loadDataFromDisk(config['dataset_map_path'])
     collectionMap = loadDataFromDisk(config['collection_map_path'])
