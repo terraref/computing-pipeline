@@ -44,8 +44,7 @@ Config file has 2 important entries which do not have default values:
     }
 """
 config = {}
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)-8s %(message)s')
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 """activeTasks tracks which Globus IDs are being monitored, and is of the format:
@@ -716,9 +715,14 @@ if __name__ == '__main__':
     else:
         print("...no custom configuration file found. using default values")
 
-    # Initialize logger handlers
-    logger.addHandler(TimedRotatingFileHandler(config["log_path"], when='D'))
-    logger.addHandler(logging.StreamHandler())
+    # Initialize logger
+    logFmt = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
+    trfh = TimedRotatingFileHandler(config["log_path"], when='D')
+    sh = logging.StreamHandler()
+    trfh.setFormatter(logFmt)
+    sh.setFormatter(logFmt)
+    logger.addHandler(trfh)
+    logger.addHandler(sh)
 
     datasetMap = loadDataFromDisk(config['dataset_map_path'])
     collectionMap = loadDataFromDisk(config['collection_map_path'])
