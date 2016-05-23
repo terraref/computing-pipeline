@@ -565,36 +565,31 @@ def notifyClowderOfCompletedTask(task):
             if len(fileFormData)>0 or datasetMD:
                 logger.info("- uploading unprocessed files belonging to %s" % ds)
                 dsid = fetchDatasetByName(ds, sess)
-                logger.info("1")
+
                 if dsid:
                     if len(fileFormData)>0:
-                        logger.info("2")
                         # Upload collected files for this dataset
                         # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
                         (content, header) = encode_multipart_formdata(fileFormData)
                         fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
                                        headers={'Content-Type':header},
                                        data=content)
-                        logger.info("3")
+
                         if fi.status_code != 200:
                             logger.info("3fail")
                             logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.text))
                             return False
                         else:
-                            logger.info("4")
                             loaded = fi.json()
                             if 'ids' in loaded:
                                 for fobj in loaded['ids']:
-                                    logger.info("5a")
                                     logger.info("++ added file %s" % fobj['name'])
                                     updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
                                     writeCompletedTaskToDisk(updatedTask)
-                                    logger.info("5b")
                             else:
                                 logger.info("++ added file %s" % lastFile)
                                 updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
                                 writeCompletedTaskToDisk(updatedTask)
-                            logger.info("6")
 
                     if datasetMD:
                         # Upload metadata
