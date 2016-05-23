@@ -712,7 +712,7 @@ def getTransferStatusFromMonitor(globusID):
         elif st.status_code == 404:
             return "NOT FOUND"
         else:
-            logger.error("%s monitor status check failed (%s: %s)" % (globusID, st.status_code, st.status_message))
+            logger.error("%s monitor status check failed (%s: %s)" % (globusID, st.status_code, st.text))
             return "UNKNOWN"
     except requests.ConnectionError as e:
         logger.error("- cannot connect to NCSA API")
