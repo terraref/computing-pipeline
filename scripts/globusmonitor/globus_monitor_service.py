@@ -536,6 +536,7 @@ def notifyClowderOfCompletedTask(task):
         allDone = True
 
         # Prepare upload object with all file(s) found
+        updatedTask = safeCopy(task)
         for ds in task['contents']:
             fileFormData = []
             datasetMD = None
@@ -567,7 +568,6 @@ def notifyClowderOfCompletedTask(task):
                 dsid = fetchDatasetByName(ds, sess)
 
                 if dsid:
-                    updatedTask = safeCopy(task)
                     if len(fileFormData)>0:
 
                         # Upload collected files for this dataset
@@ -576,7 +576,7 @@ def notifyClowderOfCompletedTask(task):
                         fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
                                        headers={'Content-Type':header},
                                        data=content)
-                        # TODO: time.sleep(1) here?
+
                         if fi.status_code != 200:
                             logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.status_message))
                             return False
@@ -586,7 +586,7 @@ def notifyClowderOfCompletedTask(task):
                                 for fobj in loaded['ids']:
                                     logger.info("++ added file %s" % fobj['name'])
                                     updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
-                                    writeCompletedTaskToDisk(updatedTask)
+                                writeCompletedTaskToDisk(updatedTask)
                             else:
                                 logger.info("++ added file %s" % lastFile)
                                 updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
@@ -597,7 +597,7 @@ def notifyClowderOfCompletedTask(task):
                         dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
                                          headers={'Content-Type':'application/json'},
                                          data=json.dumps(datasetMD))
-                        # TODO: time.sleep(1) here?
+
                         if dsmd.status_code != 200:
                             logger.error("- cannot add dataset metadata (%s: %s)" % (dsmd.status_code, dsmd.text))
                             return False
