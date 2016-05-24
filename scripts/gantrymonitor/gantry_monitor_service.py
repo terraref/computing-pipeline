@@ -591,9 +591,6 @@ def initializeGlobusTransfer():
 
         # Loop over a copy of the list instead of actual thing - other thread will be appending to actual thing
         loopingTransfers = safeCopy(pendingTransfers)
-
-        # This will hold the leftover pending transfers once we've hit the max size for this transfer
-        remainingPendingTransfers = copy.deepcopy(loopingTransfers)
         currentTransferBatch = {}
 
         for ds in loopingTransfers:
@@ -612,7 +609,6 @@ def initializeGlobusTransfer():
                         # remainingTransfers will have leftover data once max Globus transfer size is met
                         queueLength += 1
                         currentTransferBatch[ds]['files'][f] = fobj
-                        del remainingPendingTransfers[ds]['files'][f]
                     else:
                         break
 
@@ -653,8 +649,14 @@ def initializeGlobusTransfer():
                 }
                 writeTasksToDisk(config['active_tasks_path'], activeTasks)
 
+                # Now that we've safely sent the pending transfers, remove them
+                for ds in currentTransferBatch:
+                    if ds in pendingTransfers:
+                        for f in currentTransferBatch[ds]['files']:
+                            if f in pendingTransfers[ds]['files']:
+                                del pendingTransfers[ds]['files'][f]
+
                 notifyMonitorOfNewTransfer(globusID, currentTransferBatch)
-                pendingTransfers = remainingPendingTransfers
                 writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
             else:
                 # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
