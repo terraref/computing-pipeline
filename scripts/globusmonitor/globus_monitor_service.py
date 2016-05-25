@@ -248,6 +248,9 @@ def fetchDatasetByName(datasetName, requestsSession):
     else:
         # We have a record of it, but check that it still exists before returning the ID
         dsid = datasetMap[datasetName]
+        return dsid
+
+        # TODO: re-enable this check once backlog is caught up
         ds = requestsSession.get(config['clowder']['host']+"/api/datasets/"+dsid)
         if ds.status_code == 200:
             logger.info("- dataset %s already exists (%s)" % (datasetName, dsid))
@@ -295,6 +298,9 @@ def fetchCollectionByName(collectionName, requestsSession):
     else:
         # We have a record of it, but check that it still exists before returning the ID
         collid = collectionMap[collectionName]
+        return collid
+
+        # TODO: re-enable this check once backlog is caught up
         coll = requestsSession.get(config['clowder']['host']+"/api/collections/"+collid)
         if coll.status_code == 200:
             logger.info("- collection %s already exists (%s)" % (collectionName, collid))
@@ -329,7 +335,7 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
         if sc.status_code != 200:
             logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, sensColl, sc.status_code, sc.text))
         else:
-            logger.info("- collection %s OK" % sensorName)
+            logger.info("- adding to collection %s OK" % sensorName)
 
     timeColl = fetchCollectionByName(timestamp, requestsSession)
     if timeColl:
@@ -337,7 +343,7 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
         if tc.status_code != 200:
             logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, timeColl, tc.status_code, tc.text))
         else:
-            logger.info("- collection %s OK" % timestamp)
+            logger.info("- adding to collection %s OK" % timestamp)
 
     if config['clowder']['primary_space'] != "":
         spid = config['clowder']['primary_space']
@@ -345,7 +351,7 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
         if sp.status_code != 200:
             logger.error("- could not add ds "+datasetID+" to space "+spid+" ("+str(sp.status_code)+" - "+sp.text+")")
         else:
-            logger.info("- space %s OK" % spid)
+            logger.info("- adding to space %s OK" % spid)
 
 # ----------------------------------------------------------
 # API COMPONENTS
