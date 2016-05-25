@@ -316,7 +316,8 @@ def process_sv_images(session, url, vis_id, nir_id, debug=None):
         vis_traits[boundary_header[i]] = boundary_data[i]
     for i in range(1, len(color_header)):
         vis_traits[color_header[i]] = color_data[i]
-    print(vis_traits)
+    #print(vis_traits)
+    add_plantcv_metadata(session, url, vis_id, vis_traits)
 
     ############################# Use VIS image mask for NIR image#########################
     # Read NIR image from Clowder
@@ -351,7 +352,8 @@ def process_sv_images(session, url, vis_id, nir_id, debug=None):
         nir_traits[nshape_header[i]] = nshape_data[i]
     for i in range(1, len(nhist_header)):
         nir_traits[nhist_header[i]] = nhist_data[i]
-    print(nir_traits)
+    #print(nir_traits)
+    add_plantcv_metadata(session, url, nir_id, nir_traits)
 
 
 # Process top-view images
@@ -472,7 +474,8 @@ def process_tv_images(session, url, vis_id, nir_id, debug=False):
         vis_traits[shape_header[i]] = shape_data[i]
     for i in range(1, len(color_header)):
         vis_traits[color_header[i]] = color_data[i]
-    print(vis_traits)
+    #print(vis_traits)
+    add_plantcv_metadata(session, url, vis_id, vis_traits)
 
     ############################# Use VIS image mask for NIR image#########################
     # Read NIR image from Clowder
@@ -508,8 +511,8 @@ def process_tv_images(session, url, vis_id, nir_id, debug=False):
         nir_traits[nshape_header[i]] = nshape_data[i]
     for i in range(1, len(nhist_header)):
         nir_traits[nhist_header[i]] = nhist_data[i]
-    print(nir_traits)
-
+    #print(nir_traits)
+    add_plantcv_metadata(session, url, nir_id, nir_traits)
 
 # Process top-view images
 ###########################################
@@ -528,11 +531,13 @@ def add_plantcv_metadata(session, url, fileid, metadata):
     :param metadata: dict
     :return:
     """
-    r = session.post(posixpath.join(url, "api/files", fileid, "metadata.jsonld"), data=json.dumps(metadata))
+    print(json.dumps(metadata))
+    # r = session.post(posixpath.join(url, "api/files", fileid, "metadata.jsonld"),
+    #                  headers={"Content-Type": "application/json"}, data=json.dumps(metadata))
 
     # Was the upload successful?
-    if r.status_code != 200:
-        raise StandardError("Uploading metadata failed: Return value = {0}".format(r.status_code))
+    # if r.status_code != 200:
+    #     raise StandardError("Uploading metadata failed: Return value = {0}".format(r.status_code))
 
 
 if __name__ == '__main__':
