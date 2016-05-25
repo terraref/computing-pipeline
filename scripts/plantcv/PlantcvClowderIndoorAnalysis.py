@@ -172,7 +172,7 @@ def get_metadata(session, url, filelist):
         # Metadata from multiple extractors may be present
         for extractor in response.json():
             # Find the extractor called "deprecatedapi" which refers to the API used to upload metadata
-            if "deprecatedapi" in extractor['agent']['extractor_id']:
+            if "user_id" in extractor['agent']:
                 # Save a few metadata elements for convenience
                 camera_type = extractor['content']['camera_type']
                 perspective = extractor['content']['perspective']
