@@ -8,6 +8,7 @@ RUN groupadd -g 1006 cache_access \
     && pip install flask-restful \
     && pip install requests \
     && pip install globusonline-transfer-api-client \
+    && pip install logstash \
     && mkdir /home/gantry \
     && chown -R data-mover /home/gantry \
     && chown -R data-mover /var/log

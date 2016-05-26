@@ -20,6 +20,7 @@
 
 import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip, logging
 import requests
+import logstash
 from io import BlockingIOError
 from flask import Flask, request, Response
 from flask.ext import restful
@@ -29,8 +30,7 @@ from logging.handlers import TimedRotatingFileHandler
 rootPath = "/home/gantry"
 
 config = {}
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('gantry_monitor_service')
 
 # Used by the FTP log reader to track progress
 status_lastFTPLogLine = ""
@@ -185,19 +185,13 @@ def writeCompletedTransferToDisk(transfer):
 
     # Write to json file with task ID as filename
     dest = os.path.join(logPath, taskID+".json")
-    logger.info("%s complete (%s)" % (taskID, dest))
+    logger.info("%s complete (%s)" % (taskID, dest), extra={
+        "globus_id": taskID,
+        "action": "WRITING TO COMPLETED (GANTRY)"
+    })
     f = open(dest, 'w')
     f.write(json.dumps(transfer))
     f.close()
-
-"""Move file from src to dest directory, creating dirs as needed"""
-def moveLocalFile(srcPath, destPath, filename):
-    logger.info("- moving %s to %s" % (filename, destPath))
-
-    if not os.path.isdir(destPath):
-        os.makedirs(destPath)
-    shutil.move(os.path.join(srcPath, filename),
-                os.path.join(destPath, filename))
 
 """Create symlink to src file in destPath"""
 def createLocalSymlink(srcPath, destPath, filename):
@@ -205,7 +199,10 @@ def createLocalSymlink(srcPath, destPath, filename):
         if not os.path.isdir(destPath):
             os.makedirs(destPath)
 
-        logger.info("- creating symlink to %s in %s" % (filename, destPath))
+        logger.info("- creating symlink to %s in %s" % (filename, destPath), extra={
+            "filename": filename,
+            "action": "CREATE SYMLINK"
+        })
         os.symlink(os.path.join(srcPath, filename),
                    os.path.join(destPath, filename))
     except OSError:
@@ -217,7 +214,7 @@ def cleanPendingTransfers():
     global pendingTransfers
     global status_numPending
 
-    logger.info("- tidying up pending transfer queue")
+    logger.debug("- tidying up pending transfer queue")
 
     status_numPending = 0
     allPendingTransfers = safeCopy(pendingTransfers)
@@ -266,7 +263,9 @@ def addFileToPendingTransfers(f):
         }
     })
     status_numPending += 1
-    logger.info("- file queued via API: %s" % f)
+    logger.info("- file queued via API: %s" % f, extra={
+        "filename": f
+    })
 
 """Take line of FTP transfer log and parse a datetime object from it"""
 def parseDateFromFTPLogLine(line):
@@ -639,7 +638,11 @@ def initializeGlobusTransfer():
             if status_code == 200 or status_code == 202:
                 # Notify NCSA monitor of new task, and add to activeTasks for logging
                 globusID = transfer_data['task_id']
-                logger.info("%s new Globus transfer task started (%s files)" % (globusID, queueLength))
+                logger.info("%s new Globus transfer task started (%s files)" % (globusID, queueLength), extra={
+                    "globus_id": globusID,
+                    "action": "TRANSFER STARTED",
+                    "contents": currentTransferBatch
+                })
 
                 activeTasks[globusID] = {
                     "globus_id": globusID,
@@ -671,7 +674,10 @@ def notifyMonitorOfNewTransfer(globusID, contents):
     sess = requests.Session()
     sess.auth = (config['globus']['username'], config['globus']['password'])
 
-    logger.info("%s being sent to NCSA Globus monitor" % globusID)
+    logger.info("%s being sent to NCSA Globus monitor" % globusID, extra={
+        "globus_id": globusID,
+        "action": "NOTIFY NCSA MONITOR"
+    })
     try:
         status = sess.post(config['ncsa_api']['host']+"/tasks", data=json.dumps({
             "user": config['globus']['username'],
@@ -714,7 +720,9 @@ def getTransferStatusFromMonitor(globusID):
         elif st.status_code == 404:
             return "NOT FOUND"
         else:
-            logger.error("%s monitor status check failed (%s: %s)" % (globusID, st.status_code, st.text))
+            logger.error("%s monitor status check failed (%s: %s)" % (globusID, st.status_code, st.text), extra={
+                "globus_id": globusID
+            })
             return "UNKNOWN"
     except requests.ConnectionError as e:
         logger.error("- cannot connect to NCSA API")
@@ -739,7 +747,7 @@ def globusMonitorLoop():
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if globusWait <= 0:
             if status_numActive < config["globus"]["max_active_tasks"]:
-                logger.info("- checking pending file list...")
+                logger.debug("- checking pending file list...")
                 # Clean up the pending object of straggling keys, then initialize Globus transfers
                 cleanPendingTransfers()
                 while status_numPending > 0 and status_numActive < config['globus']['max_active_tasks']:
@@ -761,7 +769,11 @@ def globusMonitorLoop():
 
                 globusStatus = getTransferStatusFromMonitor(globusID)
                 if globusStatus in ["SUCCEEDED", "FAILED"]:
-                    logger.info("%s status update received: %s" % (globusID, globusStatus))
+                    logger.info("%s status update received: %s" % (globusID, globusStatus), extra={
+                        "globus_id": globusID,
+                        "action": "STATUS UPDATE",
+                        "status": globusStatus
+                    })
                     task['status'] = globusStatus
                     task['completed'] = str(datetime.datetime.now())
 
@@ -838,12 +850,17 @@ if __name__ == '__main__':
 
     # Initialize logger handlers
     logFmt = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
+
     trfh = TimedRotatingFileHandler(config["log_path"], when='D')
-    #sh = logging.StreamHandler()
     trfh.setFormatter(logFmt)
-    #sh.setFormatter(logFmt)
+    trfh.setLevel(logging.DEBUG)
     logger.addHandler(trfh)
-    #logger.addHandler(sh)
+
+    logstash_host = "'141.142.227.152'"
+    lsh = logstash.TCPLogstashHandler(logstash_host, 5000, version=1, message_type="gantry")
+    lsh.setFormatter(logFmt)
+    lsh.setLevel(logging.INFO)
+    logger.addHandler(lsh)
 
     # TODO: How to handle big errors, e.g. NCSA API not responding? admin email notification?
 

@@ -10,6 +10,7 @@
 
 import os, shutil, json, time, datetime, thread, copy, atexit, collections, fcntl, logging
 import requests
+import logstash
 from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
 from functools import wraps
@@ -44,8 +45,7 @@ Config file has 2 important entries which do not have default values:
     }
 """
 config = {}
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('globus_monitor_service')
 
 """activeTasks tracks which Globus IDs are being monitored, and is of the format:
 {"globus_id": {
@@ -190,7 +190,7 @@ def loadDataFromDisk(logPath, emptyValue="{}"):
 
 """Save object into a log file from memory, moving existing file to .backup if it exists"""
 def writeDataToDisk(logPath, logData):
-    logger.info("- writing %s" % os.path.basename(logPath))
+    logger.debug("- writing %s" % os.path.basename(logPath))
 
     # Create directories if necessary
     dirs = logPath.replace(os.path.basename(logPath), "")
@@ -221,7 +221,10 @@ def writeCompletedTaskToDisk(task):
 
     # Write to json file with task ID as filename
     dest = os.path.join(logPath, taskID+".json")
-    logger.info("%s complete: %s" % (taskID, dest))
+    logger.info("%s complete: %s" % (taskID, dest), extra={
+        "globus_id": taskID,
+        "action": "WRITING TO COMPLETED (ROGER)"
+    })
     f = open(dest, 'w')
     f.write(json.dumps(task))
     f.close()
@@ -237,7 +240,11 @@ def fetchDatasetByName(datasetName, requestsSession):
         if ds.status_code == 200:
             dsid = ds.json()['id']
             datasetMap[datasetName] = dsid
-            logger.info("++ created dataset %s (%s)" % (datasetName, dsid))
+            logger.info("++ created dataset %s (%s)" % (datasetName, dsid), extra={
+                "dataset_id": dsid,
+                "dataset_name": datasetName,
+                "action": "DATASET CREATED"
+            })
             writeDataToDisk(config['dataset_map_path'], datasetMap)
             addDatasetToSpacesCollections(datasetName, dsid, requestsSession)
             return dsid
@@ -284,7 +291,11 @@ def fetchCollectionByName(collectionName, requestsSession):
         if coll.status_code == 200:
             collid = coll.json()['id']
             collectionMap[collectionName] = collid
-            logger.info("++ created collection %s (%s)" % (collectionName, collid))
+            logger.info("++ created collection %s (%s)" % (collectionName, collid), extra={
+                "collection_id": collid,
+                "collection_name": collectionName,
+                "action": "CREATED COLLECTION"
+            })
             writeDataToDisk(config['collection_map_path'], collectionMap)
             # Add new collection to primary space if defined
             if config['clowder']['primary_space'] != "":
@@ -328,14 +339,18 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
     sensorName = datasetName.split(" - ")[0]
     timestamp = datasetName.split(" - ")[1].split("__")[0]
 
-    logger.info("- adding ds %s to collections/spaces for %s" % (datasetID, datasetName))
+    logger.info("- adding ds %s to collections/spaces for %s" % (datasetID, datasetName), extra={
+        "dataset_id": datasetID,
+        "dataset_name": datasetName,
+        "action": "ADDING TO SPACE + COLLECTIONS"
+    })
     sensColl = fetchCollectionByName(sensorName, requestsSession)
     if sensColl:
         sc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (sensColl, datasetID))
         if sc.status_code != 200:
             logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, sensColl, sc.status_code, sc.text))
         else:
-            logger.info("- adding to collection %s OK" % sensorName)
+            logger.debug("- adding to collection %s OK" % sensorName)
 
     timeColl = fetchCollectionByName(timestamp, requestsSession)
     if timeColl:
@@ -343,7 +358,7 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
         if tc.status_code != 200:
             logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, timeColl, tc.status_code, tc.text))
         else:
-            logger.info("- adding to collection %s OK" % timestamp)
+            logger.debug("- adding to collection %s OK" % timestamp)
 
     if config['clowder']['primary_space'] != "":
         spid = config['clowder']['primary_space']
@@ -351,7 +366,7 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
         if sp.status_code != 200:
             logger.error("- could not add ds "+datasetID+" to space "+spid+" ("+str(sp.status_code)+" - "+sp.text+")")
         else:
-            logger.info("- adding to space %s OK" % spid)
+            logger.debug("- adding to space %s OK" % spid)
 
 # ----------------------------------------------------------
 # API COMPONENTS
@@ -396,7 +411,11 @@ class GlobusMonitor(restful.Resource):
 
         # Add to active list if globus username is known, and write log to disk
         if taskUser in config['globus']['valid_users']:
-            logger.info("%s now being monitored from user %s" % (task['globus_id'], taskUser))
+            logger.info("%s now being monitored from user %s" % (task['globus_id'], taskUser), extra={
+                "globus_id": task['globus_id'],
+                "action": "MONITORING NEW TASK",
+                "contents": task['contents']
+            })
 
             activeTasks[task['globus_id']] = {
                 "user": taskUser,
@@ -464,7 +483,11 @@ class MetadataLoader(restful.Resource):
         md = clean_json_keys(req['md'])
         dsid = fetchDatasetByName(req['dataset'], sess)
         if dsid:
-            logger.info("- adding metadata to dataset "+dsid)
+            logger.info("- adding metadata to dataset "+dsid, extra={
+                "dataset_id": dsid,
+                "action": "METADATA ADDED",
+                "metadata": md
+            })
             dsmd = sess.post(config['clowder']['host']+"/api/datasets/"+dsid+"/metadata",
                              headers={'Content-Type':'application/json'},
                              data=json.dumps(md))
@@ -529,7 +552,10 @@ def notifyClowderOfCompletedTask(task):
     userMap = config['clowder']['user_map']
 
     if globUser in userMap:
-        logger.info("%s task complete; notifying Clowder" % task['globus_id'])
+        logger.info("%s task complete; notifying Clowder" % task['globus_id'], extra={
+            "globus_id": task['globus_id'],
+            "action": "NOTIFYING CLOWDER OF COMPLETION"
+        })
         clowderHost = config['clowder']['host']
         clowderUser = userMap[globUser]['clowder_user']
         clowderPass = userMap[globUser]['clowder_pass']
@@ -569,7 +595,12 @@ def notifyClowderOfCompletedTask(task):
                             datasetMDFile = f
 
             if len(fileFormData)>0 or datasetMD:
-                logger.info("- uploading unprocessed files belonging to %s" % ds)
+                logger.info("- uploading unprocessed files belonging to %s" % ds, extra={
+                    "dataset_id": dsid,
+                    "dataset_name": ds,
+                    "action": "UPLOADING FILES",
+                    "filelist": fileFormData
+                })
                 dsid = fetchDatasetByName(ds, sess)
 
                 if dsid:
@@ -582,18 +613,25 @@ def notifyClowderOfCompletedTask(task):
                                        data=content)
 
                         if fi.status_code != 200:
-                            logger.info("3fail")
                             logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.text))
                             return False
                         else:
                             loaded = fi.json()
                             if 'ids' in loaded:
                                 for fobj in loaded['ids']:
-                                    logger.info("++ added file %s" % fobj['name'])
+                                    logger.info("++ added file %s" % fobj['name'], extra={
+                                        "file_id": fobj['id'],
+                                        "filename": fobj['name'],
+                                        "action": "FILE ADDED"
+                                    })
                                     updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
                                     writeCompletedTaskToDisk(updatedTask)
                             else:
-                                logger.info("++ added file %s" % lastFile)
+                                logger.info("++ added file %s" % lastFile, extra={
+                                    "file_id": loaded['id'],
+                                    "filename": lastFile,
+                                    "action": "FILE ADDED"
+                                })
                                 updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
                                 writeCompletedTaskToDisk(updatedTask)
 
@@ -608,13 +646,23 @@ def notifyClowderOfCompletedTask(task):
                             return False
                         else:
                             if datasetMDFile:
-                                logger.info("++ added metadata from .json file to dataset %s" % ds)
+                                logger.info("++ added metadata from .json file to dataset %s" % ds, extra={
+                                    "dataset_name": ds,
+                                    "dataset_id": dsid,
+                                    "action": "METADATA ADDED",
+                                    "metadata": datasetMD
+                                })
                                 updatedTask['contents'][ds]['files'][datasetMDFile]['metadata_loaded'] = True
                                 updatedTask['contents'][ds]['files'][datasetMDFile]['clowder_id'] = "attached to dataset"
                                 writeCompletedTaskToDisk(updatedTask)
                             else:
                                 # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
-                                logger.info("++ added metadata to dataset %s" % ds)
+                                logger.info("++ added metadata to dataset %s" % ds, extra={
+                                    "dataset_name": ds,
+                                    "dataset_id": dsid,
+                                    "action": "METADATA ADDED",
+                                    "metadata": datasetMD
+                                })
                                 del updatedTask['contents'][ds]['md']
                                 writeCompletedTaskToDisk(updatedTask)
                 else:
@@ -647,7 +695,11 @@ def globusMonitorLoop():
 
                 # If this isn't done yet, leave the task active so we can try again next time
                 if globusStatus in ["SUCCEEDED", "FAILED"]:
-                    logger.info("%s STATUS UPDATE: %s" % (globusID, globusStatus))
+                    logger.info("%s STATUS UPDATE: %s" % (globusID, globusStatus), extra={
+                        "globus_id": globusID,
+                        "status": globusStatus,
+                        "action": "STATUS UPDATED"
+                    })
 
                     # Update task parameters
                     task['status'] = globusStatus
@@ -699,10 +751,12 @@ def clowderSubmissionLoop():
             for globusID in toHandle:
                 logPath = os.path.join(config['completed_tasks_path'], globusID[:2], globusID[2:4], globusID[4:6], globusID[6:8], globusID+".json")
                 if os.path.exists(logPath):
-                    logger.info("%s task being sent to Clowder" % globusID)
                     clowderDone = notifyClowderOfCompletedTask(loadJsonFile(logPath))
                     if clowderDone:
-                        logger.info("%s task successfully processed!" % globusID)
+                        logger.info("%s task successfully processed!" % globusID, extra={
+                            "globus_id": globusID,
+                            "action": "PROCESSING COMPLETE"
+                        })
                         unprocessedTasks.remove(globusID)
                         writeDataToDisk(config['unprocessed_tasks_path'], unprocessedTasks)
                     else:
@@ -723,12 +777,18 @@ if __name__ == '__main__':
 
     # Initialize logger
     logFmt = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
+
     trfh = TimedRotatingFileHandler(config["log_path"], when='D')
-    #sh = logging.StreamHandler()
     trfh.setFormatter(logFmt)
-    #sh.setFormatter(logFmt)
+    trfh.setLevel(logging.DEBUG)
     logger.addHandler(trfh)
-    #logger.addHandler(sh)
+
+    logstash_host = "'141.142.227.152'"
+    lsh = logstash.TCPLogstashHandler(logstash_host, 5000, version=1, message_type="gantry")
+    lsh.setFormatter(logFmt)
+    lsh.setLevel(logging.INFO)
+    logger.addHandler(lsh)
+
 
     datasetMap = loadDataFromDisk(config['dataset_map_path'])
     collectionMap = loadDataFromDisk(config['collection_map_path'])
