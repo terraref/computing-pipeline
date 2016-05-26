@@ -188,6 +188,11 @@ def get_metadata(session, url, filelist):
     return metadata
 
 
+def serialize_color_data(list):
+    newlist = [float(x) for x in list]
+
+    return newlist
+
 # Process side-view images
 ###########################################
 def process_sv_images(session, url, vis_id, nir_id, debug=None):
@@ -314,8 +319,8 @@ def process_sv_images(session, url, vis_id, nir_id, debug=None):
         vis_traits[shape_header[i]] = shape_data[i]
     for i in range(1, len(boundary_header)):
         vis_traits[boundary_header[i]] = boundary_data[i]
-    for i in range(1, len(color_header)):
-        vis_traits[color_header[i]] = color_data[i]
+    for i in range(2, len(color_header)):
+        vis_traits[color_header[i]] = serialize_color_data(color_data[i])
     #print(vis_traits)
     add_plantcv_metadata(session, url, vis_id, vis_traits)
 
@@ -350,8 +355,8 @@ def process_sv_images(session, url, vis_id, nir_id, debug=None):
     nir_traits = {}
     for i in range(1, len(nshape_header)):
         nir_traits[nshape_header[i]] = nshape_data[i]
-    for i in range(1, len(nhist_header)):
-        nir_traits[nhist_header[i]] = nhist_data[i]
+    for i in range(2, len(nhist_header)):
+        nir_traits[nhist_header[i]] = serialize_color_data(nhist_data[i])
     #print(nir_traits)
     add_plantcv_metadata(session, url, nir_id, nir_traits)
 
@@ -472,8 +477,8 @@ def process_tv_images(session, url, vis_id, nir_id, debug=False):
     vis_traits = {}
     for i in range(1, len(shape_header)):
         vis_traits[shape_header[i]] = shape_data[i]
-    for i in range(1, len(color_header)):
-        vis_traits[color_header[i]] = color_data[i]
+    for i in range(2, len(color_header)):
+        vis_traits[color_header[i]] = serialize_color_data(color_data[i])
     #print(vis_traits)
     add_plantcv_metadata(session, url, vis_id, vis_traits)
 
@@ -509,8 +514,8 @@ def process_tv_images(session, url, vis_id, nir_id, debug=False):
     nir_traits = {}
     for i in range(1, len(nshape_header)):
         nir_traits[nshape_header[i]] = nshape_data[i]
-    for i in range(1, len(nhist_header)):
-        nir_traits[nhist_header[i]] = nhist_data[i]
+    for i in range(2, len(nhist_header)):
+        nir_traits[nhist_header[i]] = serialize_color_data(nhist_data[i])
     #print(nir_traits)
     add_plantcv_metadata(session, url, nir_id, nir_traits)
 
@@ -531,13 +536,13 @@ def add_plantcv_metadata(session, url, fileid, metadata):
     :param metadata: dict
     :return:
     """
-    print(json.dumps(metadata))
-    # r = session.post(posixpath.join(url, "api/files", fileid, "metadata.jsonld"),
-    #                  headers={"Content-Type": "application/json"}, data=json.dumps(metadata))
+    # print(json.dumps(metadata))
+    r = session.post(posixpath.join(url, "api/files", fileid, "metadata"),
+                     headers={"Content-Type": "application/json"}, data=json.dumps(metadata))
 
     # Was the upload successful?
-    # if r.status_code != 200:
-    #     raise StandardError("Uploading metadata failed: Return value = {0}".format(r.status_code))
+    if r.status_code != 200:
+        raise StandardError("Uploading metadata failed: Return value = {0}".format(r.status_code))
 
 
 if __name__ == '__main__':
