@@ -35,8 +35,8 @@ case "${HOSTNAME}" in
 # 20160422: /usr/bin/python is version 2.6.6. Must load Python 2.7+
 	module add gdal-stack-2.7.10 
 	module add netcdf nco
-#        export PATH='/home/zender/bin'\:${PATH}
-#	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
+        export PATH='/home/zender/bin'\:${PATH}
+	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
 esac # !HOSTNAME
 
 # Production
