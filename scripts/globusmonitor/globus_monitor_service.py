@@ -595,14 +595,13 @@ def notifyClowderOfCompletedTask(task):
                             datasetMDFile = f
 
             if len(fileFormData)>0 or datasetMD:
+                dsid = fetchDatasetByName(ds, sess)
                 logger.info("- uploading unprocessed files belonging to %s" % ds, extra={
                     "dataset_id": dsid,
                     "dataset_name": ds,
                     "action": "UPLOADING FILES",
                     "filelist": fileFormData
                 })
-                dsid = fetchDatasetByName(ds, sess)
-
                 if dsid:
                     if len(fileFormData)>0:
                         # Upload collected files for this dataset
