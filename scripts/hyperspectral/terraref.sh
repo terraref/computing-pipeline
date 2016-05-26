@@ -34,8 +34,9 @@ case "${HOSTNAME}" in
     cg-gpu* )
 # 20160422: /usr/bin/python is version 2.6.6. Must load Python 2.7+
 	module add gdal-stack-2.7.10 
-        export PATH='/home/zender/bin'\:${PATH}
-	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
+	module add netcdf nco
+#        export PATH='/home/zender/bin'\:${PATH}
+#	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
 esac # !HOSTNAME
 
 # Production
