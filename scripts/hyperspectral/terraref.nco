@@ -140,13 +140,13 @@ wvl_nvr={ // [nm] 10 wavelengths per line, 1024 total
 817.56,818.06,818.55,819.04,819.54,820.03,820.53,821.02,821.51,822.01,
 822.50,823.00,823.49,823.98};
 // Change EnvironmentalLogger wavelengths from nm to m (SI)
-wvl_nvr*=1.0e-9;
+wvl_nvr*=1.0e-9; // [m]
 
 flx_sns[wvl_nvr]=0.0f;
 flx_sns@long_name="Flux sensitivity of each band (irradiance per count)";
-flx_sns@units="watt meter-2 count-1";
+flx_sns@units="joule count-1";
 flx_sns@provenance="EnvironmentalLogger calibration information from file S05673_08062015.IrradCal provided by TinoDornbusch and discussed here: https://github.com/terraref/reference-data/issues/30#issuecomment-217518434";
-flx_sns={ // [uW m-2 xps-1] 10 sensitivities per line, 1024 total
+flx_sns={ // [uJ cnt-1] 10 sensitivities per line, 1024 total
 2.14905162e-3,2.14905162e-3,2.13191329e-3,2.09958721e-3,2.07255014e-3,2.04042869e-3,2.01065201e-3,1.98247712e-3,1.95695595e-3,1.93084270e-3,
 1.90570597e-3,1.87482001e-3,1.85556117e-3,1.83111292e-3,1.80493827e-3,1.78204243e-3,1.76011709e-3,1.74298970e-3,1.72493868e-3,1.70343113e-3,
 1.68553722e-3,1.66631622e-3,1.65443041e-3,1.63642311e-3,1.61846215e-3,1.60545573e-3,1.59131286e-3,1.57713520e-3,1.56105571e-3,1.54524417e-3,
@@ -250,11 +250,11 @@ flx_sns={ // [uW m-2 xps-1] 10 sensitivities per line, 1024 total
 2.51747840e-4,2.52951109e-4,2.54188859e-4,2.55386833e-4,2.56298369e-4,2.57479006e-4,2.58213101e-4,2.59065147e-4,2.60018887e-4,2.61076885e-4,
 2.62283407e-4,2.63904910e-4,2.65792030e-4,2.67956880e-4,2.70494493e-4,2.73225853e-4,2.76170072e-4,2.79055057e-4,2.81984548e-4,2.88500954e-4,
 2.89109910e-4,2.93129400e-4,2.92536512e-4,2.92536512e-4};
-// Change flux sensitivity from [uW m-2 xps-1] to [W m-2 xps-1] (SI)
-flx_sns*=1.0e-6;
+// Change flux sensitivity from [uJ cnt-1] to [J cnt-1] (SI)
+flx_sns*=1.0e-6; // [J cnt-1]
 
 // Change Hyperspectral Imager wavelengths from nm to m (SI)
-wavelength*=1.0e-9;
+wavelength*=1.0e-9; // [m]
 wavelength@units="meter";  
 
 // [xps] Exposure from white reference sheet/panel
