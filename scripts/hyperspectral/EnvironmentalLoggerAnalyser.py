@@ -53,9 +53,8 @@ If the output folder does not exist, EnvironmentalLoggerAnalyser.py creates it.
 20160519: 1. Recalculate and double check the method used for calculating downwelling spectral flux
           2. Reinstate the integration time and area (based on the discussion about the dimension of the flux sensitivity)
           3. Clean up based on Professor Zender's adjustment
+20160526: All units are now in SI
 
-TODO:
-1. Convert all units to SI
 ----------------------------------------------------------------------------------------
 Note:
 If you need a different base time, it is named "_UNIX_BASETIME" and located at the
@@ -74,10 +73,22 @@ import os
 from datetime import date, datetime
 from netCDF4 import Dataset
 
-_UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hectopascal", u"DegCelsius": "celsius",
-                    u's': 'second', u'm/s': 'meter second-1', u"mm/h": 'millimeter hour-1',
-                    u"relHumPerCent": "percent", u"?mol/(m^2*s)": "micromole meter-2 second-1", u"umol/(m^2*s)": "micromole meter-2 second-1",
-                    u'kilo Lux': 'kilolux', u'degrees': 'degrees', u'?s': 'microsecond', u'us': 'microsecond', '': ''}
+{"original":"microsecond", "SI":"second", "power":1e-6}
+
+_UNIT_DICTIONARY = {u'm': {"original":"meter", "SI":"meter", "power":1}, 
+                    u"hPa": {"original":"hectopascal", "SI":"pascal", "power":1e2},
+                    u"DegCelsius": {"original":"celsius", "SI":"celsius", "power":1},
+                    u's': {"original":"second", "SI":"second", "power":1}, 
+                    u'm/s': {"original":"meter second-1", "SI":"meter second-1", "power":1}, 
+                    u"mm/h": {"original":"millimeter hour-1", "SI":"meter second-1", "power":2.78e-7},
+                    u"relHumPerCent": {"original":"percent", "SI":"percent", "power":1}, 
+                    u"?mol/(m^2*s)": {"original":"micromole meter-2 second-1", "SI":"mole second-1", "power":1e-6}, 
+                    u"umol/(m^2*s)": {"original":"micromole meter-2 second-1", "SI":"mole second-1", "power":1e-6},
+                    u'kilo Lux': {"original":"kiloLux", "SI":"lux", "power":1e3}, 
+                    u'degrees': {"original":"degree", "SI":"degree", "power":1}, 
+                    u'?s': {"original":"microsecond", "SI":"second", "power":1e-6}, 
+                    u'us': {"original":"microsecond", "SI":"second", "power":1e-6}, 
+                    '': ''}
 _NAMES = {'sensor par': 'Sensor Photosynthetically Active Radiation'}
 _UNIX_BASETIME = date(year=1970, month=1, day=1)
 _FLX_SNS = \
@@ -310,11 +321,12 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     for data in dataMemberList[0]:
         if data != 'spectrometer' and type(dataMemberList[0][data]) not in (str, unicode):
             tempVariable = netCDFHandler.createVariable(
-                renameTheValue(data), 'f4', ('time',))
-            tempVariable[:] = getListOfValue(
-                dataMemberList, data)  # Assign "values"
+                renameTheValue(data), 'f8', ('time',))
             if 'unit' in dataMemberList[0][data]:  # Assign Units
-                setattr(tempVariable, 'units', _UNIT_DICTIONARY[dataMemberList[0][data]['unit']])
+                setattr(tempVariable, 'units', _UNIT_DICTIONARY[dataMemberList[0][data]['unit']]["SI"])
+                tempVariable[:] = np.array(getListOfValue(dataMemberList, data)) * _UNIT_DICTIONARY[dataMemberList[0][data]['unit']]["power"]# Assign "values"
+            else:
+               tempVariable[:] = getListOfValue(dataMemberList, data)# Assign "values"
             if 'rawValue' in dataMemberList[0][data]:  # Assign "rawValues"
                 netCDFHandler.createVariable(renameTheValue(data) + '_rawValue', 'f4', ('time',))[:] =getListOfRawValue(dataMemberList, data)
         elif type(dataMemberList[0][data]) in (str, unicode) and data != "timestamp":
