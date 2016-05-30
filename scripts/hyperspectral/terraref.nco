@@ -3,8 +3,8 @@
 /* Purpose: NCO/ncap2 script to process and calibrate Terraref exposure data
 
    Usage:
-   ncap2 -v -O -s \*clb_nbr=926 -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/test_raw.nc ~/foo.nc
-   ncap2 -v -O -s \*clb_nbr=926 -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/whiteReference_raw.nc ~/foo.nc */
+   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/test_raw.nc ~/foo.nc
+   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/whiteReference_raw.nc ~/foo.nc */
 
 // Declare flags as RAM variables or they will clutter output file
 *flg_tst=1s; // [flg] Test mode
@@ -16,24 +16,24 @@
 // Defaults for values not provided on command-line
 if(!exists(clb_nbr)) *clb_nbr=73; // [nbr] Calibration number
 
-// Calibration documentation https://github.com/terraref/computing-pipeline/issues/88
-// Maximum exposure (counts) recordable when imaging white reference sheet
-*maximum_exposure=ushort(2^16-1);
+/* Calibration documentation https://github.com/terraref/computing-pipeline/issues/88
+   Maximum exposure (counts) recordable when imaging white reference sheet
+   Camera exposed to natural light reflecting from white reference for standard exposure time accumulates maximum_exposure counts in each channel
+   Optimal calibration would have this equal 2^16-1 in each channel */
+*maximum_exposure=ushort(2^16-1); // [cnt]
+// A perfect detector exposed to darkness for same (standard) exposure time accumulates minimum_exposure counts in each channel
+*minimum_exposure=ushort(0); // [cnt]
+
 // Assume white reference sheet reflects all wavelengths with 97% efficiency
-*fake_factory_calibrated_reflectance=0.97f;
+*fake_factory_calibrated_reflectance=0.97f; // [frc]
 
 // [nbr] Number of wavelengths in environmental sensor
 *wvl_nvr_nbr=1024;
 defdim("wvl_nvr",wvl_nvr_nbr);
-wvl_nvr[wvl_nvr]=0.0f;
+wvl_nvr[wvl_nvr]=0.0f; // [m]
 wvl_nvr@long_name="Wavelength of environmental sensor";
 wvl_nvr@units="meter";
 wvl_nvr@provenance="EnvironmentalLogger calibration information from file S05673_08062015.IrradCal provided by TinoDornbusch and discussed here: https://github.com/terraref/reference-data/issues/30#issuecomment-217518434";
-
-wvl_dlt=0.4e-9f;
-wvl_dlt@long_name="Bandwidth of environmental sensor";
-wvl_dlt@units="meter";
-wvl_dlt@notes="Best information available is that bandwidth is uniform 0.4 nm across all channels";
 
 wvl_nvr={ // [nm] 10 wavelengths per line, 1024 total
 337.70,338.16,338.62,339.07,339.53,339.98,340.44,340.89,341.35,341.80,
@@ -141,6 +141,20 @@ wvl_nvr={ // [nm] 10 wavelengths per line, 1024 total
 822.50,823.00,823.49,823.98};
 // Change EnvironmentalLogger wavelengths from nm to m (SI)
 wvl_nvr*=1.0e-9; // [m]
+
+// Compute bandwidth as difference between midpoints of adjacent band-centers
+wvl_dlt[wvl_nvr]=0.0f;
+wvl_dlt@long_name="Bandwidth of environmental sensor";
+wvl_dlt@units="meter";
+wvl_dlt@notes="Bandwidth, also called dispersion, is between 0.455-0.495 nm across all channels. Values computed as differences between midpoints of adjacent band-centers.";
+*idx=wvl_dlt.size()-1;
+*wvl_lft[wvl_nvr]=0.0;
+*wvl_rgt[wvl_nvr]=0.0;
+wvl_lft(1:idx)=0.5*(wvl_nvr(0:idx-1)+wvl_nvr(1:idx));
+wvl_rgt(0:idx-1)=wvl_lft(1:idx);
+wvl_lft(0)=wvl_nvr(0)-0.5*(wvl_nvr(1)-wvl_nvr(0));
+wvl_rgt(idx)=wvl_nvr(idx)+0.5*(wvl_nvr(idx)-wvl_nvr(idx-1));
+wvl_dlt=wvl_rgt-wvl_lft;
 
 flx_sns[wvl_nvr]=0.0f;
 flx_sns@long_name="Flux sensitivity of each band (irradiance per count)";
@@ -257,10 +271,15 @@ flx_sns*=1.0e-6; // [J cnt-1]
 wavelength*=1.0e-9; // [m]
 wavelength@units="meter";  
 
-// [xps] Exposure from white reference sheet/panel
+// [cnt] Exposure from white reference sheet/panel
 xps_wht[wavelength,x]=maximum_exposure;
 xps_wht@long_name="Exposure from white reference sheet/panel";
 xps_wht@units="Counts on scale from 0 to 2^16-1 = 65535";
+
+// [cnt] Exposure from dark reference sheet/panel
+xps_drk[wavelength,x]=minimum_exposure;
+xps_drk@long_name="Exposure from dark reference sheet/panel";
+xps_drk@units="Counts on scale from 0 to 2^16-1 = 65535";
 
 // [frc] Reflectance of white reference (factory calibration)
 rfl_wht[wavelength]=fake_factory_calibrated_reflectance;
@@ -273,7 +292,7 @@ flx_dwn@long_name="Downwelling spectral irradiance";
 flx_dwn@units="watt meter-2 meter-1"; 
 
 // Intermediate quantities (not archived)
-// [xps/(W m-2 um-1)] Proportionality constant between reflected spectral flux and Exposure
+// [cnt/(W m-2 um-1)] Proportionality constant between reflected spectral flux and Exposure
 *cst_cnv=xps_wht/(flx_dwn*rfl_wht);
 
 // [frc] = Reflectance of image (i.e., plants)
