@@ -80,7 +80,8 @@ _UNIT_DICTIONARY = {u'm': 'meter', u"hPa": "hectopascal", u"DegCelsius": "celsiu
                     u'kilo Lux': 'kilolux', u'degrees': 'degrees', u'?s': 'microsecond', u'us': 'microsecond', '': ''}
 _NAMES = {'sensor par': 'Sensor Photosynthetically Active Radiation'}
 _UNIX_BASETIME = date(year=1970, month=1, day=1)
-_FLX_SNS = \
+# flx_sns@provenance="EnvironmentalLogger calibration information from file S05673_08062015.IrradCal provided by TinoDornbusch and discussed here: https://github.com/terraref/reference-data/issues/30#issuecomment-217518434";
+_FLX_SNS = \ # [uJ cnt-1] 10 sensitivities per line, 1024 total
     [2.14905162e-3, 2.14905162e-3, 2.13191329e-3, 2.09958721e-3, 2.07255014e-3, 2.04042869e-3, 2.01065201e-3, 1.98247712e-3, 1.95695595e-3, 1.93084270e-3,
      1.90570597e-3, 1.87482001e-3, 1.85556117e-3, 1.83111292e-3, 1.80493827e-3, 1.78204243e-3, 1.76011709e-3, 1.74298970e-3, 1.72493868e-3, 1.70343113e-3,
      1.68553722e-3, 1.66631622e-3, 1.65443041e-3, 1.63642311e-3, 1.61846215e-3, 1.60545573e-3, 1.59131286e-3, 1.57713520e-3, 1.56105571e-3, 1.54524417e-3,
@@ -183,8 +184,7 @@ _FLX_SNS = \
      2.43313474e-4, 2.44175726e-4, 2.44734401e-4, 2.45486851e-4, 2.45993980e-4, 2.46800743e-4, 2.47463201e-4, 2.48445219e-4, 2.49488279e-4, 2.50569021e-4,
      2.51747840e-4, 2.52951109e-4, 2.54188859e-4, 2.55386833e-4, 2.56298369e-4, 2.57479006e-4, 2.58213101e-4, 2.59065147e-4, 2.60018887e-4, 2.61076885e-4,
      2.62283407e-4, 2.63904910e-4, 2.65792030e-4, 2.67956880e-4, 2.70494493e-4, 2.73225853e-4, 2.76170072e-4, 2.79055057e-4, 2.81984548e-4, 2.88500954e-4,
-     2.89109910e-4, 2.93129400e-4, 2.92536512e-4, 2.92536512e-4] #[uW m-2 xps-1] 10 sensitivities per line, 1024 total
-
+     2.89109910e-4, 2.93129400e-4, 2.92536512e-4, 2.92536512e-4] # [uJ cnt-1] 10 sensitivities per line, 1024 total
 
 def wavelengthSpectrumAnddownwellingSpectralFlux(fileLocation):
     '''
@@ -211,17 +211,17 @@ def wavelengthSpectrumAnddownwellingSpectralFlux(fileLocation):
     delta.insert(0, 2*(wvl_ntf[0] - wvl_lgr[0]))
     delta.insert(-1, 2*(wvl_lgr[-1] - wvl_ntf[-1]))
 
-    Spectrometer_Integration_Time_In_Microseconds = 5000.0
-    Spectrometer_Integration_Time = Spectrometer_Integration_Time_In_Microseconds / 1.0e6
+    Spectrometer_Integration_Time_In_Microseconds = 5000.0 # [us]
+    Spectrometer_Integration_Time = Spectrometer_Integration_Time_In_Microseconds * 1.0e-6 # [s]
 
-    Area= np.pi * (3900.0*1.0e-6) ** 2 / 4.0
+    # Fibre optic collection surface area is pi * (fiber diameter squared) / 4
+    Area= np.pi * (3900.0*1.0e-6) ** 2 / 4.0 # [m2]
 
     #General formula used in calculating downwelling spectral flux:
-    #Downwelling Spectral Flux = flx_sns * spectrum / bandwidth / area / time
-    downwellingSpectralFlux = np.array(_FLX_SNS) * np.array(spectrum) * 1.0e-6 / np.array(delta) / Area / Spectrometer_Integration_Time
+    #Downwelling Spectral Flux = (spectrum [cnt] - dark [cnt]) * flx_sns [J cnt-1]  / bandwidth [m] / area [m2] / time [s]
+    downwellingSpectralFlux = np.array(_FLX_SNS) * 1.0e-6 * np.array(spectrum) / np.array(delta) / Area / Spectrometer_Integration_Time # [J m-2 m-1 s-1] = [W m-2 m-1]
 
     return wvl_lgr, spectrum, downwellingSpectralFlux
-
 
 def JSONHandler(fileLocation):
     '''
