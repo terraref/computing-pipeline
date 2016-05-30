@@ -51,7 +51,7 @@ Now the JsonDealer.py will also parse the data from frameIndex.txt
 the time-related variable (except history) will be recorded as the offset to the _UNIX_BASETIME
 ----------------------------------------------------------------------------------------
 '''
-
+import numpy as np
 import json
 import time
 import sys
@@ -69,6 +69,8 @@ DATATYPE = {'1': ('H', 2), '2': ('i', 4), '3': ('l', 4), '4': ('f', 4), '5': (
     'd', 8), '12': ('H', 4), '13': ('L', 4), '14': ('q', 8), '15': ('Q', 8)}
 _RAW_VERSION = platform.python_version()[0]
 _UNIX_BASETIME = date(year=1970, month=1, day=1)
+
+_CAMERA_POSITION = np.array([1.9, 0.855, 0.635])
 
 
 
