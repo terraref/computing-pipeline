@@ -292,8 +292,8 @@ flx_dwn@long_name="Downwelling spectral irradiance";
 flx_dwn@units="watt meter-2 meter-1"; 
 
 // Intermediate quantities (not archived)
-// [cnt/(W m-2 um-1)] Proportionality constant between reflected spectral flux and Exposure
-*cst_cnv=xps_wht/(flx_dwn*rfl_wht);
+// [cnt/(W m-2 m-1)] Proportionality constant between reflected spectral flux and Exposure
+*cst_cnv=(xps_wht-xps_drk)/(flx_dwn*rfl_wht);
 
 // [frc] = Reflectance of image (i.e., plants)
 rfl_img=xps_img/(flx_dwn*cst_cnv);
