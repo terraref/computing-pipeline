@@ -50,9 +50,9 @@ GAMMA = 0 #TODO: waiting for the correct value
 # This matrix looks like this:
 #
 #     | alphaX, gamma, u0 |
-#     |					  |
+#     |			  |
 # A = |   0 ,  alphaY, v0 |
-# 	  |					  |
+#     |			  |
 #     |   0 ,    0,     1 |
 #
 # where alphaX = alphaY = CAMERA_FOCAL_LENGTH / PIXEL_PITCH,
