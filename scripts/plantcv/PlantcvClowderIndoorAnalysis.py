@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import print_function
 import sys
+import os
 import argparse
 import requests
 import json
@@ -66,6 +67,20 @@ def main():
     # Build metadata set
     metadata = get_metadata(sess, args.url, filelist)
 
+    # Compiled traits table
+    fields = ('plant_barcode', 'genotype', 'treatment', 'imagedate', 'sv_area', 'tv_area', 'hull_area',
+              'solidity', 'height', 'perimeter')
+    traits = {'plant_barcode' : '',
+              'genotype' : '',
+              'treatment' : '',
+              'imagedate' : '',
+              'sv_area' : [],
+              'tv_area' : '',
+              'hull_area' : [],
+              'solidity' : [],
+              'height' : [],
+              'perimeter' : []}
+
     # Process images with PlantCV
     for perspective in metadata['visible/RGB'].keys():
         for rotation_angle in metadata['visible/RGB'][perspective].keys():
@@ -84,10 +99,33 @@ def main():
                 # If no NIR image ID was found, raise an error
                 raise StandardError("No NIR image found matching VIS image {0}".format(vis_id))
 
+            # Add metadata to traits table
+            traits['plant_barcode'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['plant_barcode']
+            traits['genotype'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['genotype']
+            traits['treatment'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['treatment']
+            traits['imagedate'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['imagedate']
+
             if perspective == 'side-view':
-                process_sv_images(sess, args.url, vis_id, nir_id)
+                traits = process_sv_images(sess, args.url, vis_id, nir_id, traits)
             elif perspective == 'top-view':
-                process_tv_images(sess, args.url, vis_id, nir_id)
+                traits = process_tv_images(sess, args.url, vis_id, nir_id, traits)
+
+    # Save traits table
+    fields = ('plant_barcode', 'genotype', 'treatment', 'imagedate', 'sv_area', 'tv_area', 'hull_area',
+              'solidity', 'height', 'perimeter')
+
+    trait_list = [traits['plant_barcode'], traits['genotype'], traits['treatment'], traits['imagedate'],
+                  average_trait(traits['sv_area']), traits['tv_area'], average_trait(traits['hull_area']),
+                  average_trait(traits['solidity']), average_trait(traits['height']),
+                  average_trait(traits['perimeter'])]
+
+    outfile = args.dataset + '.csv'
+    csv = open(outfile, 'w')
+    csv.write(','.join(map(str, fields)) + '\n')
+    csv.write(','.join(map(str, trait_list)) + '\n')
+    csv.close()
+
+    upload_file_to_clowder(sess, args.url, outfile, args.dataset, json.dumps({'description' : 'traits table (CSV)'}))
 
 ###########################################
 
@@ -195,7 +233,7 @@ def serialize_color_data(list):
 
 # Process side-view images
 ###########################################
-def process_sv_images(session, url, vis_id, nir_id, debug=None):
+def process_sv_images(session, url, vis_id, nir_id, traits, debug=None):
     """Process side-view images from Clowder.
 
     Inputs:
@@ -203,14 +241,16 @@ def process_sv_images(session, url, vis_id, nir_id, debug=None):
     url     = Clowder URL
     vis_id  = The Clowder ID of an RGB image
     nir_img = The Clowder ID of an NIR grayscale image
+    traits  = traits table (dictionary)
     debug   = None, print, or plot. Print = save to file, Plot = print to screen
 
     :param session: requests session object
     :param url: str
     :param vis_id: str
     :param nir_id: str
+    :param traits: dict
     :param debug: str
-    :return:
+    :return traits: dict
     """
     # Read VIS image from Clowder
     vis_r = session.get(posixpath.join(url, "api/files", vis_id), stream=True)
@@ -360,10 +400,18 @@ def process_sv_images(session, url, vis_id, nir_id, debug=None):
     #print(nir_traits)
     add_plantcv_metadata(session, url, nir_id, nir_traits)
 
+    # Add data to traits table
+    traits['sv_area'].append(vis_traits['area'])
+    traits['hull_area'].append(vis_traits['hull-area'])
+    traits['solidity'].append(vis_traits['solidity'])
+    traits['height'].append(vis_traits['height_above_bound'])
+    traits['perimeter'].append(vis_traits['perimeter'])
+
+    return traits
 
 # Process top-view images
 ###########################################
-def process_tv_images(session, url, vis_id, nir_id, debug=False):
+def process_tv_images(session, url, vis_id, nir_id, traits, debug=False):
     """Process top-view images.
 
     Inputs:
@@ -371,14 +419,16 @@ def process_tv_images(session, url, vis_id, nir_id, debug=False):
     url     = Clowder URL
     vis_id  = The Clowder ID of an RGB image
     nir_img = The Clowder ID of an NIR grayscale image
+    traits  = traits table (dictionary)
     debug   = None, print, or plot. Print = save to file, Plot = print to screen.
 
     :param session: requests session object
     :param url: str
     :param vis_id: str
     :param nir_id: str
+    :param traits: dict
     :param debug: str
-    :return:
+    :return traits: dict
     """
     # Read VIS image from Clowder
     vis_r = session.get(posixpath.join(url, "api/files", vis_id), stream=True)
@@ -519,6 +569,11 @@ def process_tv_images(session, url, vis_id, nir_id, debug=False):
     #print(nir_traits)
     add_plantcv_metadata(session, url, nir_id, nir_traits)
 
+    # Add data to traits table
+    traits['tv_area'] = vis_traits['area']
+
+    return traits
+
 # Process top-view images
 ###########################################
 def add_plantcv_metadata(session, url, fileid, metadata):
@@ -543,6 +598,50 @@ def add_plantcv_metadata(session, url, fileid, metadata):
     # Was the upload successful?
     if r.status_code != 200:
         raise StandardError("Uploading metadata failed: Return value = {0}".format(r.status_code))
+
+
+# Average trait
+###########################################
+def average_trait(list):
+    total = sum(list)
+    average = total / len(list)
+
+    return average
+
+
+# Upload file to a Clowder dataset
+###########################################
+def upload_file_to_clowder(session, url, file, dataset_id, metadata, dryrun=False):
+    """Upload a file to a Clowder dataset.
+
+    Args:
+        session: http session
+        url: Clowder URL
+        file: File name and path
+        dataset_id: Clowder dataset ID
+        dryrun: Boolean. If true, no POST requests are made
+    Returns:
+
+    Raises:
+        StandardError: HTTP POST return not 200
+    """
+
+    # Make sure file exists
+    if os.path.exists(file):
+        # Upload image file
+        if dryrun is False:
+            # Open file in binary mode
+            f = open(file, 'rb')
+            # Upload file to Clowder
+            up_r = session.post(posixpath.join(url, "api/uploadToDataset", dataset_id),
+                                files={"File" : f}, data=metadata)
+
+            # Was the upload successful?
+            if up_r.status_code != 200:
+                raise StandardError("Uploading file failed: Return value = {0}".format(up_r.status_code))
+    else:
+        print("ERROR: Image file {0} does not exist".format(file), file=sys.stderr)
+###########################################
 
 
 if __name__ == '__main__':
