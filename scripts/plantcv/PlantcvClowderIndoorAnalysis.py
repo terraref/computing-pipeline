@@ -125,7 +125,7 @@ def main():
     csv.write(','.join(map(str, trait_list)) + '\n')
     csv.close()
 
-    upload_file_to_clowder(sess, args.url, outfile, args.dataset, json.dumps({'description' : 'traits table (CSV)'}))
+    upload_file_to_clowder(sess, args.url, outfile, args.dataset, {outfile : json.dumps({'type' : 'CSV traits table'})})
 
 ###########################################
 
