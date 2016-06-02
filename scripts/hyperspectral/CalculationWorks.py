@@ -213,18 +213,19 @@ def transferCoordinate(currentPosition, gantryVelocity=0, movingTime=0):
 	'''
 	#Extrinsic:
 	#[Xc Yc Zc]'= Ro [Xf Yf Zf]'+ to, and no rotation engaged.
-	transitionVector = np.transpose(CAMERA_POSITION + [gantryVelocity*movingTime, 0, 0]) 
+	transitionVector = CAMERA_POSITION + [gantryVelocity*movingTime, 0, 0]
 
 	#Intrinsic:
 	#return transitionVector * ORIENTATION_MATRIX
 
-	# x, y, z = currentPosition
-	# referenceX, referenceY = REFERENCE_POINT_LATLONG
+	x, y, z =\
+    transitionVector * ORIENTATION_MATRIX[0], transitionVector * ORIENTATION_MATRIX[1], transitionVector * ORIENTATION_MATRIX[2]
+	referenceX, referenceY = REFERENCE_POINT_LATLONG
 
-	# rawLat = np.arcsin(referenceX) + x / (6371.0*1000)
-	# rawLon = np.arcsin(referenceY) + y / (6371.0*1000)
+	rawLat = np.arcsin(referenceX) + x / (6371.0*1000)
+	rawLon = np.arcsin(referenceY) + y / (6371.0*1000)
 
-	# return np.rad2deg(rawLat), np.rad2deg(rawLon)
+	return np.rad2deg(rawLat), np.rad2deg(rawLon)
 
 
 
