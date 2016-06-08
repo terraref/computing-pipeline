@@ -45,6 +45,7 @@ Config file has 2 important entries which do not have default values:
     }
 """
 config = {}
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('globus_monitor_service')
 
 """activeTasks tracks which Globus IDs are being monitored, and is of the format:
