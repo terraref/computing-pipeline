@@ -788,7 +788,7 @@ def globusMonitorLoop():
                                 if 'files' in task['contents'][ds]:
                                     for f in task['contents'][ds]['files']:
                                         fobj = task['contents'][ds]['files'][f]
-                                        createLocalSymlink(os.path.join(config['gantry']['incoming_files_path'], fobj['path']),
+                                        createLocalSymlink(os.path.join(config['globus']['delete_path'], fobj['path']),
                                                       os.path.join(deleteDir, fobj['path']), fobj['name'])
 
                             # Crawl and remove empty directories

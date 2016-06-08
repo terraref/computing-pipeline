@@ -19,6 +19,7 @@
 
   "globus": {
     "source_path": "/gantry_data/LemnaTec",
+    "delete_path": "/gantry_data/LemnaTec/ToDelete",
     "destination_path": "/~/globus",
     "source_endpoint_id": "",
     "destination_endpoint_id": "",
