@@ -597,22 +597,25 @@ def notifyClowderOfCompletedTask(task):
 
             if len(fileFormData)>0 or datasetMD:
                 dsid = fetchDatasetByName(ds, sess)
+                logger.debug("1")
                 if dsid:
                     if len(fileFormData)>0:
                         # Upload collected files for this dataset
                         # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
+                        logger.debug("2")
                         logger.info("- uploading unprocessed files belonging to %s" % ds, extra={
                             "dataset_id": dsid,
                             "dataset_name": ds,
                             "action": "UPLOADING FILES",
                             "filelist": fileFormData
                         })
-                        
+                        logger.debug("3")
                         (content, header) = encode_multipart_formdata(fileFormData)
+                        logger.info(clowderHost+"/api/uploadToDataset/"+dsid)
                         fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
                                        headers={'Content-Type':header},
                                        data=content)
-
+                        logger.debug("4")
                         if fi.status_code != 200:
                             logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.text))
                             return False
