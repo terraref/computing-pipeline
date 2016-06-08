@@ -615,7 +615,6 @@ def notifyClowderOfCompletedTask(task):
                         })
 
                         (content, header) = encode_multipart_formdata(fileFormData)
-                        logger.info(clowderHost+"/api/uploadToDataset/"+dsid)
                         fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
                                        headers={'Content-Type':header},
                                        data=content)
@@ -627,19 +626,11 @@ def notifyClowderOfCompletedTask(task):
                             loaded = fi.json()
                             if 'ids' in loaded:
                                 for fobj in loaded['ids']:
-                                    logger.info("++ added file %s" % fobj['name'], extra={
-                                        "file_id": fobj['id'],
-                                        "filename": fobj['name'],
-                                        "action": "FILE ADDED"
-                                    })
+                                    logger.info("++ added file %s" % fobj['name'])
                                     updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
                                     writeCompletedTaskToDisk(updatedTask)
                             else:
-                                logger.info("++ added file %s" % lastFile, extra={
-                                    "file_id": loaded['id'],
-                                    "filename": lastFile,
-                                    "action": "FILE ADDED"
-                                })
+                                logger.info("++ added file %s" % lastFile)
                                 updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
                                 writeCompletedTaskToDisk(updatedTask)
 
