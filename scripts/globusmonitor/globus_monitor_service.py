@@ -528,6 +528,7 @@ def getGlobusStatus(task):
     authToken = config['globus']['valid_users'][task['user']]['auth_token']
     api = TransferAPIClient(username=task['user'], goauth=authToken)
     try:
+        logger.debug("%s requesting status from Globus" % task['globus_id'])
         status_code, status_message, task_data = api.task(task['globus_id'])
     except (APIError, ClientError) as e:
         try:
@@ -537,7 +538,7 @@ def getGlobusStatus(task):
             api = TransferAPIClient(username=task['user'], goauth=authToken)
             status_code, status_message, task_data = api.task(task['globus_id'])
         except (APIError, ClientError) as e:
-            logger.error("- error checking with Globus for transfer status")
+            logger.error("%s error checking with Globus for transfer status" % task['globus_id'])
             status_code = 503
 
     if status_code == 200:
@@ -692,15 +693,14 @@ def globusMonitorLoop():
             for globusID in currentActiveTasks:
                 task = activeTasks[globusID]
                 globusStatus = getGlobusStatus(task)
+                logger.info("%s status received: %s" % (globusID, globusStatus), extra={
+                    "globus_id": globusID,
+                    "status": globusStatus,
+                    "action": "STATUS UPDATED"
+                })
 
                 # If this isn't done yet, leave the task active so we can try again next time
                 if globusStatus in ["SUCCEEDED", "FAILED"]:
-                    logger.info("%s STATUS UPDATE: %s" % (globusID, globusStatus), extra={
-                        "globus_id": globusID,
-                        "status": globusStatus,
-                        "action": "STATUS UPDATED"
-                    })
-
                     # Update task parameters
                     task['status'] = globusStatus
                     task['completed'] = str(datetime.datetime.now())
@@ -725,6 +725,7 @@ def globusMonitorLoop():
                         writeCompletedTaskToDisk(task)
                         del activeTasks[globusID]
                         writeDataToDisk(config['active_tasks_path'], activeTasks)
+            logger.debug("- done checking for Globus updates")
 
             globWait = 0
             writeDataToDisk(config["status_log_path"], getStatus())
