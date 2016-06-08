@@ -597,7 +597,7 @@ def notifyClowderOfCompletedTask(task):
                                 datasetMD = clean_json_keys(loadJsonFile(fobj['path']))
                                 datasetMDFile = f
                         else:
-                            logger.info("%s dataset %s lists nonexistant file: %s" % (task['globus_id'], ds, fobj['path']))
+                            logger.info("%s dataset %s lists nonexistent file: %s" % (task['globus_id'], ds, fobj['path']))
                             updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = "FILE NOT FOUND"
                             writeCompletedTaskToDisk(updatedTask)
 
