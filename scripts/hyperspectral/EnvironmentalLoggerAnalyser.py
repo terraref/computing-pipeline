@@ -29,6 +29,7 @@ python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLo
 Roger production:
 module add gdal-stack-2.7.10
 python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py /projects/arpae/terraref/raw_data/ua-mac/EnvironmentLogger/2016-04-07/2016-04-07_12-00-07_enviromentlogger.json ~/rgr
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py /projects/arpae/terraref/raw_data/ua-mac/EnvironmentLogger/2016-06-01/2016-06-01_10-52-52_environmentlogger.json ~/rgr
 
 EnvironmentalLoggerAnalyser.py takes the first argument as the input folder (containing JSON files,
 but it can also be one single file) and the second argument as the output folder (output netCDF files go here).
@@ -51,7 +52,7 @@ If the output folder does not exist, EnvironmentalLoggerAnalyser.py creates it.
 20160518: 1. Add numpy module, now the array calculation will be done by numpy to improve efficiency
           2. Add Downwelling Flux (the previous one is recognized and renamed as Downwelling spectral flux)
 20160519: 1. Recalculate and double check the method used for calculating downwelling spectral flux
-          2. Reinstate the integration time and area (based on the discussion about the dimension of the flux sensitivity)
+          2. Reinstate the integration time and sensor area (based on the discussion about the dimension of the flux sensitivity)
           3. Clean up based on Professor Zender's adjustment
 20160526: All units are now in SI
 
@@ -234,7 +235,7 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     # Add data from terraref.nco
     netCDFHandler.createVariable("wvl_dlt", 'f8', ("wvl_lgr",))[:] = delta
     setattr(netCDFHandler.variables['wvl_dlt'], 'units', 'meter')
-    setattr(netCDFHandler.variables['wvl_dlt'], 'notes',"Best information available is that bandwidth is uniform 0.4 nm across all channels")
+    setattr(netCDFHandler.variables['wvl_dlt'], 'notes',"Bandwidth, also called dispersion, is between 0.455-0.495 nm across all channels. Values computed as differences between midpoints of adjacent band-centers.")
     setattr(netCDFHandler.variables['wvl_dlt'], 'long_name', "Bandwidth of environmental sensor")
 
     netCDFHandler.createVariable("flx_sns", "f4", ("wvl_lgr",))[:] = np.array(FLX_SNS) * 1e-6
@@ -253,16 +254,16 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
 
     #Other Constants used in calculation
     #Integration Time
-    netCDFHandler.createVariable("int_tme", 'f4').assignValue(5000.0/1.0e-6)
-    setattr(netCDFHandler.variables["flx_dwn"], "units", "second")
-    setattr(netCDFHandler.variables['flx_dwn'], 'long_name', 'Spectraometer integration time')
+    #fxm Jerome the value should be as read from the metadata, not hardcoded as 5000.0
+    netCDFHandler.createVariable("time_integration", 'f4').assignValue(5000.0/1.0e-6)
+    setattr(netCDFHandler.variables["time_integration"], "units", "second")
+    setattr(netCDFHandler.variables['time_integration'], 'long_name', 'Spectrometer integration time')
 
     #Spectrometer area
-    netCDFHandler.createVariable("area", "f4").assignValue(AREA)
-    setattr(netCDFHandler.variables["area"], "units", "meter2")
-    setattr(netCDFHandler.variables['area'], 'long_name', 'Spectrometer Area')
-
-
+    #fxm where does AREA come from? should be read from metadata
+    netCDFHandler.createVariable("area_sensor", "f4").assignValue(AREA)
+    setattr(netCDFHandler.variables["area_sensor"], "units", "meter2")
+    setattr(netCDFHandler.variables['area_sensor'], 'long_name', 'Spectrometer Area')
 
     netCDFHandler.history = recordTime + ': python ' + commandLine
     netCDFHandler.close()
