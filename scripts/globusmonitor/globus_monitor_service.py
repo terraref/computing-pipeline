@@ -598,7 +598,7 @@ def notifyClowderOfCompletedTask(task):
                                 datasetMDFile = f
                         else:
                             logger.info("%s dataset %s lists nonexistent file: %s" % (task['globus_id'], ds, fobj['path']))
-                            updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = "FILE NOT FOUND"
+                            updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = "FILE NOT FOUND"
                             writeCompletedTaskToDisk(updatedTask)
 
             if len(fileFormData)>0 or datasetMD:
