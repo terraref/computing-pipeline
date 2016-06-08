@@ -585,16 +585,21 @@ def notifyClowderOfCompletedTask(task):
                 for f in task['contents'][ds]['files']:
                     fobj = task['contents'][ds]['files'][f]
                     if 'clowder_id' not in fobj or fobj['clowder_id'] == "":
-                        if f.find("metadata.json") == -1:
-                            fileFormData.append(
-                                    ("file",'{"path":"%s"%s}' % (fobj['path'],
-                                        ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else ""
-                                ))
-                            )
-                            lastFile = f
+                        if os.path.exists(fobj['path']):
+                            if f.find("metadata.json") == -1:
+                                fileFormData.append(
+                                        ("file",'{"path":"%s"%s}' % (fobj['path'],
+                                            ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else ""
+                                    ))
+                                )
+                                lastFile = f
+                            else:
+                                datasetMD = clean_json_keys(loadJsonFile(fobj['path']))
+                                datasetMDFile = f
                         else:
-                            datasetMD = clean_json_keys(loadJsonFile(fobj['path']))
-                            datasetMDFile = f
+                            logger.info("%s dataset %s lists nonexistant file: %s" % (task['globus_id'], ds, fobj['path']))
+                            updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = "FILE NOT FOUND"
+                            writeCompletedTaskToDisk(updatedTask)
 
             if len(fileFormData)>0 or datasetMD:
                 dsid = fetchDatasetByName(ds, sess)
@@ -602,7 +607,7 @@ def notifyClowderOfCompletedTask(task):
                     if len(fileFormData)>0:
                         # Upload collected files for this dataset
                         # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
-                        logger.info("- uploading unprocessed files belonging to %s" % ds, extra={
+                        logger.info("%s uploading unprocessed files belonging to %s" % (task['globus_id'], ds), extra={
                             "dataset_id": dsid,
                             "dataset_name": ds,
                             "action": "UPLOADING FILES",
