@@ -521,8 +521,12 @@ def getNewFilesFromFTPLogs():
                         fname = re.search(fnameRegex, line)
                         if fname:
                             fullname = fname.group(1).rstrip()
-                            fullname = fullname.replace(config['globus']['source_path'],"")
-                            foundFiles.append(fullname)
+                            # Check if file still exists before queuing for Globus
+                            if os.path.exists(fullname):
+                                fullname = fullname.replace(config['globus']['source_path'],"")
+                                foundFiles.append(fullname)
+                            else:
+                                logger.info("Skipping missing file from FTP log: "+fullname)
 
                 if status_numPending+len(foundFiles) >= maxPending:
                     break
