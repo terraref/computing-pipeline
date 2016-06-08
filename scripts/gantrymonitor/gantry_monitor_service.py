@@ -200,10 +200,7 @@ def createLocalSymlink(srcPath, destPath, filename):
         if not os.path.isdir(destPath):
             os.makedirs(destPath)
 
-        logger.info("- creating symlink to %s in %s" % (filename, destPath), extra={
-            "filename": filename,
-            "action": "CREATE SYMLINK"
-        })
+        logger.info("- creating symlink to %s in %s" % (filename, destPath))
         os.symlink(os.path.join(srcPath, filename),
                    os.path.join(destPath, filename))
     except OSError:
