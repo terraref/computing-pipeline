@@ -30,6 +30,7 @@ from logging.handlers import TimedRotatingFileHandler
 rootPath = "/home/gantry"
 
 config = {}
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('gantry_monitor_service')
 
 # Used by the FTP log reader to track progress
