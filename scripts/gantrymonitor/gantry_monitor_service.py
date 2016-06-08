@@ -523,7 +523,7 @@ def getNewFilesFromFTPLogs():
                         if fname:
                             fullname = fname.group(1).rstrip()
                             # Check if file still exists before queuing for Globus
-                            if os.path.exists(fullname):
+                            if os.path.exists(fullname.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])):
                                 fullname = fullname.replace(config['globus']['source_path'],"")
                                 foundFiles.append(fullname)
                             else:
