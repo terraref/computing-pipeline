@@ -776,7 +776,7 @@ if __name__ == '__main__':
         log_config = json.load(f)
         log_config['handlers']['file']['filename'] = config["log_path"]
         logging.config.dictConfig(log_config)
-    logger = logging.getLogger('globus_monitor_service')
+    logger = logging.getLogger('gantry')
 
     datasetMap = loadDataFromDisk(config['dataset_map_path'])
     collectionMap = loadDataFromDisk(config['collection_map_path'])

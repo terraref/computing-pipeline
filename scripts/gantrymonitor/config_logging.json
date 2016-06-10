@@ -18,9 +18,8 @@
       "class": "logging.handlers.RotatingFileHandler",
       "formatter": "default",
       "level": "DEBUG",
-      "filename": "ouput.log",
+      "filename": "gantry.log",
       "maxBytes": 10485760,
-      "backupCount": 10,
       "encoding": "utf8"
     },
     "logstash": {

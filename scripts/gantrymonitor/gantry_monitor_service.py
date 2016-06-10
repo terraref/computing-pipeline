@@ -852,7 +852,7 @@ if __name__ == '__main__':
         log_config = json.load(f)
         log_config['handlers']['file']['filename'] = config["log_path"]
         logging.config.dictConfig(log_config)
-    logger = logging.getLogger('gantry_monitor_service')
+    logger = logging.getLogger('gantry')
 
     # Get last read log line from previous run
     if os.path.exists(config["status_log_path"]):
