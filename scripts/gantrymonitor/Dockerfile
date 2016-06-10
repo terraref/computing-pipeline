@@ -7,6 +7,7 @@ RUN groupadd -g 1006 cache_access \
     && apt-get -y install curl python python-dev python-pip \
     && pip install flask-restful \
     && pip install requests \
+    && pip install python-logstash \
     && pip install globusonline-transfer-api-client \
     && mkdir /home/gantry \
     && chown -R data-mover /home/gantry \
