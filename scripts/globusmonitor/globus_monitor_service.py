@@ -10,6 +10,7 @@
 
 import os, shutil, json, time, datetime, thread, copy, atexit, collections, fcntl, logging
 import requests
+import logging.config
 import logstash
 from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
@@ -45,8 +46,8 @@ Config file has 2 important entries which do not have default values:
     }
 """
 config = {}
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger('globus_monitor_service')
+#logging.basicConfig(level=logging.DEBUG)
+#logger = logging.getLogger('globus_monitor_service')
 
 """activeTasks tracks which Globus IDs are being monitored, and is of the format:
 {"globus_id": {
@@ -774,7 +775,14 @@ if __name__ == '__main__':
     else:
         print("...no custom configuration file found. using default values")
 
-    # Initialize logger
+    # Initialize logger handlers
+    with open("config_logging.json", 'r') as f:
+        log_config = json.load(f)
+        log_config['handlers']['file']['filename'] = config["log_path"]
+        logging.config.dictConfig(log_config)
+    logger = logging.getLogger('globus_monitor_service')
+
+    """
     logFmt = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
 
     trfh = TimedRotatingFileHandler(config["log_path"], when='D')
@@ -787,7 +795,7 @@ if __name__ == '__main__':
     lsh.setFormatter(logFmt)
     lsh.setLevel(logging.INFO)
     logger.addHandler(lsh)
-
+    """
 
     datasetMap = loadDataFromDisk(config['dataset_map_path'])
     collectionMap = loadDataFromDisk(config['collection_map_path'])

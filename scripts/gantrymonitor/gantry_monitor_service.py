@@ -30,8 +30,8 @@ from logging.handlers import TimedRotatingFileHandler
 rootPath = "/home/gantry"
 
 config = {}
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger('gantry_monitor_service')
+#logging.basicConfig(level=logging.DEBUG)
+#logger = logging.getLogger('gantry_monitor_service')
 
 # Used by the FTP log reader to track progress
 status_lastFTPLogLine = ""
@@ -851,6 +851,13 @@ if __name__ == '__main__':
         print("...no custom configuration file found. using default values")
 
     # Initialize logger handlers
+    with open("config_logging.json", 'r') as f:
+        log_config = json.load(f)
+        log_config['handlers']['file']['filename'] = config["log_path"]
+        logging.config.dictConfig(log_config)
+    logger = logging.getLogger('gantry_monitor_service')
+    
+    """
     logFmt = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
 
     trfh = TimedRotatingFileHandler(config["log_path"], when='D')
@@ -863,6 +870,7 @@ if __name__ == '__main__':
     lsh.setFormatter(logFmt)
     lsh.setLevel(logging.INFO)
     logger.addHandler(lsh)
+    """
 
     # TODO: How to handle big errors, e.g. NCSA API not responding? admin email notification?
 
