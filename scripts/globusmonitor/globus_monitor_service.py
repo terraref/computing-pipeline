@@ -8,10 +8,9 @@
     succeeded or failed, and notify Clowder accordingly.
 """
 
-import os, shutil, json, time, datetime, thread, copy, atexit, collections, fcntl, logging
+import os, shutil, json, time, datetime, thread, copy, atexit, collections, fcntl
+import logging, logging.config
 import requests
-import logging.config
-import logstash
 from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
 from functools import wraps
@@ -19,7 +18,6 @@ from flask import Flask, request, Response
 from flask.ext import restful
 from flask_restful import reqparse, abort, Api, Resource
 from globusonline.transfer.api_client import TransferAPIClient, APIError, ClientError, goauth
-from logging.handlers import TimedRotatingFileHandler
 
 rootPath = "/home/globusmonitor/computing-pipeline/scripts/globusmonitor"
 
@@ -46,8 +44,6 @@ Config file has 2 important entries which do not have default values:
     }
 """
 config = {}
-#logging.basicConfig(level=logging.DEBUG)
-#logger = logging.getLogger('globus_monitor_service')
 
 """activeTasks tracks which Globus IDs are being monitored, and is of the format:
 {"globus_id": {
@@ -781,21 +777,6 @@ if __name__ == '__main__':
         log_config['handlers']['file']['filename'] = config["log_path"]
         logging.config.dictConfig(log_config)
     logger = logging.getLogger('globus_monitor_service')
-
-    """
-    logFmt = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
-
-    trfh = TimedRotatingFileHandler(config["log_path"], when='D')
-    trfh.setFormatter(logFmt)
-    trfh.setLevel(logging.DEBUG)
-    logger.addHandler(trfh)
-
-    logstash_host = "'141.142.227.152'"
-    lsh = logstash.TCPLogstashHandler(logstash_host, 5000, version=1, message_type="gantry")
-    lsh.setFormatter(logFmt)
-    lsh.setLevel(logging.INFO)
-    logger.addHandler(lsh)
-    """
 
     datasetMap = loadDataFromDisk(config['dataset_map_path'])
     collectionMap = loadDataFromDisk(config['collection_map_path'])

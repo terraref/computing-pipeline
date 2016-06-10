@@ -18,20 +18,17 @@
     queued for deletion.
 """
 
-import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip, logging
+import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip
+import logging, logging.config
 import requests
-import logstash
 from io import BlockingIOError
 from flask import Flask, request, Response
 from flask.ext import restful
 from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIError, ClientError, goauth
-from logging.handlers import TimedRotatingFileHandler
 
 rootPath = "/home/gantry"
 
 config = {}
-#logging.basicConfig(level=logging.DEBUG)
-#logger = logging.getLogger('gantry_monitor_service')
 
 # Used by the FTP log reader to track progress
 status_lastFTPLogLine = ""
@@ -856,23 +853,6 @@ if __name__ == '__main__':
         log_config['handlers']['file']['filename'] = config["log_path"]
         logging.config.dictConfig(log_config)
     logger = logging.getLogger('gantry_monitor_service')
-    
-    """
-    logFmt = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
-
-    trfh = TimedRotatingFileHandler(config["log_path"], when='D')
-    trfh.setFormatter(logFmt)
-    trfh.setLevel(logging.DEBUG)
-    logger.addHandler(trfh)
-
-    logstash_host = "'141.142.227.152'"
-    lsh = logstash.TCPLogstashHandler(logstash_host, 5000, version=1, message_type="gantry")
-    lsh.setFormatter(logFmt)
-    lsh.setLevel(logging.INFO)
-    logger.addHandler(lsh)
-    """
-
-    # TODO: How to handle big errors, e.g. NCSA API not responding? admin email notification?
 
     # Get last read log line from previous run
     if os.path.exists(config["status_log_path"]):
