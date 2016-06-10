@@ -848,7 +848,7 @@ if __name__ == '__main__':
         print("...no custom configuration file found. using default values")
 
     # Initialize logger handlers
-    with open(os.join(rootPath,"config_logging.json"), 'r') as f:
+    with open(os.path.join(rootPath,"config_logging.json"), 'r') as f:
         log_config = json.load(f)
         log_config['handlers']['file']['filename'] = config["log_path"]
         logging.config.dictConfig(log_config)
