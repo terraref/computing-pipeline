@@ -9,7 +9,7 @@
 """
 
 import os, shutil, json, time, datetime, thread, copy, atexit, collections, fcntl
-import logging, logging.config
+import logging, logging.config, logstash
 import requests
 from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
