@@ -11,6 +11,7 @@ RUN apt-get -y update \
 COPY globus_monitor_service.py /home/globusmonitor/globus_monitor_service.py
 COPY data /home/globusmonitor/data
 COPY config_default.json /home/globusmonitor/config_default.json
+COPY config_logging.json /home/globusmonitor/config_logging.json
 
 ENV MONITOR_API_PORT 5454
 CMD ["python", "/home/globusmonitor/globus_monitor_service.py"]

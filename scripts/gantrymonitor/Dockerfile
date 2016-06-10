@@ -14,6 +14,7 @@ RUN groupadd -g 1006 cache_access \
 
 COPY gantry_monitor_service.py /home/gantry/gantry_monitor_service.py
 COPY config_default.json /home/gantry/config_default.json
+COPY config_logging.json /home/gantry/config_logging.json
 
 ENV MONITOR_API_PORT 5455
 USER data-mover
