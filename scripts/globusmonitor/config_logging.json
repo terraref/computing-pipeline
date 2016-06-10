@@ -41,6 +41,6 @@
 
   "root": {
     "level": "INFO",
-    "handlers": ["console", "logstash"]
+    "handlers": []
   }
 }
