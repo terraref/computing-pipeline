@@ -260,7 +260,6 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     setattr(netCDFHandler.variables['time_integration'], 'long_name', 'Spectrometer integration time')
 
     #Spectrometer area
-    #fxm where does AREA come from? should be read from metadata
     netCDFHandler.createVariable("area_sensor", "f4").assignValue(AREA)
     setattr(netCDFHandler.variables["area_sensor"], "units", "meter2")
     setattr(netCDFHandler.variables['area_sensor'], 'long_name', 'Spectrometer Area')
