@@ -41,7 +41,7 @@ PIXEL_PITCH = 25e-6 #[m]
 # from Dr. LeBauer, Github thread: terraref/referece-data #32
 # Originally in 33, 04.470' N / -111, 58.485' W
 REFERENCE_POINT_LATLONG = np.deg2rad(33 + 4.470 / 60), np.deg2rad(-111 - 58.485 / 60) +np.pi # Temporarily
-print REFERENCE_POINT_LATLONG
+#print REFERENCE_POINT_LATLONG
 
 # from Dr. LeBauer, Github thread: terraref/referece-data #32
 GAMMA = 0 #TODO: waiting for the correct value
