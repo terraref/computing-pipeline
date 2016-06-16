@@ -370,6 +370,7 @@ def generateGlobusSubmissionID():
             return None
 
     if status_code == 200:
+        logger.debug("- generated new Globus submission ID %s" % submission_id['value'])
         return submission_id['value']
     else:
         logger.error("- could not generate new Globus submission ID (%s: %s)" % (status_code, status_message))
@@ -591,6 +592,7 @@ def initializeGlobusTransfer():
         loopingTransfers = safeCopy(pendingTransfers)
         currentTransferBatch = {}
 
+        logger.debug("- building transfer %s from pending queue" % submissionID)
         for ds in loopingTransfers:
             if "files" in loopingTransfers[ds]:
                 if ds not in currentTransferBatch:
@@ -622,6 +624,7 @@ def initializeGlobusTransfer():
         if queueLength > 0:
             # Send transfer to Globus
             try:
+                logger.debug("- attempting to send new transfer")
                 status_code, status_message, transfer_data = api.transfer(transferObj)
             except (APIError, ClientError) as e:
                 try:
@@ -827,7 +830,8 @@ def gantryMonitorLoop():
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if gantryWait <= 0:
             if status_numPending < config["gantry"]["max_pending_files"]:
-                pendingTransfers.update(getGantryFilesForTransfer())
+                newPending = getGantryFilesForTransfer()
+                pendingTransfers.update(newPending)
 
                 # Clean up the pending object of straggling keys, then initialize Globus transfer
                 cleanPendingTransfers()
