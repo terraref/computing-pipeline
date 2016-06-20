@@ -178,9 +178,9 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     '''
     Main netCDF handler, write data to the netCDF file indicated.
     '''
-    netCDFHandler         = Dataset(outputFileName, 'w', format='NETCDF4')
-    loggerFixedInfos      = JSONArray["environment_sensor_fixed_infos"]
-    loggerReadings        = JSONArray["environment_sensor_readings"]
+    netCDFHandler    = Dataset(outputFileName, 'w', format='NETCDF4')
+    loggerFixedInfos = JSONArray["environment_sensor_fixed_infos"]
+    loggerReadings   = JSONArray["environment_sensor_readings"]
 
     for infos in loggerFixedInfos:
         for subInfos in loggerFixedInfos[infos]:
@@ -226,38 +226,8 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     setattr(parValueVariable, "units", parUnit[0])
     setattr(co2ValueVariable, "units", co2Unit[0])
 
-
-    # dataMemberList        = [JSONMembers[u"environment_sensor_set_reading"] for JSONMembers in JSONArray]
-    # timeList              = [translateTime(JSONMembers[u'timestamp']) for JSONMembers in dataMemberList]
-    # timeStampList         = [JSONMembers[u'timestamp'] for JSONMembers in dataMemberList]
-    # timeDimension         = netCDFHandler.createDimension("time", None)
-    # tempTimeStampVariable = netCDFHandler.createVariable("timestamp", str, ("time",), chunksizes=(1,))
-    # for i in range(len(timeStampList)):
-    #     tempTimeStampVariable[i] = timeStampList[i]
-    # tempTimeVariable      = netCDFHandler.createVariable(
-    #     'time', 'f8', ('time',), chunksizes=(1,))
-    # for i in range(len(timeList)):  # Assign Times
-    #     tempTimeVariable[i] = timeList[i]
-    # setattr(tempTimeVariable, "units",    "days since 1970-01-01 00:00:00")
-    # setattr(tempTimeVariable, "calender", "gregorian")
-
-    # for data in dataMemberList[0]:
-    #     if data != 'spectrometer' and type(dataMemberList[0][data]) not in (str, unicode):
-    #         tempVariable = netCDFHandler.createVariable(
-    #             renameTheValue(data), 'f8', ('time',))
-    #         if 'unit' in dataMemberList[0][data]:  # Assign Units
-    #             #If it is not in SI, then the script will convert it to SI
-    #             setattr(tempVariable, 'units', _UNIT_DICTIONARY[dataMemberList[0][data]['unit']]["SI"])
-    #             tempVariable[:] = np.array(getListOfValue(dataMemberList, data)) * _UNIT_DICTIONARY[dataMemberList[0][data]['unit']]["power"]# Assign "values"
-    #         else:
-    #            tempVariable[:] = getListOfValue(dataMemberList, data)# Assign "values"
-    #         if 'rawValue' in dataMemberList[0][data]:  # Assign "rawValues"
-    #             netCDFHandler.createVariable(renameTheValue(data) + '_rawValue', 'f4', ('time',))[:] =getListOfRawValue(dataMemberList, data)
-    #     elif type(dataMemberList[0][data]) in (str, unicode) and data != "timestamp":
-    #         netCDFHandler.createVariable(renameTheValue(data), str)[0] = dataMemberList[0][data]
-
     wvl_ntf  = [np.average([wvl_lgr[i], wvl_lgr[i+1]]) for i in range(len(wvl_lgr)-1)]
-    delta = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
+    delta    = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
     delta.insert(0, 2*(wvl_ntf[0] - wvl_lgr[0]))
     delta.insert(-1, 2*(wvl_lgr[-1] - wvl_ntf[-1]))
 
@@ -296,7 +266,7 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     setattr(netCDFHandler.variables["area_sensor"], "units", "meter2")
     setattr(netCDFHandler.variables['area_sensor'], 'long_name', 'Spectrometer Area')
 
-    # netCDFHandler.history = recordTime + ': python ' + commandLine
+    netCDFHandler.history = recordTime + ': python ' + commandLine
     netCDFHandler.close()
 
 if __name__ == '__main__':
