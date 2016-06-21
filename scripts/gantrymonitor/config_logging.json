@@ -35,12 +35,12 @@
   "loggers": {
     "gantry": {
       "level": "DEBUG",
-      "handlers": ["console", "logstash", "file"]
+      "handlers": ["file"]
     }
   },
 
   "root": {
     "level": "INFO",
-    "handlers": []
+    "handlers": ["console", "logstash"]
   }
 }
