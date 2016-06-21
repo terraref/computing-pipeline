@@ -267,8 +267,8 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     netCDFHandler.history = recordTime + ': python ' + commandLine
     netCDFHandler.close()
 
-if __name__ == '__main__':
-    fileInputLocation, fileOutputLocation = sys.argv[1], sys.argv[2]
+
+def mainProgramTrigger(fileInputLocation, fileOutputLocation):
     if not os.path.exists(fileOutputLocation) and not fileOutputLocation.endswith('.nc'):
         os.mkdir(fileOutputLocation)  # Create folder
 
@@ -288,3 +288,9 @@ if __name__ == '__main__':
                     outputFileName = members.strip('.json') + '.nc'
                     tempJSONMasterList, wavelength, spectrum, downwellingSpectralFlux = JSONHandler(os.path.join(filePath, members))
                     main(tempJSONMasterList, os.path.join(fileOutputLocation, outputFileName), wavelength, spectrum, downwellingSpectralFlux, _timeStamp(), sys.argv[1] + ' ' + sys.argv[2])
+
+
+
+if __name__ == '__main__':
+    mainProgramTrigger(sys.argv[1], sys.argv[2])
+    

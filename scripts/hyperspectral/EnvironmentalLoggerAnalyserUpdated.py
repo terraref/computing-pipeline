@@ -212,19 +212,15 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     setattr(timeVariable, "units",    "days since 1970-01-01 00:00:00")
     setattr(timeVariable, "calender", "gregorian")
 
-    parValue, parUnit, parRaw = sensorVariables(loggerReadings, "sensor par")
-    co2Value, co2Unit, co2Raw = sensorVariables(loggerReadings, "sensor co2")
+    for data in loggerReadings[0]:
+        if data.startswith("sensor"):
+            sensorValue, sensorUnit, sensorRaw = sensorVariables(loggerReadings, data)
+            sensorValueVariable                = netCDFHandler.createVariable(renameTheValue(data), "f4", ("time", ))
+            sensorRawValueVariable             = netCDFHandler.createVariable("raw_" + renameTheValue(data), "f4", ("time", ))
 
-    parValueVariable, parRawValueVariable = netCDFHandler.createVariable("sensor_par", "f4", ("time", )), netCDFHandler.createVariable("raw_sensor_par", "f4", ("time", ))
-    co2ValueVariable, co2RawValueVariable = netCDFHandler.createVariable("sensor_co2", "f4", ("time", )), netCDFHandler.createVariable("raw_sensor_co2", "f4", ("time", ))
-      
-    parValueVariable[:]    = parValue
-    parRawValueVariable[:] = parRaw
-
-    co2ValueVariable[:]    = co2Value
-    co2RawValueVariable[:] = co2Raw
-    setattr(parValueVariable, "units", parUnit[0])
-    setattr(co2ValueVariable, "units", co2Unit[0])
+            sensorValueVariable[:]    = sensorValue
+            sensorRawValueVariable[:] = sensorRaw
+            setattr(sensorValueVariable, "units", sensorUnit[0])
 
     wvl_ntf  = [np.average([wvl_lgr[i], wvl_lgr[i+1]]) for i in range(len(wvl_lgr)-1)]
     delta    = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
@@ -269,8 +265,11 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     netCDFHandler.history = recordTime + ': python ' + commandLine
     netCDFHandler.close()
 
-if __name__ == '__main__':
-    fileInputLocation, fileOutputLocation = sys.argv[1], sys.argv[2]
+
+def mainProgramTrigger(fileInputLocation, fileOutputLocation):
+    '''
+    This function will trigger the whole script
+    '''
     if not os.path.exists(fileOutputLocation) and not fileOutputLocation.endswith('.nc'):
         os.mkdir(fileOutputLocation)  # Create folder
 
@@ -290,3 +289,8 @@ if __name__ == '__main__':
                     outputFileName = members.strip('.json') + '.nc'
                     tempJSONMasterList = JSONHandler(os.path.join(filePath, members))
                     main(tempJSONMasterList, os.path.join(fileOutputLocation, outputFileName), recordTime=_timeStamp(), commandLine=sys.argv[1] + ' ' + sys.argv[2])
+
+
+
+if __name__ == '__main__':
+    mainProgramTrigger(sys.argv[1], sys.argv[2])
