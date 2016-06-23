@@ -72,7 +72,7 @@ def main():
     exp_metadata = json.load(meta_json)
 
     # Open the SnapshotInfo.csv file
-    csvfile = open(args.dir + '/SnapshotInfo.csv', 'rU')
+    csvfile = open(posixpath.join(args.dir, 'SnapshotInfo.csv'), 'rU')
 
     # Read the first header line
     header = csvfile.readline()
@@ -144,7 +144,7 @@ def create_clowder_collection(session, url, collection, dryrun=False):
 
     if dryrun is False:
         # Create a new collection
-        coll_r = session.post(url + "api/collections", headers={"Content-Type": "application/json"},
+        coll_r = session.post(posixpath.join(url, "api/collections"), headers={"Content-Type": "application/json"},
                               data='{"name": "' + str(collection) + '"}')
 
     # Get collection ID
@@ -183,8 +183,8 @@ def create_clowder_dataset(session, url, dataset, collection_id, metadata, dryru
 
     if dryrun is False:
         # Create a new dataset
-        ds_r = session.post(url + "api/datasets/createempty",  headers={"Content-Type": "application/json"},
-                         data='{"name": "' + str(dataset) + '"}')
+        ds_r = session.post(posixpath.join(url, "api/datasets/createempty"),
+                            headers={"Content-Type": "application/json"}, data='{"name": "' + str(dataset) + '"}')
 
     # Get dataset ID
     if dryrun:
@@ -199,7 +199,7 @@ def create_clowder_dataset(session, url, dataset, collection_id, metadata, dryru
 
     # Add dataset to existing collection
     if dryrun is False:
-        coll_r = session.post(url + "api/collections/" + collection_id + "/datasets/" + ds_id)
+        coll_r = session.post(posixpath.join(url, "api/collections", collection_id, "datasets", ds_id))
 
         # Was the dataset added to the collection successfully?
         if coll_r.status_code != 200:
@@ -208,8 +208,8 @@ def create_clowder_dataset(session, url, dataset, collection_id, metadata, dryru
 
     # Add metadata to dataset
     if dryrun is False:
-        meta_r = session.post(url + "api/datasets/" + ds_id + "/metadata", headers={"Content-Type": "application/json"},
-                              data=json.dumps(metadata))
+        meta_r = session.post(posixpath.join(url, "api/datasets", ds_id, "metadata"),
+                              headers={"Content-Type": "application/json"}, data=json.dumps(metadata))
 
         # Was the metadata added to the dataset successfully?
         if meta_r.status_code != 200:
@@ -244,7 +244,8 @@ def upload_file_to_clowder(session, url, file, dataset_id, metadata, dryrun=Fals
             # Open file in binary mode
             f = open(file, 'rb')
             # Upload file to Clowder
-            up_r = session.post(url + "api/uploadToDataset/" + dataset_id, files={"File" : f}, data=metadata)
+            up_r = session.post(posixpath.join(url, "api/uploadToDataset", dataset_id),
+                                files={"File" : f}, data=metadata)
 
             # Was the upload successful?
             if up_r.status_code != 200:

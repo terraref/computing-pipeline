@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 from __future__ import print_function
-import os
 import sys
+import os
 import argparse
+import requests
 import json
+import posixpath
 import cv2
+import numpy as np
 import plantcv as pcv
 
 
@@ -25,16 +28,20 @@ def options():
 
     parser = argparse.ArgumentParser(description="PlantCV Clowder image analysis script for the DDPSC indoor system.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-v", "--vis", help="Input VIS/RGB image.", required=True)
-    parser.add_argument("-n", "--nir", help="Input NIR image.", required=True)
-    parser.add_argument("-p", "--perspective", help="Camera perspective (side-view, top-view)", required=True)
+    #parser.add_argument("-v", "--vis", help="Input VIS/RGB image.", required=True)
+    #parser.add_argument("-n", "--nir", help="Input NIR image.", required=True)
+    #parser.add_argument("-p", "--perspective", help="Camera perspective (side-view, top-view)", required=True)
+    parser.add_argument("-d", "--dataset", help="Clowder Dataset key.", required=True)
+    parser.add_argument("-u", "--url", help="Clowder URL.", required=True)
+    parser.add_argument("-U", "--username", help="Clowder username.", required=True)
+    parser.add_argument("-p", "--password", help="Clowder password.", required=True)
 
     args = parser.parse_args()
 
-    if not os.path.exists(args.vis):
-        raise IOError("File does not exist: {0}".format(args.vis))
-    if not os.path.exists(args.nir):
-        raise IOError("File does not exist: {0}".format(args.nir))
+    # if not os.path.exists(args.vis):
+    #     raise IOError("File does not exist: {0}".format(args.vis))
+    # if not os.path.exists(args.nir):
+    #     raise IOError("File does not exist: {0}".format(args.nir))
 
     return args
 
@@ -50,33 +57,205 @@ def main():
     # Get options
     args = options()
 
-    if args.perspective == 'side-view':
-        process_sv_images(args.vis, args.nir)
-    elif args.perspective == 'top-view':
-        process_tv_images(args.vis, args.nir)
-    else:
-        raise StandardError("Perspective {0} is not valid.".format(args.perspective))
+    # Create new session
+    sess = requests.Session()
+    sess.auth = (args.username, args.password)
+
+    # Get list of files in dataset
+    filelist = clowder_dataset_filelist(sess, args.url, args.dataset)
+
+    # Build metadata set
+    metadata = get_metadata(sess, args.url, filelist)
+
+    # Compiled traits table
+    fields = ('plant_barcode', 'genotype', 'treatment', 'imagedate', 'sv_area', 'tv_area', 'hull_area',
+              'solidity', 'height', 'perimeter')
+    traits = {'plant_barcode' : '',
+              'genotype' : '',
+              'treatment' : '',
+              'imagedate' : '',
+              'sv_area' : [],
+              'tv_area' : '',
+              'hull_area' : [],
+              'solidity' : [],
+              'height' : [],
+              'perimeter' : []}
+
+    # Process images with PlantCV
+    for perspective in metadata['visible/RGB'].keys():
+        for rotation_angle in metadata['visible/RGB'][perspective].keys():
+            # VIS/RGB image Clowder ID
+            vis_id = metadata['visible/RGB'][perspective][rotation_angle]['img_id']
+            # Matching NIR image Clowder ID
+            nir_id = ''
+            # Are there NIR images
+            if 'near-infrared' in metadata:
+                # Is there an NIR image with a matching camera perspective
+                if perspective in metadata['near-infrared']:
+                    # Is there an NIR image with a matching rotation angle
+                    if rotation_angle in metadata['near-infrared'][perspective]:
+                        nir_id = metadata['near-infrared'][perspective][rotation_angle]['img_id']
+            if len(nir_id) == 0:
+                # If no NIR image ID was found, raise an error
+                raise StandardError("No NIR image found matching VIS image {0}".format(vis_id))
+
+            # Add metadata to traits table
+            traits['plant_barcode'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['plant_barcode']
+            traits['genotype'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['genotype']
+            traits['treatment'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['treatment']
+            traits['imagedate'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['imagedate']
+
+            if perspective == 'side-view':
+                traits = process_sv_images(sess, args.url, vis_id, nir_id, traits)
+            elif perspective == 'top-view':
+                traits = process_tv_images(sess, args.url, vis_id, nir_id, traits)
+
+    # Save traits table
+    fields = ('plant_barcode', 'genotype', 'treatment', 'imagedate', 'sv_area', 'tv_area', 'hull_area',
+              'solidity', 'height', 'perimeter')
+
+    trait_list = [traits['plant_barcode'], traits['genotype'], traits['treatment'], traits['imagedate'],
+                  average_trait(traits['sv_area']), traits['tv_area'], average_trait(traits['hull_area']),
+                  average_trait(traits['solidity']), average_trait(traits['height']),
+                  average_trait(traits['perimeter'])]
+
+    outfile = args.dataset + '.csv'
+    csv = open(outfile, 'w')
+    csv.write(','.join(map(str, fields)) + '\n')
+    csv.write(','.join(map(str, trait_list)) + '\n')
+    csv.close()
+
+    upload_file_to_clowder(sess, args.url, outfile, args.dataset, {outfile : json.dumps({'type' : 'CSV traits table'})})
 
 ###########################################
 
+
+# Get list of files for a Clowder dataset
+###########################################
+def clowder_dataset_filelist(session, url, dataset):
+    """Return a list of files for a Clowder Dataset.
+
+    Inputs:
+    session  = requests session object
+    url      = Clowder URL
+    dataset  = Clowder dataset key
+
+    Returns:
+    ret      = requests return object
+
+    :param session: requests session object
+    :param url: str
+    :param dataset: str
+    :return: requests return object
+    """
+    try:
+        ret = session.get(posixpath.join(url, "api/datasets", dataset, "listFiles"))
+    except session.exceptions.RequestException as e:
+        print(e)
+        sys.exit(1)
+
+    return ret
+
+
+# Get Clowder file metadata
+###########################################
+def clowder_file_metadata(session, url, fileid):
+    """Get metadata for a file in Clowder.
+
+    Inputs:
+    session  = requests session object
+    url      = Clowder URL
+    fileid  = Clowder file key
+
+    Returns:
+    ret      = requests return object
+
+    :param session: requests session object
+    :param url: str
+    :param fileid: str
+    :return: requests return object
+    """
+    try:
+        ret = session.get(posixpath.join(url, "api/files", fileid, "metadata.jsonld"))
+    except session.exceptions.RequestException as e:
+        print(e)
+        sys.exit(1)
+
+    return ret
+
+
+# Build a metadata set for a dataset
+###########################################
+def get_metadata(session, url, filelist):
+    """Build a metadata set for a Clowder dataset.
+
+    Inputs:
+    session  = requests session object
+    url      = Clowder URL
+    filelist = Clowder API response object for the datasets listFiles method
+
+    Returns:
+    metadata = Metadata dictionary
+
+    :param session: requests session object
+    :param url: str
+    :param filelist: requests return object
+    :return: metadata: dictionary
+    """
+    metadata = {}
+    # Loop over the Clowder dataset image ID list
+    for clowder_img in filelist.json():
+        # Get metadata for the image from Clowder
+        response = clowder_file_metadata(session, url, clowder_img['id'])
+        # Metadata from multiple extractors may be present
+        for extractor in response.json():
+            # Find the extractor called "deprecatedapi" which refers to the API used to upload metadata
+            if "user_id" in extractor['agent']:
+                # Save a few metadata elements for convenience
+                camera_type = extractor['content']['camera_type']
+                perspective = extractor['content']['perspective']
+                rotation_angle = extractor['content']['rotation_angle']
+                # Store the image ID for later use
+                extractor['img_id'] = clowder_img['id']
+                if camera_type not in metadata:
+                    metadata[camera_type] = {}
+                if perspective not in metadata[camera_type]:
+                    metadata[camera_type][perspective] = {}
+                metadata[camera_type][perspective][rotation_angle] = extractor
+
+    return metadata
+
+
+def serialize_color_data(list):
+    newlist = [float(x) for x in list]
+
+    return newlist
 
 # Process side-view images
 ###########################################
-def process_sv_images(vis_img, nir_img, debug=None):
-    """Process side-view images.
+def process_sv_images(session, url, vis_id, nir_id, traits, debug=None):
+    """Process side-view images from Clowder.
 
     Inputs:
-    vis_img = An RGB image.
-    nir_img = An NIR grayscale image.
-    debug   = None, print, or plot. Print = save to file, Plot = print to screen.
+    session = requests session object
+    url     = Clowder URL
+    vis_id  = The Clowder ID of an RGB image
+    nir_img = The Clowder ID of an NIR grayscale image
+    traits  = traits table (dictionary)
+    debug   = None, print, or plot. Print = save to file, Plot = print to screen
 
-    :param vis_img: str
-    :param nir_img: str
+    :param session: requests session object
+    :param url: str
+    :param vis_id: str
+    :param nir_id: str
+    :param traits: dict
     :param debug: str
-    :return:
+    :return traits: dict
     """
-    # Read VIS image
-    img, path, filename = pcv.readimage(vis_img)
+    # Read VIS image from Clowder
+    vis_r = session.get(posixpath.join(url, "api/files", vis_id), stream=True)
+    img_array = np.asarray(bytearray(vis_r.content), dtype="uint8")
+    img = cv2.imdecode(img_array, -1)
 
     # Pipeline step
     device = 0
@@ -163,34 +342,34 @@ def process_sv_images(vis_img, nir_img, debug=None):
 
     ############## VIS Analysis ################
     # Find shape properties, output shape image (optional)
-    device, shape_header, shape_data, shape_img = pcv.analyze_object(img, vis_img, obj, mask, device, debug)
+    device, shape_header, shape_data, shape_img = pcv.analyze_object(img, vis_id, obj, mask, device, debug)
 
     # Shape properties relative to user boundary line (optional)
-    device, boundary_header, boundary_data, boundary_img1 = pcv.analyze_bound(img, vis_img, obj, mask, 384, device,
+    device, boundary_header, boundary_data, boundary_img1 = pcv.analyze_bound(img, vis_id, obj, mask, 384, device,
                                                                               debug)
 
     # Determine color properties: Histograms, Color Slices and
     # Pseudocolored Images, output color analyzed images (optional)
-    device, color_header, color_data, color_img = pcv.analyze_color(img, vis_img, mask, 256, device, debug,
+    device, color_header, color_data, color_img = pcv.analyze_color(img, vis_id, mask, 256, device, debug,
                                                                     None, 'v', 'img', 300)
 
     # Output shape and color data
-    print('\t'.join(map(str, shape_header)) + '\n')
-    print('\t'.join(map(str, shape_data)) + '\n')
-    for row in shape_img:
-        print('\t'.join(map(str, row)) + '\n')
-    print('\t'.join(map(str, color_header)) + '\n')
-    print('\t'.join(map(str, color_data)) + '\n')
-    print('\t'.join(map(str, boundary_header)) + '\n')
-    print('\t'.join(map(str, boundary_data)) + '\n')
-    print('\t'.join(map(str, boundary_img1)) + '\n')
-    for row in color_img:
-        print('\t'.join(map(str, row)) + '\n')
+    vis_traits = {}
+    for i in range(1, len(shape_header)):
+        vis_traits[shape_header[i]] = shape_data[i]
+    for i in range(1, len(boundary_header)):
+        vis_traits[boundary_header[i]] = boundary_data[i]
+    for i in range(2, len(color_header)):
+        vis_traits[color_header[i]] = serialize_color_data(color_data[i])
+    #print(vis_traits)
+    add_plantcv_metadata(session, url, vis_id, vis_traits)
 
     ############################# Use VIS image mask for NIR image#########################
-    # Read NIR image
-    nir, path1, filename1 = pcv.readimage(nir_img)
-    nir2 = cv2.imread(nir_img, -1)
+    # Read NIR image from Clowder
+    nir_r = session.get(posixpath.join(url, "api/files", nir_id), stream=True)
+    nir_array = np.asarray(bytearray(nir_r.content), dtype="uint8")
+    nir = cv2.imdecode(nir_array, -1)
+    nir_rgb = cv2.cvtColor(nir, cv2.COLOR_GRAY2BGR)
 
     # Flip mask
     device, f_mask = pcv.flip(mask, "vertical", device, debug)
@@ -199,47 +378,67 @@ def process_sv_images(vis_img, nir_img, debug=None):
     device, nmask = pcv.resize(f_mask, 0.1154905775, 0.1154905775, device, debug)
 
     # position, and crop mask
-    device, newmask = pcv.crop_position_mask(nir, nmask, device, 30, 4, "top", "right", debug)
+    device, newmask = pcv.crop_position_mask(nir_rgb, nmask, device, 30, 4, "top", "right", debug)
 
     # Identify objects
-    device, nir_objects, nir_hierarchy = pcv.find_objects(nir, newmask, device, debug)
+    device, nir_objects, nir_hierarchy = pcv.find_objects(nir_rgb, newmask, device, debug)
 
     # Object combine kept objects
-    device, nir_combined, nir_combinedmask = pcv.object_composition(nir, nir_objects, nir_hierarchy, device, debug)
+    device, nir_combined, nir_combinedmask = pcv.object_composition(nir_rgb, nir_objects, nir_hierarchy, device, debug)
 
     ####################################### Analysis #############################################
-    device, nhist_header, nhist_data, nir_imgs = pcv.analyze_NIR_intensity(nir2, filename1, nir_combinedmask, 256,
+    device, nhist_header, nhist_data, nir_imgs = pcv.analyze_NIR_intensity(nir, nir_id, nir_combinedmask, 256,
                                                                            device, False, debug)
-    device, nshape_header, nshape_data, nir_shape = pcv.analyze_object(nir2, filename1, nir_combined, nir_combinedmask,
+    device, nshape_header, nshape_data, nir_shape = pcv.analyze_object(nir, nir_id, nir_combined, nir_combinedmask,
                                                                        device, debug)
 
-    print('\t'.join(map(str, nhist_header)) + '\n')
-    print('\t'.join(map(str, nhist_data)) + '\n')
-    for row in nir_imgs:
-        print('\t'.join(map(str, row)) + '\n')
-    print('\t'.join(map(str, nshape_header)) + '\n')
-    print('\t'.join(map(str, nshape_data)) + '\n')
-    print('\t'.join(map(str, nir_shape)) + '\n')
+    nir_traits = {}
+    for i in range(1, len(nshape_header)):
+        nir_traits[nshape_header[i]] = nshape_data[i]
+    for i in range(2, len(nhist_header)):
+        nir_traits[nhist_header[i]] = serialize_color_data(nhist_data[i])
+    #print(nir_traits)
+    add_plantcv_metadata(session, url, nir_id, nir_traits)
 
+    # Add data to traits table
+    traits['sv_area'].append(vis_traits['area'])
+    traits['hull_area'].append(vis_traits['hull-area'])
+    traits['solidity'].append(vis_traits['solidity'])
+    traits['height'].append(vis_traits['height_above_bound'])
+    traits['perimeter'].append(vis_traits['perimeter'])
+
+    return traits
 
 # Process top-view images
 ###########################################
-def process_tv_images(vis_img, nir_img, debug=False):
+def process_tv_images(session, url, vis_id, nir_id, traits, debug=False):
     """Process top-view images.
 
     Inputs:
-    vis_img = An RGB image.
-    nir_img = An NIR grayscale image.
+    session = requests session object
+    url     = Clowder URL
+    vis_id  = The Clowder ID of an RGB image
+    nir_img = The Clowder ID of an NIR grayscale image
+    traits  = traits table (dictionary)
     debug   = None, print, or plot. Print = save to file, Plot = print to screen.
 
-    :param vis_img: str
-    :param nir_img: str
+    :param session: requests session object
+    :param url: str
+    :param vis_id: str
+    :param nir_id: str
+    :param traits: dict
     :param debug: str
-    :return:
+    :return traits: dict
     """
-    # Read image
-    img, path, filename = pcv.readimage(vis_img)
-    brass_mask = cv2.imread('mask_brass_tv_z1_L1.png')
+    # Read VIS image from Clowder
+    vis_r = session.get(posixpath.join(url, "api/files", vis_id), stream=True)
+    img_array = np.asarray(bytearray(vis_r.content), dtype="uint8")
+    img = cv2.imdecode(img_array, -1)
+
+    # Read the VIS top-view image mask for zoom = 1 from Clowder
+    mask_r = session.get(posixpath.join(url, "api/files/57451b28e4b0efbe2dc3d4d5"), stream=True)
+    mask_array = np.asarray(bytearray(mask_r.content), dtype="uint8")
+    brass_mask = cv2.imdecode(mask_array, -1)
 
     device = 0
 
@@ -318,25 +517,27 @@ def process_tv_images(vis_img, nir_img, debug=False):
     device, obj, mask = pcv.object_composition(img, roi_objects, hierarchy3, device, debug)
 
     # Find shape properties, output shape image (optional)
-    device, shape_header, shape_data, shape_img = pcv.analyze_object(img, vis_img, obj, mask, device, debug)
+    device, shape_header, shape_data, shape_img = pcv.analyze_object(img, vis_id, obj, mask, device, debug)
 
     # Determine color properties
-    device, color_header, color_data, color_img = pcv.analyze_color(img, vis_img, mask, 256, device, debug, None,
+    device, color_header, color_data, color_img = pcv.analyze_color(img, vis_id, mask, 256, device, debug, None,
                                                                     'v', 'img', 300)
 
-    print('\t'.join(map(str, shape_header)) + '\n')
-    print('\t'.join(map(str, shape_data)) + '\n')
-    for row in shape_img:
-        print('\t'.join(map(str, row)) + '\n')
-    print('\t'.join(map(str, color_header)) + '\n')
-    print('\t'.join(map(str, color_data)) + '\n')
-    for row in color_img:
-        print('\t'.join(map(str, row)) + '\n')
+    # Output shape and color data
+    vis_traits = {}
+    for i in range(1, len(shape_header)):
+        vis_traits[shape_header[i]] = shape_data[i]
+    for i in range(2, len(color_header)):
+        vis_traits[color_header[i]] = serialize_color_data(color_data[i])
+    #print(vis_traits)
+    add_plantcv_metadata(session, url, vis_id, vis_traits)
 
     ############################# Use VIS image mask for NIR image#########################
-    # Read NIR image
-    nir, path1, filename1 = pcv.readimage(nir_img)
-    nir2 = cv2.imread(nir_img, -1)
+    # Read NIR image from Clowder
+    nir_r = session.get(posixpath.join(url, "api/files", nir_id), stream=True)
+    nir_array = np.asarray(bytearray(nir_r.content), dtype="uint8")
+    nir = cv2.imdecode(nir_array, -1)
+    nir_rgb = cv2.cvtColor(nir, cv2.COLOR_GRAY2BGR)
 
     # Flip mask
     device, f_mask = pcv.flip(mask, "horizontal", device, debug)
@@ -345,28 +546,102 @@ def process_tv_images(vis_img, nir_img, debug=False):
     device, nmask = pcv.resize(f_mask, 0.116148, 0.116148, device, debug)
 
     # position, and crop mask
-    device, newmask = pcv.crop_position_mask(nir, nmask, device, 15, 5, "top", "right", debug)
+    device, newmask = pcv.crop_position_mask(nir_rgb, nmask, device, 15, 5, "top", "right", debug)
 
     # Identify objects
-    device, nir_objects, nir_hierarchy = pcv.find_objects(nir, newmask, device, debug)
+    device, nir_objects, nir_hierarchy = pcv.find_objects(nir_rgb, newmask, device, debug)
 
     # Object combine kept objects
-    device, nir_combined, nir_combinedmask = pcv.object_composition(nir, nir_objects, nir_hierarchy, device, debug)
+    device, nir_combined, nir_combinedmask = pcv.object_composition(nir_rgb, nir_objects, nir_hierarchy, device, debug)
 
     ####################################### Analysis #############################################
 
-    device, nhist_header, nhist_data, nir_imgs = pcv.analyze_NIR_intensity(nir2, filename1, nir_combinedmask, 256,
+    device, nhist_header, nhist_data, nir_imgs = pcv.analyze_NIR_intensity(nir, nir_id, nir_combinedmask, 256,
                                                                            device, False, debug)
-    device, nshape_header, nshape_data, nir_shape = pcv.analyze_object(nir2, filename1, nir_combined, nir_combinedmask,
+    device, nshape_header, nshape_data, nir_shape = pcv.analyze_object(nir, nir_id, nir_combined, nir_combinedmask,
                                                                        device, debug)
 
-    print('\t'.join(map(str,nhist_header)) + '\n')
-    print('\t'.join(map(str,nhist_data)) + '\n')
-    for row in nir_imgs:
-      print('\t'.join(map(str,row)) + '\n')
-    print('\t'.join(map(str,nshape_header)) + '\n')
-    print('\t'.join(map(str,nshape_data)) + '\n')
-    print('\t'.join(map(str,nir_shape)) + '\n')
+    nir_traits = {}
+    for i in range(1, len(nshape_header)):
+        nir_traits[nshape_header[i]] = nshape_data[i]
+    for i in range(2, len(nhist_header)):
+        nir_traits[nhist_header[i]] = serialize_color_data(nhist_data[i])
+    #print(nir_traits)
+    add_plantcv_metadata(session, url, nir_id, nir_traits)
+
+    # Add data to traits table
+    traits['tv_area'] = vis_traits['area']
+
+    return traits
+
+# Process top-view images
+###########################################
+def add_plantcv_metadata(session, url, fileid, metadata):
+    """Add PlantCV results as metadata to processed file in Clowder.
+
+    Inputs:
+    session  = requests session object
+    url      = Clowder URL
+    fileid   = the Clowder ID of an image
+    metadata = trait dictionary output from PlantCV
+
+    :param session: requests session object
+    :param url: str
+    :param fileid: str
+    :param metadata: dict
+    :return:
+    """
+    # print(json.dumps(metadata))
+    r = session.post(posixpath.join(url, "api/files", fileid, "metadata"),
+                     headers={"Content-Type": "application/json"}, data=json.dumps(metadata))
+
+    # Was the upload successful?
+    if r.status_code != 200:
+        raise StandardError("Uploading metadata failed: Return value = {0}".format(r.status_code))
+
+
+# Average trait
+###########################################
+def average_trait(list):
+    total = sum(list)
+    average = total / len(list)
+
+    return average
+
+
+# Upload file to a Clowder dataset
+###########################################
+def upload_file_to_clowder(session, url, file, dataset_id, metadata, dryrun=False):
+    """Upload a file to a Clowder dataset.
+
+    Args:
+        session: http session
+        url: Clowder URL
+        file: File name and path
+        dataset_id: Clowder dataset ID
+        dryrun: Boolean. If true, no POST requests are made
+    Returns:
+
+    Raises:
+        StandardError: HTTP POST return not 200
+    """
+
+    # Make sure file exists
+    if os.path.exists(file):
+        # Upload image file
+        if dryrun is False:
+            # Open file in binary mode
+            f = open(file, 'rb')
+            # Upload file to Clowder
+            up_r = session.post(posixpath.join(url, "api/uploadToDataset", dataset_id),
+                                files={"File" : f}, data=metadata)
+
+            # Was the upload successful?
+            if up_r.status_code != 200:
+                raise StandardError("Uploading file failed: Return value = {0}".format(up_r.status_code))
+    else:
+        print("ERROR: Image file {0} does not exist".format(file), file=sys.stderr)
+###########################################
 
 
 if __name__ == '__main__':
