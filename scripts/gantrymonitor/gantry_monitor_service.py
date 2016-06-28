@@ -230,7 +230,7 @@ def cleanPendingTransfers():
             del pendingTransfers[ds]
 
 """Add a particular file to pendingTransfers"""
-def addFileToPendingTransfers(f):
+def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None):
     global pendingTransfers
     global status_numPending
 
@@ -238,17 +238,29 @@ def addFileToPendingTransfers(f):
         gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
     else:
         gantryDirPath = f.replace(config['globus']['source_path'], "")
-
     pathParts = gantryDirPath.split("/")
     filename = pathParts[-1]
-    sensorname = ("EnvironmentLogger" if (f.find("EnvironmentLogger")>-1 or f.find("EnviromentLogger")>-1)
-                  else (pathParts[-4] if len(pathParts)>3 else "unknown_sensor"))
-    timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
-    datasetID = sensorname +" - "+timestamp
     gantryDirPath = gantryDirPath.replace(filename, "")
 
+    if sensorname == None:
+        if (f.find("EnvironmentLogger")>-1 or f.find("EnviromentLogger")>-1):
+            sensorname = "EnvironmentLogger"
+        elif len(pathParts)>3:
+            sensorname = pathParts[-2]
+        else:
+            sensorname = "unknown_sensor"
+
+    if timestamp == None:
+        if len(pathParts)>1:
+            timestamp = pathParts[-2]
+        else:
+            timestamp = "unknown_time"
+
+    if datasetname == None:
+        datasetname = sensorname +" - "+timestamp
+
     pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), {
-        datasetID: {
+        datasetname: {
             "files": {
                 filename: {
                     "name": filename,
@@ -297,19 +309,33 @@ class TransferQueue(restful.Resource):
         req = request.get_json(force=True)
         srcpath = config['globus']['source_path']
 
+        """
+        TODO: SAMPLE FOR NOAH TO SEND
+        {
+            "paths": ["file1.txt", "file2.jpg", "file3.jpg"...],
+            "dataset_name": "snapshot123456"
+        }
+
+        HOW WILL GLOBUS IMPACT EXTRACTOR LOGIC, IF AT ALL?
+        """
+        
+        sensorname = req['sensor_name'] if 'sensor_name' in req else None
+        datasetname = req['dataset_name'] if 'dataset_name' in req else None
+        timestamp = req['timestamp'] if 'timestamp' in req else None
+
         # Single file path entry under 'path'
         if 'path' in req:
             p = req['path']
             if p.find(srcpath) == -1:
                 p = os.path.join(srcpath, p)
-            addFileToPendingTransfers(p)
+            addFileToPendingTransfers(p, sensorname, timestamp, datasetname)
 
         # Multiple file path entries under 'paths'
         if 'paths' in req:
             for p in req['paths']:
                 if p.find(srcpath) == -1:
                     p = os.path.join(srcpath, p)
-                addFileToPendingTransfers(p)
+                addFileToPendingTransfers(p, sensorname, timestamp, datasetname)
 
         writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         return 201
