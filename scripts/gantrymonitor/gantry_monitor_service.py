@@ -306,19 +306,30 @@ Add a file to the transfer queue manually so it can be sent to NCSA Globus"""
 class TransferQueue(restful.Resource):
 
     def post(self):
+        """
+        Example POST content:
+
+            {
+                "paths": ["file1.txt", "file2.jpg", "file3.jpg"...],
+                "dataset_name": "snapshot123456"
+            }
+
+        ...or...
+
+            {
+                "paths": ["file1.txt", "file2.jpg", "file3.jpg"...],
+                "sensor_name": "VIS",
+                "timestamp": "2016-06-29__10-28-43-323"
+            }
+
+        In the second example, resulting dataset is called "VIS - 2016-06-29__10-28-43-323"
+
+        To associate metadata with the given dataset, include a "metadata.json" file.
+        """
+
         req = request.get_json(force=True)
         srcpath = config['globus']['source_path']
 
-        """
-        TODO: SAMPLE FOR NOAH TO SEND
-        {
-            "paths": ["file1.txt", "file2.jpg", "file3.jpg"...],
-            "dataset_name": "snapshot123456"
-        }
-
-        HOW WILL GLOBUS IMPACT EXTRACTOR LOGIC, IF AT ALL?
-        """
-        
         sensorname = req['sensor_name'] if 'sensor_name' in req else None
         datasetname = req['dataset_name'] if 'dataset_name' in req else None
         timestamp = req['timestamp'] if 'timestamp' in req else None
@@ -660,6 +671,10 @@ def initializeGlobusTransfer():
                     status_code, status_message, transfer_data = api.transfer(transferObj)
                 except (APIError, ClientError) as e:
                     logger.error("- problem initializing Globus transfer")
+                    status_code = 503
+                    status_message = e
+                except:
+                    logger.error("- unexpected problem initializing Globus transfer")
                     status_code = 503
                     status_message = e
 
