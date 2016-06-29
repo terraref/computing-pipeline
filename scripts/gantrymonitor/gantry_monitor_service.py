@@ -230,7 +230,7 @@ def cleanPendingTransfers():
             del pendingTransfers[ds]
 
 """Add a particular file to pendingTransfers"""
-def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None, filemetadata={}):
+def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None, spacename=None, filemetadata={}):
     global pendingTransfers
     global status_numPending
 
@@ -258,7 +258,7 @@ def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=No
                 timestamp = "unknown_time"
             datasetname = sensorname +" - "+timestamp
 
-    pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), {
+    newTransfer = {
         datasetname: {
             "files": {
                 filename: {
@@ -268,7 +268,10 @@ def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=No
                 }
             }
         }
-    })
+    }
+    if spacename: newTransfer['space_name'] = spacename
+
+    pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), newTransfer)
     status_numPending += 1
     logger.info("- file queued via API: %s" % f, extra={
         "filename": f
@@ -312,7 +315,7 @@ class TransferQueue(restful.Resource):
                 "path": "file1.txt",
                 "md": {...metadata object...},
                 "dataset_name": "snapshot123456",
-                "collection_name": "Danforth data"
+                "space_name": "Bellweather Phenotyping Facility"
             }
         ...or...
             {
@@ -322,14 +325,14 @@ class TransferQueue(restful.Resource):
                     "file2.jpg": {...metadata object...}
                 }
                 "dataset_name": "snapshot123456",
-                "collection_name": "Danforth data"
+                "space_name": "Bellweather Phenotyping Facility"
             }
         ...or...
             {
                 "paths": ["file1.txt", "file2.jpg", "file3.jpg"...],
                 "sensor_name": "VIS",
                 "timestamp": "2016-06-29__10-28-43-323",
-                "collection_name": "Danforth data"
+                "space_name": "Bellweather Phenotyping Facility"
             }
 
         In the second example, resulting dataset is called "VIS - 2016-06-29__10-28-43-323"
@@ -337,14 +340,13 @@ class TransferQueue(restful.Resource):
         To associate metadata with the given dataset, include a "metadata.json" file.
         """
 
-        # TODO: SUPPORT COLLECTION SPECIFICATION
-
         req = request.get_json(force=True)
         srcpath = config['globus']['source_path']
 
         sensorname = req['sensor_name'] if 'sensor_name' in req else None
         datasetname = req['dataset_name'] if 'dataset_name' in req else None
         timestamp = req['timestamp'] if 'timestamp' in req else None
+        spacename = req['space_name'] if 'space_name' in req else None
 
         # Single file path entry under 'path'
         if 'path' in req:
@@ -352,7 +354,7 @@ class TransferQueue(restful.Resource):
             if p.find(srcpath) == -1:
                 p = os.path.join(srcpath, p)
             filemetadata = {} if 'md' not in req else req['md']
-            addFileToPendingTransfers(p, sensorname, timestamp, datasetname, filemetadata)
+            addFileToPendingTransfers(p, sensorname, timestamp, datasetname, spacename, filemetadata)
 
         # Multiple file path entries under 'paths'
         if 'paths' in req:
@@ -363,7 +365,7 @@ class TransferQueue(restful.Resource):
                     filemetadata = req['file_metadata'][p]
                 else:
                     filemetadata = {}
-                addFileToPendingTransfers(p, sensorname, timestamp, datasetname, filemetadata)
+                addFileToPendingTransfers(p, sensorname, timestamp, datasetname, spacename, filemetadata)
 
         writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         return 201

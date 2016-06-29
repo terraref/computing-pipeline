@@ -228,7 +228,7 @@ def writeCompletedTaskToDisk(task):
     f.close()
 
 """Find dataset id if dataset exists, creating if necessary"""
-def fetchDatasetByName(datasetName, requestsSession):
+def fetchDatasetByName(datasetName, requestsSession, spaceOverride=None):
     if datasetName not in datasetMap:
         ds = requestsSession.post(config['clowder']['host']+"/api/datasets/createempty",
                                   headers={"Content-Type": "application/json"},
@@ -271,12 +271,12 @@ def fetchDatasetByName(datasetName, requestsSession):
                     logger.error("- cannot find dataset %s; creating new dataset %s" % (dsid, datasetName))
                     # Could not find dataset so we'll just delete the record and create a new one
                     del datasetMap[datasetName]
-                    return fetchDatasetByName(datasetName, requestsSession)
+                    return fetchDatasetByName(datasetName, requestsSession, spaceOverride)
             else:
                 logger.error("- cannot find dataset %s; creating new dataset %s" % (dsid, datasetName))
                 # Could not find dataset so we'll just delete the record and create a new one
                 del datasetMap[datasetName]
-                return fetchDatasetByName(datasetName, requestsSession)
+                return fetchDatasetByName(datasetName, requestsSession, spaceOverride)
 
 """Find dataset id if dataset exists, creating if necessary"""
 def fetchCollectionByName(collectionName, requestsSession):
@@ -334,29 +334,31 @@ def fetchCollectionByName(collectionName, requestsSession):
 
 """Add dataset to Space and Sensor, Date Collections"""
 def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
-    sensorName = datasetName.split(" - ")[0]
-    timestamp = datasetName.split(" - ")[1].split("__")[0]
-
     logger.info("- adding ds %s to collections/spaces for %s" % (datasetID, datasetName), extra={
         "dataset_id": datasetID,
         "dataset_name": datasetName,
         "action": "ADDING TO SPACE + COLLECTIONS"
     })
-    sensColl = fetchCollectionByName(sensorName, requestsSession)
-    if sensColl:
-        sc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (sensColl, datasetID))
-        if sc.status_code != 200:
-            logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, sensColl, sc.status_code, sc.text))
-        else:
-            logger.debug("- adding to collection %s OK" % sensorName)
 
-    timeColl = fetchCollectionByName(timestamp, requestsSession)
-    if timeColl:
-        tc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (timeColl, datasetID))
-        if tc.status_code != 200:
-            logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, timeColl, tc.status_code, tc.text))
-        else:
-            logger.debug("- adding to collection %s OK" % timestamp)
+    if datasetName.find(" - ") > -1:
+        sensorName = datasetName.split(" - ")[0]
+        timestamp = datasetName.split(" - ")[1].split("__")[0]
+
+        sensColl = fetchCollectionByName(sensorName, requestsSession)
+        if sensColl:
+            sc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (sensColl, datasetID))
+            if sc.status_code != 200:
+                logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, sensColl, sc.status_code, sc.text))
+            else:
+                logger.debug("- adding to collection %s OK" % sensorName)
+
+        timeColl = fetchCollectionByName(timestamp, requestsSession)
+        if timeColl:
+            tc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (timeColl, datasetID))
+            if tc.status_code != 200:
+                logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, timeColl, tc.status_code, tc.text))
+            else:
+                logger.debug("- adding to collection %s OK" % timestamp)
 
     if config['clowder']['primary_space'] != "":
         spid = config['clowder']['primary_space']
@@ -479,7 +481,9 @@ class MetadataLoader(restful.Resource):
         sess.auth = (clowderUser, clowderPass)
 
         md = clean_json_keys(req['md'])
-        dsid = fetchDatasetByName(req['dataset'], sess)
+        spaceoverride = req['space_name'] if 'space_name' in req else None
+
+        dsid = fetchDatasetByName(req['dataset'], sess, spaceoverride)
         if dsid:
             logger.info("- adding metadata to dataset "+dsid, extra={
                 "dataset_id": dsid,
@@ -567,6 +571,8 @@ def notifyClowderOfCompletedTask(task):
 
         # Prepare upload object with all file(s) found
         updatedTask = safeCopy(task)
+
+        spaceoverride = task['contents']['space_name'] if 'space_name' in task['contents'] else None
         for ds in task['contents']:
             fileFormData = []
             datasetMD = None
@@ -599,7 +605,7 @@ def notifyClowderOfCompletedTask(task):
                             writeCompletedTaskToDisk(updatedTask)
 
             if len(fileFormData)>0 or datasetMD:
-                dsid = fetchDatasetByName(ds, sess)
+                dsid = fetchDatasetByName(ds, sess, spaceoverride)
                 if dsid:
                     if len(fileFormData)>0:
                         # Upload collected files for this dataset
