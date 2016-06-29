@@ -26,15 +26,8 @@ def options():
     parser = argparse.ArgumentParser(description="PlantCV dataset Clowder uploader.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-d", "--dir", help="Input directory containing image snapshots.", required=True)
-    parser.add_argument("-c", "--collection",
-                        help="Clowder collection name. This is a container for all the uploaded datasets/snapshots",
-                        required=True)
-    parser.add_argument("-u", "--url", help="Clowder URL.", required=True)
-    parser.add_argument("-U", "--username", help="Clowder username.", required=True)
-    parser.add_argument("-p", "--password", help="Clowder password.", required=True)
     parser.add_argument("-m", "--meta", help="Experiment metadata file in JSON format", required=True)
     parser.add_argument("-v", "--verbose", help="Verbose output.", action="store_true")
-    parser.add_argument("-n", "--dryrun", help="Dry run, do not upload files.", action="store_true")
 
     args = parser.parse_args()
 
@@ -51,9 +44,6 @@ def options():
 def main():
     # Get options
     args = options()
-
-    # Input variables
-    collection_name = args.collection
 
     # Read experiment metadata from JSON
     exp_metadata = json.load(open(args.meta, 'rU'))
@@ -104,6 +94,9 @@ def main():
                 globus_transfer_object['paths'].append(image_path)
                 globus_transfer_object['file_metadata'][image_name] = json.dumps(img_metadata)
 
+            if args.verbose:
+                print("sending transfer to API: "+str(globus_transfer_object), file=sys.stderr)
+                
             send_files_to_globus_api(globus_transfer_object)
 
             dataset_count += 1
