@@ -230,7 +230,7 @@ def cleanPendingTransfers():
             del pendingTransfers[ds]
 
 """Add a particular file to pendingTransfers"""
-def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None):
+def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None, filemetadata={}):
     global pendingTransfers
     global status_numPending
 
@@ -242,29 +242,29 @@ def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=No
     filename = pathParts[-1]
     gantryDirPath = gantryDirPath.replace(filename, "")
 
-    if sensorname == None:
-        if (f.find("EnvironmentLogger")>-1 or f.find("EnviromentLogger")>-1):
-            sensorname = "EnvironmentLogger"
-        elif len(pathParts)>3:
-            sensorname = pathParts[-2]
-        else:
-            sensorname = "unknown_sensor"
-
-    if timestamp == None:
-        if len(pathParts)>1:
-            timestamp = pathParts[-2]
-        else:
-            timestamp = "unknown_time"
-
+    # Determine dataset name from sensor and time if not provided
     if datasetname == None:
-        datasetname = sensorname +" - "+timestamp
+        if sensorname == None:
+            if (f.find("EnvironmentLogger")>-1 or f.find("EnviromentLogger")>-1):
+                sensorname = "EnvironmentLogger"
+            elif len(pathParts)>3:
+                sensorname = pathParts[-2]
+            else:
+                sensorname = "unknown_sensor"
+        if timestamp == None:
+            if len(pathParts)>1:
+                timestamp = pathParts[-2]
+            else:
+                timestamp = "unknown_time"
+            datasetname = sensorname +" - "+timestamp
 
     pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), {
         datasetname: {
             "files": {
                 filename: {
                     "name": filename,
-                    "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath
+                    "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath,
+                    "md": filemetadata
                 }
             }
         }
@@ -308,24 +308,36 @@ class TransferQueue(restful.Resource):
     def post(self):
         """
         Example POST content:
-
+            {
+                "path": "file1.txt",
+                "md": {...metadata object...},
+                "dataset_name": "snapshot123456",
+                "collection_name": "Danforth data"
+            }
+        ...or...
             {
                 "paths": ["file1.txt", "file2.jpg", "file3.jpg"...],
-                "dataset_name": "snapshot123456"
+                "file_metadata": {
+                    "file1.txt": {...metadata object...},
+                    "file2.jpg": {...metadata object...}
+                }
+                "dataset_name": "snapshot123456",
+                "collection_name": "Danforth data"
             }
-
         ...or...
-
             {
                 "paths": ["file1.txt", "file2.jpg", "file3.jpg"...],
                 "sensor_name": "VIS",
-                "timestamp": "2016-06-29__10-28-43-323"
+                "timestamp": "2016-06-29__10-28-43-323",
+                "collection_name": "Danforth data"
             }
 
         In the second example, resulting dataset is called "VIS - 2016-06-29__10-28-43-323"
 
         To associate metadata with the given dataset, include a "metadata.json" file.
         """
+
+        # TODO: SUPPORT COLLECTION SPECIFICATION
 
         req = request.get_json(force=True)
         srcpath = config['globus']['source_path']
@@ -339,14 +351,19 @@ class TransferQueue(restful.Resource):
             p = req['path']
             if p.find(srcpath) == -1:
                 p = os.path.join(srcpath, p)
-            addFileToPendingTransfers(p, sensorname, timestamp, datasetname)
+            filemetadata = {} if 'md' not in req else req['md']
+            addFileToPendingTransfers(p, sensorname, timestamp, datasetname, filemetadata)
 
         # Multiple file path entries under 'paths'
         if 'paths' in req:
             for p in req['paths']:
                 if p.find(srcpath) == -1:
                     p = os.path.join(srcpath, p)
-                addFileToPendingTransfers(p, sensorname, timestamp, datasetname)
+                if 'file_metadata' in req and p in req['file_metadata']:
+                    filemetadata = req['file_metadata'][p]
+                else:
+                    filemetadata = {}
+                addFileToPendingTransfers(p, sensorname, timestamp, datasetname, filemetadata)
 
         writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         return 201
