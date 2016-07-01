@@ -24,11 +24,6 @@ def process_sv_images(vis_img, nir_img, debug=None):
     # Read VIS image
     img, path, filename = pcv.readimage(vis_img)
 
-    print("PROCESS SV")
-    print(vis_img)
-    print(nir_img)
-    print(img)
-
     # Pipeline step
     device = 0
 
@@ -194,7 +189,7 @@ def process_tv_images(vis_img, nir_img, debug=False):
     """
     # Read image
     img, path, filename = pcv.readimage(vis_img)
-    brass_mask = cv2.imread('mask_brass_tv_z1_L1.png')
+    brass_mask = cv2.imread('masks/mask_brass_tv_z1_L1.png')
 
     device = 0
 
@@ -228,10 +223,11 @@ def process_tv_images(vis_img, nir_img, debug=False):
     device, masked = pcv.apply_mask(img, bs, 'white', device, debug)
 
     # Mask pesky brass piece
-    device, brass_mask1 = pcv.rgb2gray_hsv(brass_mask, 'v', device, debug)
-    device, brass_thresh = pcv.binary_threshold(brass_mask1, 0, 255, 'light', device, debug)
-    device, brass_inv = pcv.invert(brass_thresh, device, debug)
-    device, brass_masked = pcv.apply_mask(masked, brass_inv, 'white', device, debug)
+    #device, brass_mask1 = pcv.rgb2gray_hsv(brass_mask, 'v', device, debug)
+    #device, brass_thresh = pcv.binary_threshold(brass_mask1, 0, 255, 'light', device, debug)
+    #device, brass_inv = pcv.invert(brass_thresh, device, debug)
+    #device, brass_masked = pcv.apply_mask(masked, brass_inv, 'white', device, debug)
+    brass_masked = masked
 
     # Further mask soil and car
     device, masked_a = pcv.rgb2gray_lab(brass_masked, 'a', device, debug)

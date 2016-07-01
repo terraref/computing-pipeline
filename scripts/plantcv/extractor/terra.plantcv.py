@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import sys
 import re
+import os
 import logging
 
 from config import *
@@ -28,15 +29,15 @@ def check_message(parameters):
 
 
 def process_dataset(parameters):
-    print("PD")
-    print(parameters)
-
     # TODO: re-enable once this is merged into Clowder: https://opensource.ncsa.illinois.edu/bitbucket/projects/CATS/repos/clowder/pull-requests/883/overview
     # fetch metadata from dataset to check if we should remove existing entry for this extractor first
     md = extractors.download_dataset_metadata_jsonld(parameters['host'], parameters['secretKey'], parameters['datasetId'], extractorName)
-    print("got md?")
-    print(md)
-    # if len(md) > 0:
+    if len(md) > 0:
+        for m in md:
+            if 'agent' in m and 'name' in m['agent']:
+                if m['agent']['name'].find(extractorName) > -1:
+                    print("skipping, already done")
+                    return
         #extractors.remove_dataset_metadata_jsonld(parameters['host'], parameters['secretKey'], parameters['datasetId'], extractorName)
     #    pass
 
@@ -44,9 +45,11 @@ def process_dataset(parameters):
     img_paths = []
     # get imgs paths, filter out the json paths
     for p in parameters['filelist']:
+        # TODO just go through files again
         fname = p["filename"]
+        fid = p['id']
         if fname.find(".jpg") > -1 or fname.find(".png") > -1:
-            img_paths.append(fname)
+            img_paths.append({"name": fname, "id": fid})
 
     if len(img_paths) >= 10 :
 		# construct file_objs based on img paths, it has 4 attribs: 
@@ -56,12 +59,16 @@ def process_dataset(parameters):
 		# p : img path in local host
         file_objs = []
         for p in img_paths:
-            raw_name = re.findall(r"(VIS|NIR|vis|nir)_(SV|TV|sv|tv)(_\d+)*" , p)
-            raw_int = re.findall('\d+', raw_name[0][2])
-            angle = -1 if raw_int == [] else int(raw_int[0]) # -1=TV, else SV
-            nir_vis = raw_name[0][0]
-            sv_tv = raw_name[0][1]
-            file_objs.append((nir_vis, sv_tv, angle, p))
+            raw_name = re.findall(r"(VIS|NIR|vis|nir)_(SV|TV|sv|tv)(_\d+)*" , p["name"])
+            if raw_name != []:
+                raw_int = re.findall('\d+', raw_name[0][2])
+                angle = -1 if raw_int == [] else int(raw_int[0]) # -1=TV, else SV
+                nir_vis = raw_name[0][0]
+                sv_tv = raw_name[0][1]
+                file_objs.append((nir_vis, sv_tv, angle, p["name"], p["id"]))
+
+        if file_objs == []:
+            return
 
         # sort the file_objs by angle
         print 'printing sorted file objs...'
@@ -73,9 +80,13 @@ def process_dataset(parameters):
             if (file_objs[i][0] == 'vis' ) or (file_objs[i][0] == 'VIS'):
                 vis_src = file_objs[i][3]
                 nir_src = file_objs[i+1][3]
+                vis_id = file_objs[i][4]
+                nir_id = file_objs[i+1][4]
             else:
                 vis_src = file_objs[i+1][3]
-                nir_src = file_objs[i][3]             
+                nir_src = file_objs[i][3]
+                vis_id = file_objs[i+1][4]
+                nir_id = file_objs[i][4]
             print 'vis src: ' + vis_src
             print 'nir src: ' + nir_src
 
@@ -87,45 +98,61 @@ def process_dataset(parameters):
             # call plantcv script
             try:
                 if i == 0:
-                    print("CALL TV")
-                    print([vis_path, nir_path])
-                    csv = ''   #EXCEPTION HERE, TO BE FIXED, pci.process_tv_images(vis_src, nir_src, debug=None)
                     csv = pci.process_tv_images(vis_path, nir_path, debug=None)
                 else:
-                    print("CALL SV")
-                    print([vis_path, nir_path])
                     csv = pci.process_sv_images(vis_path, nir_path, debug=None)
-            except ValueError:                                                       
-                print 'pair num: '                                                   
+            except ValueError:
+                print 'pair num: '
                 print i
                 print("Oops!  That was no valid number.  Try again...")
                 pass
 
+
+            tempfile = vis_src.replace(".png", ".tab").replace(".jpg", ".tab")
+            with open(tempfile, 'w') as temp:
+                temp.write(csv)
+                temp.flush()
+                extractors.upload_file_to_dataset(tempfile, parameters)
+            os.remove(tempfile)
+
+
             mdcontent = {
                 'view': file_objs[i][1],
-                'csv': csv
+                'tab': csv
             }
             if angle > -1: mdcontent['angle'] = file_objs[i][2]
 
-            print(mdcontent)
-            
             # send csv as metadata to the dataset
             metadata = {
                 "@context": {
                     "@vocab": "https://clowder.ncsa.illinois.edu/clowder/assets/docs/api/index.html#!/files/uploadToDataset"
- 	    	  	},
-                "dataset_id": parameters["datasetId"],
+                },
                 "content": mdcontent,
                 "agent": {
                     "@type": "cat:extractor",
                     "extractor_id": parameters['host'] + "/api/extractors/" + extractorName
- 	    	  	}
- 	    	}
-            extractors.upload_dataset_metadata_jsonld(mdata=metadata, parameters=parameters)
+                }
+            }
+            parameters["fileid"] = nir_id
+            extractors.upload_file_metadata_jsonld(mdata=metadata, parameters=parameters)
+            parameters["fileid"] = vis_id
+            extractors.upload_file_metadata_jsonld(mdata=metadata, parameters=parameters)
+
+        metadata = {
+            "@context": {
+                "@vocab": "https://clowder.ncsa.illinois.edu/clowder/assets/docs/api/index.html#!/files/uploadToDataset"
+            },
+            "dataset_id": parameters["datasetId"],
+            "content": {"status": "COMPLETED"},
+            "agent": {
+                "@type": "cat:extractor",
+                "extractor_id": parameters['host'] + "/api/extractors/" + extractorName
+            }
+        }
+        extractors.upload_dataset_metadata_jsonld(mdata=metadata, parameters=parameters)
 
 # Return full path of file, given filename and list of file paths
 def extractFilePath(listOfPaths, filename):
-    print("looking for")
     for p in listOfPaths:
         if p.endswith(filename):
             return p
