@@ -230,7 +230,7 @@ def cleanPendingTransfers():
             del pendingTransfers[ds]
 
 """Add a particular file to pendingTransfers"""
-def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None, spacename=None, filemetadata={}):
+def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None, spaceid=None, filemetadata={}):
     global pendingTransfers
     global status_numPending
 
@@ -269,7 +269,7 @@ def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=No
             }
         }
     }
-    if spacename: newTransfer['space_name'] = spacename
+    if spaceid: newTransfer['space_id'] = spaceid
 
     pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), newTransfer)
     status_numPending += 1
@@ -315,7 +315,7 @@ class TransferQueue(restful.Resource):
                 "path": "file1.txt",
                 "md": {...metadata object...},
                 "dataset_name": "snapshot123456",
-                "space_name": "Bellweather Phenotyping Facility"
+                "space_id": "571fbfefe4b032ce83d96006"
             }
         ...or...
             {
@@ -325,14 +325,14 @@ class TransferQueue(restful.Resource):
                     "file2.jpg": {...metadata object...}
                 }
                 "dataset_name": "snapshot123456",
-                "space_name": "Bellweather Phenotyping Facility"
+                "space_id": "571fbfefe4b032ce83d96006"
             }
         ...or...
             {
                 "paths": ["file1.txt", "file2.jpg", "file3.jpg"...],
                 "sensor_name": "VIS",
                 "timestamp": "2016-06-29__10-28-43-323",
-                "space_name": "Bellweather Phenotyping Facility"
+                "space_id": "571fbfefe4b032ce83d96006"
             }
 
         In the second example, resulting dataset is called "VIS - 2016-06-29__10-28-43-323"
@@ -346,7 +346,7 @@ class TransferQueue(restful.Resource):
         sensorname = req['sensor_name'] if 'sensor_name' in req else None
         datasetname = req['dataset_name'] if 'dataset_name' in req else None
         timestamp = req['timestamp'] if 'timestamp' in req else None
-        spacename = req['space_name'] if 'space_name' in req else None
+        spaceid = req['space_id'] if 'space_id' in req else None
 
         # Single file path entry under 'path'
         if 'path' in req:
@@ -354,7 +354,7 @@ class TransferQueue(restful.Resource):
             if p.find(srcpath) == -1:
                 p = os.path.join(srcpath, p)
             filemetadata = {} if 'md' not in req else req['md']
-            addFileToPendingTransfers(p, sensorname, timestamp, datasetname, spacename, filemetadata)
+            addFileToPendingTransfers(p, sensorname, timestamp, datasetname, spaceid, filemetadata)
 
         # Multiple file path entries under 'paths'
         if 'paths' in req:
@@ -365,7 +365,7 @@ class TransferQueue(restful.Resource):
                     filemetadata = req['file_metadata'][p]
                 else:
                     filemetadata = {}
-                addFileToPendingTransfers(p, sensorname, timestamp, datasetname, spacename, filemetadata)
+                addFileToPendingTransfers(p, sensorname, timestamp, datasetname, spaceid, filemetadata)
 
         writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         return 201

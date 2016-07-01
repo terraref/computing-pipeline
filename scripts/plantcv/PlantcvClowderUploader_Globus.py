@@ -74,7 +74,7 @@ def main():
 
             # Prepare our transfer object that will initiate Globus job
             globus_transfer_object = {
-                "collection_name": collection_name,
+                "space_id": args.collection_name,
                 "dataset_name": dataset_name,
                 "paths": [],
                 "file_metadata": {}
@@ -217,7 +217,7 @@ def send_files_to_globus_api(transferobject):
                 "path": "file1.txt",
                 "md": {...metadata object...},
                 "dataset_name": "snapshot123456",
-                "space_name": "Bellweather Phenotyping Facility"
+                "space_id": "571fbfefe4b032ce83d96006"
             }
         ...or...
             {
@@ -227,14 +227,14 @@ def send_files_to_globus_api(transferobject):
                     "file2.jpg": {...metadata object...}
                 }
                 "dataset_name": "snapshot123456",
-                "space_name": "Bellweather Phenotyping Facility"
+                "space_id": "571fbfefe4b032ce83d96006"
             }
         ...or...
             {
                 "paths": ["file1.txt", "file2.jpg", "file3.jpg"...],
                 "sensor_name": "VIS",
                 "timestamp": "2016-06-29__10-28-43-323",
-                "space_name": "Bellweather Phenotyping Facility"
+                "space_id": "571fbfefe4b032ce83d96006"
             }
 
         In the second example, resulting dataset is called "VIS - 2016-06-29__10-28-43-323"

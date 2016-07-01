@@ -244,7 +244,7 @@ def fetchDatasetByName(datasetName, requestsSession, spaceOverride=None):
                 "action": "DATASET CREATED"
             })
             writeDataToDisk(config['dataset_map_path'], datasetMap)
-            addDatasetToSpacesCollections(datasetName, dsid, requestsSession)
+            addDatasetToSpacesCollections(datasetName, dsid, requestsSession, spaceOverride)
             return dsid
         else:
             logger.error("- cannot create dataset (%s: %s)" % (ds.status_code, ds.text))
@@ -333,7 +333,7 @@ def fetchCollectionByName(collectionName, requestsSession):
                 return fetchCollectionByName(collectionName, requestsSession)
 
 """Add dataset to Space and Sensor, Date Collections"""
-def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
+def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession, spaceId=None):
     logger.info("- adding ds %s to collections/spaces for %s" % (datasetID, datasetName), extra={
         "dataset_id": datasetID,
         "dataset_name": datasetName,
@@ -360,11 +360,13 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
             else:
                 logger.debug("- adding to collection %s OK" % timestamp)
 
-    if config['clowder']['primary_space'] != "":
-        spid = config['clowder']['primary_space']
-        sp = requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addDatasetToSpace/%s" % (spid, datasetID))
+    if not spaceId and config['clowder']['primary_space'] != "":
+        spaceId = config['clowder']['primary_space']
+
+    if spaceId:
+        sp = requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addDatasetToSpace/%s" % (spaceId, datasetID))
         if sp.status_code != 200:
-            logger.error("- could not add ds "+datasetID+" to space "+spid+" ("+str(sp.status_code)+" - "+sp.text+")")
+            logger.error("- could not add ds "+datasetID+" to space "+spaceId+" ("+str(sp.status_code)+" - "+sp.text+")")
         else:
             logger.debug("- adding to space %s OK" % spid)
 
@@ -572,7 +574,7 @@ def notifyClowderOfCompletedTask(task):
         # Prepare upload object with all file(s) found
         updatedTask = safeCopy(task)
 
-        spaceoverride = task['contents']['space_name'] if 'space_name' in task['contents'] else None
+        spaceoverride = task['contents']['space_id'] if 'space_id' in task['contents'] else None
         for ds in task['contents']:
             fileFormData = []
             datasetMD = None
