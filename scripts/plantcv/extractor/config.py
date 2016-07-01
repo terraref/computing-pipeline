@@ -16,7 +16,7 @@ import os
 extractorName = os.getenv('RABBITMQ_QUEUE', "terraPlantCV")
 
 # URL to be used for connecting to rabbitmq
-rabbitmqURL = os.getenv('RABBITMQ_URI', "amqp://guest:guest@localhost/%2f")
+rabbitmqURL = os.getenv('RABBITMQ_URI', "amqp://guest:guest@127.0.0.1/%2f")
 
 # name of rabbitmq exchange
 rabbitmqExchange = os.getenv('RABBITMQ_EXCHANGE', "clowder")
@@ -26,3 +26,6 @@ messageType = "*.dataset.file.added"
 
 # trust certificates, set this to false for self signed certificates
 sslVerify = os.getenv('RABBITMQ_SSLVERIFY', False)
+
+# Comma delimited list of endpoints and keys for registering extractor information
+registrationEndpoints = os.getenv('REGISTRATION_ENDPOINTS', "http://localhost:9000/clowder/api/extractors?key=key1, http://host2:9000/api/extractors?key=key2")
