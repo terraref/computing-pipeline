@@ -17,8 +17,6 @@ def main():
                                    checkMessageFunction=check_message, rabbitmqExchange=rabbitmqExchange, rabbitmqURL=rabbitmqURL)
 
 def check_message(parameters):
-    print("CM")
-    print(parameters)
     # Check for a left and right file before beginning processing
     if len(parameters['filelist']) >= 2:
         return True
@@ -26,9 +24,6 @@ def check_message(parameters):
         return False
 
 def process_dataset(parameters):
-    print("PD")
-    print(parameters)
-
     # TODO: re-enable once this is merged into Clowder: https://opensource.ncsa.illinois.edu/bitbucket/projects/CATS/repos/clowder/pull-requests/883/overview
     # fetch metadata from dataset to check if we should remove existing entry for this extractor first
     md = extractors.download_dataset_metadata_jsonld(parameters['host'], parameters['secretKey'], parameters['datasetId'], extractorName)
