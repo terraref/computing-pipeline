@@ -1,4 +1,5 @@
 import os
+import shutil
 import logging
 import subprocess
 
@@ -37,15 +38,25 @@ def process_dataset(parameters):
                     #extractors.remove_dataset_metadata_jsonld(parameters['host'], parameters['secretKey'], parameters['datasetId'], extractorName)
     #    pass
 
-    # Find _raw file in dataset
+    # Find _raw and _raw.hdr files in dataset
     rawfile = None
+    hdrfile = None
     for f in parameters['files']:
         if f[-4:] == "_raw":
             rawfile = f
+        elif f[-8:] == "_raw.hdr":
+            hdrfile = f
 
-    if rawfile:
+    if rawfile and hdrfile:
+        # Copy hdrfile to same tmp folder as rawfile so script doesn't break
+        # rawpath = rawfile[:-len(os.path.basename(rawfile))]
+        # hdrcopy = os.path.join(rawpath, os.path.basename(hdrfile))
+        # shutil.copyfile(hdrfile, hdrcopy)
+        # print("moved .hdr file: %s" % hdrcopy)
+
         # Invoke terraref.sh
         print("found raw file: %s" % os.path.basename(rawfile))
+        print("found hdr file: %s" % os.path.basename(hdrfile))
         outfile = rawfile.replace("_raw", ".nc4")
         print("invoking terraref.sh for: %s" % os.path.basename(outfile))
         subprocess.call(["./terraref.sh", "-i", rawfile, "-o", outfile])
