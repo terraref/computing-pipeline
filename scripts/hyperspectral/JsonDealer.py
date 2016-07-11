@@ -136,7 +136,6 @@ class DataContainer(object):
         # file
         setattr(self, "header_info", None)
         netCDFHandler = _fileExistingCheck(outputFilePath, self)
-        yearMonthDate = str()
         delattr(self, "header_info")
 
         if netCDFHandler == 0:
@@ -151,8 +150,8 @@ class DataContainer(object):
                             self.__dict__[members][submembers])
 
                 else:
-                    if "Time" in self.__dict__[members]:
-                        yearMonthDate = self.__dict__[members]["Time"]
+                    if "time" in self.__dict__[members]:
+                        yearMonthDate = self.__dict__[members]["time"]
                     setattr(tempGroup, _replaceIllegalChar(submembers),
                             self.__dict__[members][submembers])
                     nameSet = _spliter(submembers)
@@ -214,8 +213,7 @@ def getDimension(fileName):
     try:
         return int(wavelength.strip('\n').strip('\r')), int(x.strip('\n').strip('\r')), int(y.strip('\n').strip('\r'))
     except:
-        printOnVersion('Fatal Warning: sample, lines and bands variables in header file are broken. Header information\
-         will not be written into the netCDF')
+        printOnVersion('Fatal Warning: sample, lines and bands variables in header file are broken. Header information will not be written into the netCDF')
 
 
 def getWavelength(fileName):
@@ -246,6 +244,9 @@ def _fileExistingCheck(filePath, dataContainer):
     since netCDF does not support the repeating variable names)
     '''
     userPrompt = 'Output file already exists; skip it or overwrite or append? (S, O, A)'
+
+    if not filePath.endswith(".nc"):
+        filePath += ("/" + filePath.split("/")[-1] + ".nc")
 
     if os.path.exists(filePath):
         netCDFHandler = Dataset(filePath, 'r', format='NETCDF4')
@@ -377,6 +378,7 @@ def translateTime(timeString, yearMonthDate):
 
 def frameIndexParser(fileName, yearMonthDate):
     with open(fileName) as fileHandler:
+        #print [dataMembers.split()[1] for dataMembers in fileHandler.readlines()[1:]]
         return [translateTime(dataMembers.split()[1], yearMonthDate) for dataMembers in fileHandler.readlines()[1:]]
 
 
