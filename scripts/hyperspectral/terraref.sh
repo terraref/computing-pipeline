@@ -7,6 +7,9 @@
 # Prerequisites:
 # NCO version 4.6.0 (dated 20160401) or later
 # Python: Python 2.7.X or 3.X (preferred) with netCDF4 module
+# Scripts required:
+# JsonDealer.py and EnvironmentalLoggerAnalyser.py must be on ${PYTHONPATH}
+# terraref.nco must be in same directory as terraref.sh
 
 # In Anaconda:
 # conda install netCDF4
@@ -60,6 +63,7 @@ esac # !HOSTNAME
 drc_pwd=${PWD}
 nco_version=$(ncks --version 2>&1 >/dev/null | grep NCO | awk '{print $5}')
 spt_nm=$(basename ${0}) # [sng] Script name
+drc_nm=${dirname ${0}} # [sng] Directory name of script
 spt_pid=$$ # [nbr] Script PID (process ID)
 
 # Set fonts for legibility
@@ -512,7 +516,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	jsn_out="${jsn_fl}.fl${idx_prn}.tmp"
 	printf "jsn(in)  : ${jsn_in}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
-	cmd_jsn[${fl_idx}]="python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${jsn_in} ${jsn_out}"
+	cmd_jsn[${fl_idx}]="python JsonDealer.py ${jsn_in} ${jsn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_jsn[${fl_idx}]}
 	fi # !dbg
@@ -550,7 +554,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	clb_out="${clb_fl}.fl${idx_prn}.tmp"
 	printf "clb(in)  : ${clb_in}\n"
 	printf "clb(out) : ${clb_out}\n"
-	cmd_clb[${fl_idx}]="ncap2 -O -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${clb_in} ${clb_out}"
+	cmd_clb[${fl_idx}]="ncap2 -O -S ${drc_nm}/terraref.nco ${clb_in} ${clb_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_clb[${fl_idx}]}
 	fi # !dbg
@@ -612,7 +616,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	anl_out="${anl_fl}.fl${idx_prn}.tmp"
 	printf "2D  : ${anl_in}\n"
 	printf "3D  : ${anl_out}\n"
-	cmd_anl[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*wvl_nbr=${wvl_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/new_analysis.nco ${anl_in} ${anl_out}"
+	cmd_anl[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*wvl_nbr=${wvl_nbr} -S ${drc_nm}/new_analysis.nco ${anl_in} ${anl_out}"
 	
 	# Block 5 Loop 2: Execute and/or echo commands
 	if [ ${dbg_lvl} -ge 1 ]; then
