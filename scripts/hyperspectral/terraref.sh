@@ -7,9 +7,7 @@
 # Prerequisites:
 # NCO version 4.6.0 (dated 20160401) or later
 # Python: Python 2.7.X or 3.X (preferred) with netCDF4 module
-# Scripts required:
-# JsonDealer.py and EnvironmentalLoggerAnalyser.py must be on ${PYTHONPATH}
-# terraref.nco must be in same directory as terraref.sh
+# terraref.sh, terraref.nco, JsonDealer.py and EnvironmentalLoggerAnalyser.py must be in same directory
 
 # In Anaconda:
 # conda install netCDF4
@@ -516,7 +514,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	jsn_out="${jsn_fl}.fl${idx_prn}.tmp"
 	printf "jsn(in)  : ${jsn_in}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
-	cmd_jsn[${fl_idx}]="python JsonDealer.py ${jsn_in} ${jsn_out}"
+	cmd_jsn[${fl_idx}]="python ${drc_nm}/JsonDealer.py ${jsn_in} ${jsn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_jsn[${fl_idx}]}
 	fi # !dbg
