@@ -61,7 +61,7 @@ esac # !HOSTNAME
 drc_pwd=${PWD}
 nco_version=$(ncks --version 2>&1 >/dev/null | grep NCO | awk '{print $5}')
 spt_nm=$(basename ${0}) # [sng] Script name
-drc_nm=${dirname ${0}} # [sng] Directory name of script
+drc_nm=${dirname ${BASH_SOURCE[0]}} # [sng] Directory name of script
 spt_pid=$$ # [nbr] Script PID (process ID)
 
 # Set fonts for legibility
