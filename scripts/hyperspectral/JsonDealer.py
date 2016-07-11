@@ -73,44 +73,6 @@ _UNIX_BASETIME = date(year=1970, month=1, day=1)
 _CAMERA_POSITION = np.array([1.9, 0.855, 0.635])
 
 
-
-# class JsonError(Exception):
-#     '''
-#     User-Defined Error Class
-#     '''
-
-#     def __init__(self, message):
-#         self.message = message
-
-#     def __str__(self):
-#         return repr(self.message)
-
-
-# class TimeMeasurement(object):
-#     '''
-#     Supportive class;
-#     Measuring the time used by unpacking the data
-#     '''
-
-#     def __init__(self, lineName):
-#         self.lineName = lineName
-
-#     def __enter__(self):
-#         self.startTime = time.time()
-
-#     def __exit__(self, *args):
-#         self.endTime = time.time()
-#         self.runningTime = (self.endTime - self.startTime) * 1000
-
-#         reportHandler = open("PerformanceReport.txt", "w")
-
-#         prompt = "%s elapsed time: %.3fms, %.5fs" % (self.lineName,
-#                                                      self.runningTime,
-#                                                      self.runningTime / 1000)
-#         reportHandler.write(prompt)
-#         print(prompt)
-
-
 class DataContainer(object):
     '''
     A class which saves the data from Json file
@@ -382,6 +344,19 @@ def frameIndexParser(fileName, yearMonthDate):
         return [translateTime(dataMembers.split()[1], yearMonthDate) for dataMembers in fileHandler.readlines()[1:]]
 
 
+def fileDependencyCheck(filePath):
+    '''
+    Check if the input location has all 
+    '''
+    key = str()
+    for roots, directorys, files in os.walk(filePath.rstrip(os.path.split(filePath)[-1])):
+        for file in files:
+            if file.endswith("_raw"):
+                key = file.split("_")[0]
+
+    return len([file for file in files if file.startswith(key)]) >= 6 and len(key) > 0
+
+
 
 def writeHeaderFile(fileName, netCDFHandler):
     '''
@@ -438,8 +413,11 @@ def writeHeaderFile(fileName, netCDFHandler):
         printOnVersion(
             'Warning: default_band variable in the header file is missing.')
 
+
 if __name__ == '__main__':
     fileInput, fileOutput = sys.argv[1], sys.argv[2]
-
+    if not fileDependencyCheck(fileInput):
+        printOnVersion("\033[0;31mOne or more important file(s) is(are) missing. Please check your folder(s). Program terminated\033[0m")
+        exit()
     testCase = jsonHandler(fileInput)
     testCase.writeToNetCDF(fileInput, fileOutput, fileInput + ' ' + fileOutput)
