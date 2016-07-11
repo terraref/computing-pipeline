@@ -470,7 +470,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    12 ) typ_in='NC_USHORT' ; ;;
 	    * ) printf "${spt_nm}: ERROR Unknown typ_in in ${hdr_fl}. Debug grep command.\n" ; exit 1 ; ;; # Other
 	esac # !typ_in_ENVI
-	cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ~/nco/data/in.nc ${trn_out}"
+	cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ~zender/nco/data/in.nc ${trn_out}"
 	hst_att="`date`: ${cmd_ln}"
 	att_in="${trn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
