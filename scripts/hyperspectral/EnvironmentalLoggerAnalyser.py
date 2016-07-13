@@ -216,17 +216,18 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     setattr(timeVariable, "calender", "gregorian")
 
     for data in loggerReadings[0]:
-        if data.startswith("sensor") and data.endswith("par"):
-            targetGroup = netCDFHandler.groups["par_sensor"]
-        elif data.startswith("sensor") and data.endswith("co2"):
-            targetGroup = netCDFHandler.groups["co2_sensor"]
-        sensorValue, sensorUnit, sensorRaw = sensorVariables(loggerReadings, data)
-        sensorValueVariable                = targetGroup.createVariable(renameTheValue(data), "f4", ("time", ))
-        sensorRawValueVariable             = targetGroup.createVariable("raw_" + renameTheValue(data), "f4", ("time", ))
+        if data.startswith("sensor"):
+            if data.endswith("par"):
+                targetGroup = netCDFHandler.groups["par_sensor"]
+            else:
+                targetGroup = netCDFHandler.groups["co2_sensor"]
+            sensorValue, sensorUnit, sensorRaw = sensorVariables(loggerReadings, data)
+            sensorValueVariable                = targetGroup.createVariable(renameTheValue(data), "f4", ("time", ))
+            sensorRawValueVariable             = targetGroup.createVariable("raw_" + renameTheValue(data), "f4", ("time", ))
 
-        sensorValueVariable[:]    = sensorValue
-        sensorRawValueVariable[:] = sensorRaw
-        setattr(sensorValueVariable, "units", sensorUnit[0])
+            sensorValueVariable[:]    = sensorValue
+            sensorRawValueVariable[:] = sensorRaw
+            setattr(sensorValueVariable, "units", sensorUnit[0])
 
     wvl_ntf  = [np.average([wvl_lgr[i], wvl_lgr[i+1]]) for i in range(len(wvl_lgr)-1)]
     delta    = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
