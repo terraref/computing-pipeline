@@ -114,6 +114,8 @@ class DataContainer(object):
                 else:
                     if "time" in self.__dict__[members]:
                         yearMonthDate = self.__dict__[members]["time"]
+                    elif "Time" in self.__dict__[members]:
+                        yearMonthDate = self.__dict__[members]["Time"]
                     setattr(tempGroup, _replaceIllegalChar(submembers),
                             self.__dict__[members][submembers])
                     nameSet = _spliter(submembers)
@@ -207,7 +209,7 @@ def _fileExistingCheck(filePath, dataContainer):
     '''
     userPrompt = 'Output file already exists; skip it or overwrite or append? (S, O, A)'
 
-    if not filePath.endswith(".nc"):
+    if os.path.isdir(filePath):
         filePath += ("/" + filePath.split("/")[-1] + ".nc")
 
     if os.path.exists(filePath):
@@ -354,7 +356,8 @@ def fileDependencyCheck(filePath):
             if file.endswith("_raw"):
                 key = file.split("_")[0]
 
-    return len([file for file in files if file.startswith(key)]) >= 6 and len(key) > 0
+    return {key+"_frameIndex.txt", key+"_metadata.json", key+"_raw.hdr"} -\
+                        set([matchFile for matchFile in files if matchFile.startswith(key)])
 
 
 
@@ -416,8 +419,13 @@ def writeHeaderFile(fileName, netCDFHandler):
 
 if __name__ == '__main__':
     fileInput, fileOutput = sys.argv[1], sys.argv[2]
-    if not fileDependencyCheck(fileInput):
-        printOnVersion("\033[0;31mOne or more important file(s) is(are) missing. Please check your folder(s). Program terminated\033[0m")
+    missingFiles = fileDependencyCheck(fileInput)
+    if len(missingFiles) > 0:
+        printOnVersion("\033[0;31mOne or more important file(s) is(are) missing. Program terminated:\033[0m")
+
+        for missingFile in missingFiles:
+            printOnVersion("\033[0;31m" + missingFile + " is missing\033[0m")
         exit()
+
     testCase = jsonHandler(fileInput)
     testCase.writeToNetCDF(fileInput, fileOutput, fileInput + ' ' + fileOutput)
