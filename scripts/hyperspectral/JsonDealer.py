@@ -209,7 +209,7 @@ def _fileExistingCheck(filePath, dataContainer):
     '''
     userPrompt = 'Output file already exists; skip it or overwrite or append? (S, O, A)'
 
-    if not filePath.endswith(".nc"):
+    if os.path.isdir(filePath):
         filePath += ("/" + filePath.split("/")[-1] + ".nc")
 
     if os.path.exists(filePath):
@@ -422,7 +422,7 @@ if __name__ == '__main__':
     missingFiles = fileDependencyCheck(fileInput)
     if len(missingFiles) > 0:
         printOnVersion("\033[0;31mOne or more important file(s) is(are) missing. Program terminated:\033[0m")
-        
+
         for missingFile in missingFiles:
             printOnVersion("\033[0;31m" + missingFile + " is missing\033[0m")
         exit()
