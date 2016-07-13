@@ -415,8 +415,12 @@ mkdir -p ${drc_tmp}
 
 # Human-readable summary
 if [ ${dbg_lvl} -ge 1 ]; then
-    printf "Terraref data pipeline invoked with command:\n"
+    printf "Terraref hyperspectral data pipeline invoked with:\n"
     echo "${cmd_ln}"
+    printf "NCO version ${nco_vrs} from directory ${drc_nco}\n"
+    printf "Pipeline scripts in directory ${drc_spt}\n"
+    printf "Output stored in directory ${drc_out}\n"
+    printf "Temporary files written to directory ${drc_tmp}\n"
 fi # !dbg
 date_srt=$(date +"%s")
 
