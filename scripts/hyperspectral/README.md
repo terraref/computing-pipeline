@@ -1,5 +1,4 @@
-Title         : HyperSpectral Workflow
-Logo          : True
+                                              *HyperSpectral Workflow*
 
 [TITLE]
 
