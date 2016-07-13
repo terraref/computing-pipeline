@@ -57,11 +57,20 @@ esac # !HOSTNAME
 #          2 = As in dbg_lvl=1, but _do not evaluate commands_
 #          3 = As in dbg_lvl=1, and pass debug level through to NCO/ncks
 
-# Set script name and run directory
+# Set script name, directory, PID, run directory, NCO version
+# NB: dash supports $0 syntax, not ${BASH_SOURCE[0]} syntax
 drc_pwd=${PWD}
+# http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in
 drc_spt=$(dirname $(readlink ${BASH_SOURCE[0]})) # [sng] Directory containing scripts
+nco_exe=`which ncks`
+if [ -z "${nco_exe}" ]; then
+    echo "ERROR: Unable to find NCO, nco_exe = ${nco_exe}"
+    exit 1
+fi # !nco_exe
+nco_lnk=$(readlink -f "${nco_exe}") # [sng] Directory containing NCO
+drc_nco=$(dirname "${nco_lnk}") # [sng] Directory containing NCO
 nco_vrs=$(ncks --version 2>&1 >/dev/null | grep NCO | awk '{print $5}')
-spt_nm=$(basename ${BASH_SOURCE[0]}) # [sng] Script name (Unlike $0, ${BASH_SOURCE[0]} works as well with 'source script')
+spt_nm=$(basename ${BASH_SOURCE[0]}) # [sng] Script name (Unlike $0, ${BASH_SOURCE[0]} works well with 'source <script>')
 spt_pid=$$ # [nbr] Script PID (process ID)
 
 # Set fonts for legibility
@@ -372,6 +381,7 @@ if [ ${dbg_lvl} -ge 2 ]; then
     printf "dbg: cln_flg  = ${cln_flg}\n"
     printf "dbg: dbg_lvl  = ${dbg_lvl}\n"
     printf "dbg: drc_in   = ${drc_in}\n"
+    printf "dbg: drc_nco  = ${drc_nco}\n"
     printf "dbg: drc_out  = ${drc_out}\n"
     printf "dbg: drc_spt  = ${drc_spt}\n"
     printf "dbg: drc_tmp  = ${drc_tmp}\n"
