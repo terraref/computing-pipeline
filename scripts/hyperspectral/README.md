@@ -1,5 +1,5 @@
-                                              *HyperSpectral Workflow*
-
+HyperSpectral Workflow
+=======================
 
 # Modules 
 
