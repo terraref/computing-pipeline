@@ -29,3 +29,6 @@ sslVerify = os.getenv('RABBITMQ_SSLVERIFY', False)
 
 # Comma delimited list of endpoints and keys for registering extractor information
 registrationEndpoints = os.getenv('REGISTRATION_ENDPOINTS', "http://localhost:9000/clowder/api/extractors?key=key1")
+
+# Location of terraref.sh, terraref.nco, other required directories
+scriptDirectory = "../"

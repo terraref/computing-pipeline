@@ -7,7 +7,7 @@ from config import *
 import pyclowder.extractors as extractors
 
 def main():
-    global extractorName, messageType, rabbitmqExchange, rabbitmqURL, registrationEndpoints
+    global extractorName, messageType, rabbitmqExchange, rabbitmqURL, registrationEndpoints, scriptDirectory
 
     #set logging
     logging.basicConfig(format='%(levelname)-7s : %(name)s -  %(message)s', level=logging.WARN)
@@ -69,8 +69,8 @@ def process_dataset(parameters):
         print("found raw file: %s" % os.path.basename(rawfile))
         print("found hdr file: %s" % os.path.basename(hdrfile))
         outfile = rawfile.replace("_raw", ".nc4")
-        print("invoking terraref.sh for: %s" % os.path.basename(outfile))
-        subprocess.call(["./terraref.sh", "-i", rawfile, "-o", outfile])
+        print("invoking terraref.sh to create: %s" % os.path.basename(outfile))
+        subprocess.call([os.path.join(scriptDirectory, "terraref.sh"), "-i", rawfile, "-o", outfile])
 
         # Verify outfile exists and upload to clowder
         if os.path.exists(outfile):
