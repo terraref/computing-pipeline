@@ -13,7 +13,7 @@
 import os
 
 # name to show in rabbitmq queue list
-extractorName = os.getenv('RABBITMQ_QUEUE', "terra.plantcv")
+extractorName = os.getenv('RABBITMQ_QUEUE', "terraPlantCV")
 
 # URL to be used for connecting to rabbitmq
 rabbitmqURL = os.getenv('RABBITMQ_URI', "amqp://guest:guest@127.0.0.1/%2f")
@@ -28,4 +28,7 @@ messageType = "*.dataset.file.added"
 sslVerify = os.getenv('RABBITMQ_SSLVERIFY', False)
 
 # Comma delimited list of endpoints and keys for registering extractor information
-registrationEndpoints = os.getenv('REGISTRATION_ENDPOINTS', "http://localhost:9000/clowder/api/extractors?key=key1")
+registrationEndpoints = os.getenv('REGISTRATION_ENDPOINTS', "http://localhost:9000/clowder/api/extractors?key=key1, http://host2:9000/api/extractors?key=key2")
+
+# Path to script that contains PlantCV modules to import
+scriptPath = "../PlantcvClowderIndoorAnalysis.py"

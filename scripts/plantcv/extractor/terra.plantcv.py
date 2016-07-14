@@ -1,12 +1,13 @@
 #!/usr/bin/env python
-import sys
+import imp
 import re
 import os
 import logging
 
 from config import *
 import pyclowder.extractors as extractors
-import PlantcvClowderIndoorAnalysis as pci
+import cv2
+import plantcv as pcv
 
 def main():
     global extractorName, messageType, rabbitmqExchange, rabbitmqURL, registrationEndpoints
@@ -39,124 +40,152 @@ def process_dataset(parameters):
                     print("skipping, already done")
                     return
         #extractors.remove_dataset_metadata_jsonld(parameters['host'], parameters['secretKey'], parameters['datasetId'], extractorName)
-    #    pass
 
-    #### get file_objs, each elem contains 4 attribs: (nir_vis, sv_tv, angle, path)
-    img_paths = []
+    (fields, traits) = pcia.get_traits_table()
+
     # get imgs paths, filter out the json paths
-    for p in parameters['filelist']:
-        # TODO just go through files again
-        fname = p["filename"]
-        fid = p['id']
-        if fname.find(".jpg") > -1 or fname.find(".png") > -1:
-            img_paths.append({"name": fname, "id": fid})
+    img_paths = []
+    for p in parameters['files']:
+        if p[-4:] == '.jpg' or p[-4:] == '.png':
+            img_paths.append(p)
 
-    if len(img_paths) >= 10 :
-		# construct file_objs based on img paths, it has 4 attribs: 
-		# nir_vis : 'nir' if the img is nir, 'vis' if the img is vis
-		# sv_tv : 'sv' if the img is sv, 'tv' if the img is tv
-		# angle : img rotation angle
-		# p : img path in local host
-        file_objs = []
-        for p in img_paths:
-            raw_name = re.findall(r"(VIS|NIR|vis|nir)_(SV|TV|sv|tv)(_\d+)*" , p["name"])
+    # build list of file descriptor dictionaries with sensor info
+    file_objs = []
+    for f in parameters['filelist']:
+        found_info = False
+        image_id = f['id']
+        # Get from file metadata if possible
+        file_md = extractors.download_file_metadata_jsonld(parameters['host'], parameters['secretKey'], f['id'])
+        for md in file_md:
+            if 'content' in md:
+                mdc = md['content']
+                if ('rotation_angle' in mdc) and ('perspective' in mdc) and ('camera_type' in mdc):
+                    found_info = True
+                    # perspective = 'side-view' / 'top-view'
+                    perspective = mdc['perspective']
+                    # angle = -1, 0, 90, 180, 270; set top-view angle to be -1 for later sorting
+                    angle = mdc['rotation_angle'] if perspective != 'top-view' else -1
+                    # camera_type = 'visible/RGB' / 'near-infrared'
+                    camera_type = mdc['camera_type']
+
+                    for pth in img_paths:
+                        if re.findall(str(image_id), pth) != []:
+                            file_objs.append({
+                                'perspective': perspective,
+                                'angle': angle,
+                                'camera_type': camera_type,
+                                'image_path': pth,
+                                'image_id': image_id
+                            })
+        if not found_info:
+            # Get from filename if no metadata is found
+            raw_name = re.findall(r"(VIS|NIR|vis|nir)_(SV|TV|sv|tv)(_\d+)*" , f["filename"])
             if raw_name != []:
-                raw_int = re.findall('\d+', raw_name[0][2])
-                angle = -1 if raw_int == [] else int(raw_int[0]) # -1=TV, else SV
-                nir_vis = raw_name[0][0]
-                sv_tv = raw_name[0][1]
-                file_objs.append((nir_vis, sv_tv, angle, p["name"], p["id"]))
+                    raw_int = re.findall('\d+', raw_name[0][2])
+                    angle = -1 if raw_int == [] else int(raw_int[0]) # -1 for top-view, else angle
+                    camera_type = raw_name[0][0]
+                    perspective = raw_name[0][1].lower()
 
-        if file_objs == []:
-            return
+                    for pth in img_paths:
+                        if re.findall(str(image_id), pth) != []:
+                            file_objs.append({
+                                'perspective': 'side-view' if perspective == 'tv' else 'top-view',
+                                'angle': angle,
+                                'camera_type': 'visible/RGB' if camera_type == 'vis' else 'near-infrared',
+                                'image_path': pth,
+                                'image_id': image_id
+                            })
 
-        # sort the file_objs by angle
-        print 'printing sorted file objs...'
-        file_objs = sorted(file_objs, key=lambda f: f[2])
-        print file_objs
+    # sort file objs by angle
+    file_objs = sorted(file_objs, key=lambda k: k['angle'])
+    
+    # process images by matching angles with plantcv
+    for i in [0,2,4,6,8]:
+        if file_objs[i]['camera_type'] == 'visible/RGB':
+            vis_src = file_objs[i]['image_path']
+            nir_src = file_objs[i+1]['image_path']
+            vis_id = file_objs[i]['image_id']
+            nir_id = file_objs[i+1]['image_id']
+        else:
+            vis_src = file_objs[i+1]['image_path']
+            nir_src = file_objs[i]['image_path']
+            vis_id = file_objs[i+1]['image_id']
+            nir_id = file_objs[i]['image_id']
+        print 'vis src: ' + vis_src
+        print 'nir src: ' + nir_src
 
-        # call Noah's script with matching angles
-        for i in [0,2,4,6,8]:
-            if (file_objs[i][0] == 'vis' ) or (file_objs[i][0] == 'VIS'):
-                vis_src = file_objs[i][3]
-                nir_src = file_objs[i+1][3]
-                vis_id = file_objs[i][4]
-                nir_id = file_objs[i+1][4]
-            else:
-                vis_src = file_objs[i+1][3]
-                nir_src = file_objs[i][3]
-                vis_id = file_objs[i+1][4]
-                nir_id = file_objs[i][4]
-            print 'vis src: ' + vis_src
-            print 'nir src: ' + nir_src
+        # Read VIS image
+        img, path, filename = pcv.readimage(vis_src)
+        brass_mask = cv2.imread('masks/mask_brass_tv_z1_L1.png')
+        # Read NIR image
+        nir, path1, filename1 = pcv.readimage(nir_src)
+        nir2 = cv2.imread(nir_src, -1)
 
-            vis_path = extractFilePath(parameters['files'], vis_src)
-            nir_path = extractFilePath(parameters['files'], nir_src)
+        if i == 0:
+            vn_traits = pcia.process_tv_images_core(vis_id, img, nir_id, nir, nir2, brass_mask, traits)
+        else:
+            vn_traits = pcia.process_sv_images_core(vis_id, img, nir_id, nir, nir2, traits)
 
-            csv = ''
-
-            # call plantcv script
-            try:
-                if i == 0:
-                    csv = pci.process_tv_images(vis_path, nir_path, debug=None)
-                else:
-                    csv = pci.process_sv_images(vis_path, nir_path, debug=None)
-            except ValueError:
-                print 'pair num: '
-                print i
-                print("Oops!  That was no valid number.  Try again...")
-                pass
-
-
-            tempfile = vis_src.replace(".png", ".tab").replace(".jpg", ".tab")
-            with open(tempfile, 'w') as temp:
-                temp.write(csv)
-                temp.flush()
-                extractors.upload_file_to_dataset(tempfile, parameters)
-            os.remove(tempfile)
-
-
-            mdcontent = {
-                'view': file_objs[i][1],
-                'tab': csv
-            }
-            if angle > -1: mdcontent['angle'] = file_objs[i][2]
-
-            # send csv as metadata to the dataset
-            metadata = {
-                "@context": {
-                    "@vocab": "https://clowder.ncsa.illinois.edu/clowder/assets/docs/api/index.html#!/files/uploadToDataset"
-                },
-                "content": mdcontent,
-                "agent": {
-                    "@type": "cat:extractor",
-                    "extractor_id": parameters['host'] + "/api/extractors/" + extractorName
-                }
-            }
-            parameters["fileid"] = nir_id
-            extractors.upload_file_metadata_jsonld(mdata=metadata, parameters=parameters)
-            parameters["fileid"] = vis_id
-            extractors.upload_file_metadata_jsonld(mdata=metadata, parameters=parameters)
-
+        print "uploading resulting metadata"
+        # upload the individual file metadata
         metadata = {
             "@context": {
                 "@vocab": "https://clowder.ncsa.illinois.edu/clowder/assets/docs/api/index.html#!/files/uploadToDataset"
             },
-            "dataset_id": parameters["datasetId"],
-            "content": {"status": "COMPLETED"},
+            "content": vn_traits[0],
             "agent": {
                 "@type": "cat:extractor",
                 "extractor_id": parameters['host'] + "/api/extractors/" + extractorName
             }
         }
-        extractors.upload_dataset_metadata_jsonld(mdata=metadata, parameters=parameters)
+        parameters["fileid"] = vis_id
+        extractors.upload_file_metadata_jsonld(mdata=metadata, parameters=parameters)
+        metadata = {
+            "@context": {
+                "@vocab": "https://clowder.ncsa.illinois.edu/clowder/assets/docs/api/index.html#!/files/uploadToDataset"
+            },
+            "content": vn_traits[1],
+            "agent": {
+                "@type": "cat:extractor",
+                "extractor_id": parameters['host'] + "/api/extractors/" + extractorName
+            }
+        }
+        parameters["fileid"] = nir_id
+        extractors.upload_file_metadata_jsonld(mdata=metadata, parameters=parameters)
 
-# Return full path of file, given filename and list of file paths
-def extractFilePath(listOfPaths, filename):
-    for p in listOfPaths:
-        if p.endswith(filename):
-            return p
+    # compose the summary traits
+    trait_list = pcia.generate_traits_list(traits)
+
+    # generate output CSV
+    outfile = 'avg_traits.csv'
+    pcia.generate_average_csv(outfile, fields, trait_list)
+    extractors.upload_file_to_dataset(outfile, parameters)
+    os.remove(outfile)
+
+    # TODO: can we remove this now that separate CSV file is created?
+    csv_data = ','.join(map(str, fields)) + '\n' + ','.join(map(str, trait_list)) + '\n'
+
+    metadata = {
+        "@context": {
+            "@vocab": "https://clowder.ncsa.illinois.edu/clowder/assets/docs/api/index.html#!/files/uploadToDataset"
+        },
+        "dataset_id": parameters["datasetId"],
+        "content": {"status": "COMPLETED", "csv": csv_data},
+        "agent": {
+            "@type": "cat:extractor",
+            "extractor_id": parameters['host'] + "/api/extractors/" + extractorName
+        }
+    }
+    extractors.upload_dataset_metadata_jsonld(mdata=metadata, parameters=parameters)
+
+
+
 
 
 if __name__ == "__main__":
+    global scriptPath
+
+    # Import PlantcvClowderIndoorAnalysis script from configured location
+    pcia = imp.load_source('PlantcvClowderIndoorAnalysis', scriptPath)
+
     main()
