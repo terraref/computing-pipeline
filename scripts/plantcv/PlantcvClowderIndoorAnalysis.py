@@ -67,19 +67,7 @@ def main():
     # Build metadata set
     metadata = get_metadata(sess, args.url, filelist)
 
-    # Compiled traits table
-    fields = ('plant_barcode', 'genotype', 'treatment', 'imagedate', 'sv_area', 'tv_area', 'hull_area',
-              'solidity', 'height', 'perimeter')
-    traits = {'plant_barcode' : '',
-              'genotype' : '',
-              'treatment' : '',
-              'imagedate' : '',
-              'sv_area' : [],
-              'tv_area' : '',
-              'hull_area' : [],
-              'solidity' : [],
-              'height' : [],
-              'perimeter' : []}
+    (fields, traits) = get_traits_table()
 
     # Process images with PlantCV
     for perspective in metadata['visible/RGB'].keys():
@@ -106,29 +94,59 @@ def main():
             traits['imagedate'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['imagedate']
 
             if perspective == 'side-view':
-                traits = process_sv_images(sess, args.url, vis_id, nir_id, traits)
+                process_sv_images(sess, args.url, vis_id, nir_id, traits)
             elif perspective == 'top-view':
-                traits = process_tv_images(sess, args.url, vis_id, nir_id, traits)
+                process_tv_images(sess, args.url, vis_id, nir_id, traits)
 
     # Save traits table
+    trait_list = pcv.generate_traits_list(traits)
+    outfile = '%s.csv' % args.dataset
+    generate_average_csv(outfile, fields, trait_list)
+    upload_file_to_clowder(sess, args.url, outfile, args.dataset, {outfile : json.dumps({'type' : 'CSV traits table'})})
+    os.remove(outfile)
+
+# Utility functions for modularity between command line and extractors
+###########################################
+def get_traits_table():
+    # Compiled traits table
     fields = ('plant_barcode', 'genotype', 'treatment', 'imagedate', 'sv_area', 'tv_area', 'hull_area',
               'solidity', 'height', 'perimeter')
+    traits = {'plant_barcode' : '',
+              'genotype' : '',
+              'treatment' : '',
+              'imagedate' : '',
+              'sv_area' : [],
+              'tv_area' : '',
+              'hull_area' : [],
+              'solidity' : [],
+              'height' : [],
+              'perimeter' : []}
 
-    trait_list = [traits['plant_barcode'], traits['genotype'], traits['treatment'], traits['imagedate'],
-                  average_trait(traits['sv_area']), traits['tv_area'], average_trait(traits['hull_area']),
-                  average_trait(traits['solidity']), average_trait(traits['height']),
-                  average_trait(traits['perimeter'])]
+    return (fields, traits)
 
-    outfile = args.dataset + '.csv'
-    csv = open(outfile, 'w')
+def generate_traits_list(traits):
+    # compose the summary traits
+    trait_list = [  traits['plant_barcode'],
+                    traits['genotype'],
+                    traits['treatment'],
+                    traits['imagedate'],
+                    average_trait(traits['sv_area']),
+                    traits['tv_area'],
+                    average_trait(traits['hull_area']),
+                    average_trait(traits['solidity']),
+                    average_trait(traits['height']),
+                    average_trait(traits['perimeter'])]
+
+    return trait_list
+
+def generate_average_csv(fname, fields, trait_list):
+    """ Generate CSV called fname with fields and trait_list """
+    csv = open(fname, 'w')
     csv.write(','.join(map(str, fields)) + '\n')
     csv.write(','.join(map(str, trait_list)) + '\n')
     csv.close()
 
-    upload_file_to_clowder(sess, args.url, outfile, args.dataset, {outfile : json.dumps({'type' : 'CSV traits table'})})
-
-###########################################
-
+    return fname
 
 # Get list of files for a Clowder dataset
 ###########################################
@@ -252,16 +270,32 @@ def process_sv_images(session, url, vis_id, nir_id, traits, debug=None):
     :param debug: str
     :return traits: dict
     """
+
     # Read VIS image from Clowder
     vis_r = session.get(posixpath.join(url, "api/files", vis_id), stream=True)
     img_array = np.asarray(bytearray(vis_r.content), dtype="uint8")
     img = cv2.imdecode(img_array, -1)
 
+    # Read NIR image from Clowder
+    nir_r = session.get(posixpath.join(url, "api/files", nir_id), stream=True)
+    nir_array = np.asarray(bytearray(nir_r.content), dtype="uint8")
+    nir = cv2.imdecode(nir_array, -1)
+    nir_rgb = cv2.cvtColor(nir, cv2.COLOR_GRAY2BGR)
+
+    cmdParams = {
+        "session": session,
+        "url": url
+    }
+
+    process_sv_images_core(vis_id, img, nir_id, nir_rgb, nir, traits, debug, cmdParams)
+    return traits
+
+def process_sv_images_core(vis_id, vis_img, nir_id, nir_rgb, nir_cv2, traits, debug=None, cmdParams=None):
     # Pipeline step
     device = 0
 
     # Convert RGB to HSV and extract the Saturation channel
-    device, s = pcv.rgb2gray_hsv(img, 's', device, debug)
+    device, s = pcv.rgb2gray_hsv(vis_img, 's', device, debug)
 
     # Threshold the Saturation image
     device, s_thresh = pcv.binary_threshold(s, 36, 255, 'light', device, debug)
@@ -274,7 +308,7 @@ def process_sv_images(session, url, vis_id, nir_id, traits, debug=None):
     # device, s_fill = pcv.fill(s_mblur, s_cnt, 0, device, args.debug)
 
     # Convert RGB to LAB and extract the Blue channel
-    device, b = pcv.rgb2gray_lab(img, 'b', device, debug)
+    device, b = pcv.rgb2gray_lab(vis_img, 'b', device, debug)
 
     # Threshold the blue image
     device, b_thresh = pcv.binary_threshold(b, 137, 255, 'light', device, debug)
@@ -287,7 +321,7 @@ def process_sv_images(session, url, vis_id, nir_id, traits, debug=None):
     device, bs = pcv.logical_and(s_mblur, b_cnt, device, debug)
 
     # Apply Mask (for vis images, mask_color=white)
-    device, masked = pcv.apply_mask(img, bs, 'white', device, debug)
+    device, masked = pcv.apply_mask(vis_img, bs, 'white', device, debug)
 
     # Convert RGB to LAB and extract the Green-Magenta and Blue-Yellow channels
     device, masked_a = pcv.rgb2gray_lab(masked, 'a', device, debug)
@@ -333,24 +367,24 @@ def process_sv_images(session, url, vis_id, nir_id, traits, debug=None):
                                                  0, -600, -300)
 
     # Decide which objects to keep
-    device, roi_objects, hierarchy3, kept_mask, obj_area = pcv.roi_objects(img, 'partial', roi1, roi_hierarchy,
+    device, roi_objects, hierarchy3, kept_mask, obj_area = pcv.roi_objects(vis_img, 'partial', roi1, roi_hierarchy,
                                                                            id_objects, obj_hierarchy, device,
                                                                            debug)
 
     # Object combine kept objects
-    device, obj, mask = pcv.object_composition(img, roi_objects, hierarchy3, device, debug)
+    device, obj, mask = pcv.object_composition(vis_img, roi_objects, hierarchy3, device, debug)
 
     ############## VIS Analysis ################
     # Find shape properties, output shape image (optional)
-    device, shape_header, shape_data, shape_img = pcv.analyze_object(img, vis_id, obj, mask, device, debug)
+    device, shape_header, shape_data, shape_img = pcv.analyze_object(vis_img, vis_id, obj, mask, device, debug)
 
     # Shape properties relative to user boundary line (optional)
-    device, boundary_header, boundary_data, boundary_img1 = pcv.analyze_bound(img, vis_id, obj, mask, 384, device,
+    device, boundary_header, boundary_data, boundary_img1 = pcv.analyze_bound(vis_img, vis_id, obj, mask, 384, device,
                                                                               debug)
 
     # Determine color properties: Histograms, Color Slices and
     # Pseudocolored Images, output color analyzed images (optional)
-    device, color_header, color_data, color_img = pcv.analyze_color(img, vis_id, mask, 256, device, debug,
+    device, color_header, color_data, color_img = pcv.analyze_color(vis_img, vis_id, mask, 256, device, debug,
                                                                     None, 'v', 'img', 300)
 
     # Output shape and color data
@@ -361,16 +395,9 @@ def process_sv_images(session, url, vis_id, nir_id, traits, debug=None):
         vis_traits[boundary_header[i]] = boundary_data[i]
     for i in range(2, len(color_header)):
         vis_traits[color_header[i]] = serialize_color_data(color_data[i])
-    #print(vis_traits)
-    add_plantcv_metadata(session, url, vis_id, vis_traits)
+
 
     ############################# Use VIS image mask for NIR image#########################
-    # Read NIR image from Clowder
-    nir_r = session.get(posixpath.join(url, "api/files", nir_id), stream=True)
-    nir_array = np.asarray(bytearray(nir_r.content), dtype="uint8")
-    nir = cv2.imdecode(nir_array, -1)
-    nir_rgb = cv2.cvtColor(nir, cv2.COLOR_GRAY2BGR)
-
     # Flip mask
     device, f_mask = pcv.flip(mask, "vertical", device, debug)
 
@@ -387,9 +414,9 @@ def process_sv_images(session, url, vis_id, nir_id, traits, debug=None):
     device, nir_combined, nir_combinedmask = pcv.object_composition(nir_rgb, nir_objects, nir_hierarchy, device, debug)
 
     ####################################### Analysis #############################################
-    device, nhist_header, nhist_data, nir_imgs = pcv.analyze_NIR_intensity(nir, nir_id, nir_combinedmask, 256,
+    device, nhist_header, nhist_data, nir_imgs = pcv.analyze_NIR_intensity(nir_cv2, nir_id, nir_combinedmask, 256,
                                                                            device, False, debug)
-    device, nshape_header, nshape_data, nir_shape = pcv.analyze_object(nir, nir_id, nir_combined, nir_combinedmask,
+    device, nshape_header, nshape_data, nir_shape = pcv.analyze_object(nir_cv2, nir_id, nir_combined, nir_combinedmask,
                                                                        device, debug)
 
     nir_traits = {}
@@ -397,8 +424,12 @@ def process_sv_images(session, url, vis_id, nir_id, traits, debug=None):
         nir_traits[nshape_header[i]] = nshape_data[i]
     for i in range(2, len(nhist_header)):
         nir_traits[nhist_header[i]] = serialize_color_data(nhist_data[i])
-    #print(nir_traits)
-    add_plantcv_metadata(session, url, nir_id, nir_traits)
+
+    if cmdParams is not None:
+        session = cmdParams["session"]
+        url = cmdParams["url"]
+        add_plantcv_metadata(session, url, vis_id, vis_traits)
+        add_plantcv_metadata(session, url, nir_id, nir_traits)
 
     # Add data to traits table
     traits['sv_area'].append(vis_traits['area'])
@@ -407,7 +438,7 @@ def process_sv_images(session, url, vis_id, nir_id, traits, debug=None):
     traits['height'].append(vis_traits['height_above_bound'])
     traits['perimeter'].append(vis_traits['perimeter'])
 
-    return traits
+    return [vis_traits, nir_traits]
 
 # Process top-view images
 ###########################################
@@ -430,6 +461,7 @@ def process_tv_images(session, url, vis_id, nir_id, traits, debug=False):
     :param debug: str
     :return traits: dict
     """
+
     # Read VIS image from Clowder
     vis_r = session.get(posixpath.join(url, "api/files", vis_id), stream=True)
     img_array = np.asarray(bytearray(vis_r.content), dtype="uint8")
@@ -440,10 +472,25 @@ def process_tv_images(session, url, vis_id, nir_id, traits, debug=False):
     mask_array = np.asarray(bytearray(mask_r.content), dtype="uint8")
     brass_mask = cv2.imdecode(mask_array, -1)
 
+    # Read NIR image from Clowder
+    nir_r = session.get(posixpath.join(url, "api/files", nir_id), stream=True)
+    nir_array = np.asarray(bytearray(nir_r.content), dtype="uint8")
+    nir = cv2.imdecode(nir_array, -1)
+    nir_rgb = cv2.cvtColor(nir, cv2.COLOR_GRAY2BGR)
+
+    cmdParams = {
+        "session": session,
+        "url": url
+    }
+
+    process_tv_images_core(vis_id, img, nir_id, nir_rgb, nir, brass_mask, traits, debug, cmdParams)
+    return traits
+
+def process_tv_images_core(vis_id, vis_img, nir_id, nir_rgb, nir_cv2, brass_mask, traits, debug=None, cmdParams=None):
     device = 0
 
     # Convert RGB to HSV and extract the Saturation channel
-    device, s = pcv.rgb2gray_hsv(img, 's', device, debug)
+    device, s = pcv.rgb2gray_hsv(vis_img, 's', device, debug)
 
     # Threshold the Saturation image
     device, s_thresh = pcv.binary_threshold(s, 75, 255, 'light', device, debug)
@@ -456,7 +503,7 @@ def process_tv_images(session, url, vis_id, nir_id, traits, debug=False):
     device, s_fill = pcv.fill(s_mblur, s_cnt, 150, device, debug)
 
     # Convert RGB to LAB and extract the Blue channel
-    device, b = pcv.rgb2gray_lab(img, 'b', device, debug)
+    device, b = pcv.rgb2gray_lab(vis_img, 'b', device, debug)
 
     # Threshold the blue image
     device, b_thresh = pcv.binary_threshold(b, 138, 255, 'light', device, debug)
@@ -469,7 +516,7 @@ def process_tv_images(session, url, vis_id, nir_id, traits, debug=False):
     device, bs = pcv.logical_and(s_fill, b_fill, device, debug)
 
     # Apply Mask (for vis images, mask_color=white)
-    device, masked = pcv.apply_mask(img, bs, 'white', device, debug)
+    device, masked = pcv.apply_mask(vis_img, bs, 'white', device, debug)
 
     # Mask pesky brass piece
     device, brass_mask1 = pcv.rgb2gray_hsv(brass_mask, 'v', device, debug)
@@ -506,21 +553,21 @@ def process_tv_images(session, url, vis_id, nir_id, traits, debug=False):
     device, id_objects, obj_hierarchy = pcv.find_objects(masked2, soil_cnt, device, debug)
 
     # Define ROI
-    device, roi1, roi_hierarchy = pcv.define_roi(img, 'rectangle', device, None, 'default', debug, True, 600, 450, -600,
+    device, roi1, roi_hierarchy = pcv.define_roi(vis_img, 'rectangle', device, None, 'default', debug, True, 600, 450, -600,
                                                  -350)
 
     # Decide which objects to keep
-    device, roi_objects, hierarchy3, kept_mask, obj_area = pcv.roi_objects(img, 'partial', roi1, roi_hierarchy,
+    device, roi_objects, hierarchy3, kept_mask, obj_area = pcv.roi_objects(vis_img, 'partial', roi1, roi_hierarchy,
                                                                            id_objects, obj_hierarchy, device, debug)
 
     # Object combine kept objects
-    device, obj, mask = pcv.object_composition(img, roi_objects, hierarchy3, device, debug)
+    device, obj, mask = pcv.object_composition(vis_img, roi_objects, hierarchy3, device, debug)
 
     # Find shape properties, output shape image (optional)
-    device, shape_header, shape_data, shape_img = pcv.analyze_object(img, vis_id, obj, mask, device, debug)
+    device, shape_header, shape_data, shape_img = pcv.analyze_object(vis_img, vis_id, obj, mask, device, debug)
 
     # Determine color properties
-    device, color_header, color_data, color_img = pcv.analyze_color(img, vis_id, mask, 256, device, debug, None,
+    device, color_header, color_data, color_img = pcv.analyze_color(vis_img, vis_id, mask, 256, device, debug, None,
                                                                     'v', 'img', 300)
 
     # Output shape and color data
@@ -529,15 +576,11 @@ def process_tv_images(session, url, vis_id, nir_id, traits, debug=False):
         vis_traits[shape_header[i]] = shape_data[i]
     for i in range(2, len(color_header)):
         vis_traits[color_header[i]] = serialize_color_data(color_data[i])
-    #print(vis_traits)
-    add_plantcv_metadata(session, url, vis_id, vis_traits)
+
+
 
     ############################# Use VIS image mask for NIR image#########################
-    # Read NIR image from Clowder
-    nir_r = session.get(posixpath.join(url, "api/files", nir_id), stream=True)
-    nir_array = np.asarray(bytearray(nir_r.content), dtype="uint8")
-    nir = cv2.imdecode(nir_array, -1)
-    nir_rgb = cv2.cvtColor(nir, cv2.COLOR_GRAY2BGR)
+
 
     # Flip mask
     device, f_mask = pcv.flip(mask, "horizontal", device, debug)
@@ -556,9 +599,9 @@ def process_tv_images(session, url, vis_id, nir_id, traits, debug=False):
 
     ####################################### Analysis #############################################
 
-    device, nhist_header, nhist_data, nir_imgs = pcv.analyze_NIR_intensity(nir, nir_id, nir_combinedmask, 256,
+    device, nhist_header, nhist_data, nir_imgs = pcv.analyze_NIR_intensity(nir_cv2, nir_id, nir_combinedmask, 256,
                                                                            device, False, debug)
-    device, nshape_header, nshape_data, nir_shape = pcv.analyze_object(nir, nir_id, nir_combined, nir_combinedmask,
+    device, nshape_header, nshape_data, nir_shape = pcv.analyze_object(nir_cv2, nir_id, nir_combined, nir_combinedmask,
                                                                        device, debug)
 
     nir_traits = {}
@@ -567,12 +610,17 @@ def process_tv_images(session, url, vis_id, nir_id, traits, debug=False):
     for i in range(2, len(nhist_header)):
         nir_traits[nhist_header[i]] = serialize_color_data(nhist_data[i])
     #print(nir_traits)
-    add_plantcv_metadata(session, url, nir_id, nir_traits)
+
+    if cmdParams is not None:
+        session = cmdParams["session"]
+        url = cmdParams["url"]
+        add_plantcv_metadata(session, url, vis_id, vis_traits)
+        add_plantcv_metadata(session, url, nir_id, nir_traits)
 
     # Add data to traits table
     traits['tv_area'] = vis_traits['area']
 
-    return traits
+    return [vis_traits, nir_traits]
 
 # Process top-view images
 ###########################################

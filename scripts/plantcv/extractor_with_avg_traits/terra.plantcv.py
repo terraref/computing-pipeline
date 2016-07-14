@@ -1,14 +1,13 @@
 #!/usr/bin/env python
-import sys
+import imp
 import re
 import os
 import logging
 
 from config import *
 import pyclowder.extractors as extractors
-import PlantcvClowderIndoorAnalysis as pci
-import numpy as np
-
+import cv2
+import plantcv as pcv
 
 def main():
     global extractorName, messageType, rabbitmqExchange, rabbitmqURL, registrationEndpoints
@@ -41,60 +40,64 @@ def process_dataset(parameters):
                     print("skipping, already done")
                     return
         #extractors.remove_dataset_metadata_jsonld(parameters['host'], parameters['secretKey'], parameters['datasetId'], extractorName)
-    #    pass
 
+    (fields, traits) = pcia.get_traits_table()
 
-    # Compiled traits table
-    fields = ('plant_barcode', 'genotype', 'treatment', 'imagedate', 'sv_area', 'tv_area', 'hull_area',
-              'solidity', 'height', 'perimeter')
-    traits = {'plant_barcode' : '',
-              'genotype' : '',
-              'treatment' : '',
-              'imagedate' : '',
-              'sv_area' : [],
-              'tv_area' : '',
-              'hull_area' : [],
-              'solidity' : [],
-              'height' : [],
-              'perimeter' : []}
-    nir_traits = {}
-    vis_traits = {}
-
-    # build img paths list
-    img_paths = []
     # get imgs paths, filter out the json paths
+    img_paths = []
     for p in parameters['files']:
         if p[-4:] == '.jpg' or p[-4:] == '.png':
             img_paths.append(p)
-    print "printing img_paths..."
-    print img_paths
 
-    # build file objs - list of dicts
+    # build list of file descriptor dictionaries with sensor info
     file_objs = []
     for f in parameters['filelist']:
-        fmd = (extractors.download_file_metadata_jsonld(parameters['host'], parameters['secretKey'], f['id'], extractorName))[0]
-        #print "printing fmd..."
-        #print fmd
-        angle = fmd['content']['rotation_angle']        # -1, 0, 90, 180, 270
-        perspective = fmd['content']['perspective']        # 'side-view' / 'top-view'
-        if perspective == 'top-view': angle = -1        # set tv angle to be -1 for later sorting        
-        camera_type = fmd['content']['camera_type']        # 'visible/RGB' / 'near-infrared'
+        found_info = False
         image_id = f['id']
-        for p in img_paths:
-            print "printing p.."
-            print p 
-            path =  (re.findall(str(image_id), p))
-            print "printing path founded.."
-            print path
-            if path != []:
-                file_objs.append({'perspective':perspective, 'angle':angle, 'camera_type':camera_type, 'image_path': p, 'image_id': image_id})
-    
-    print "printing file objs.."
-    print file_objs
+        # Get from file metadata if possible
+        file_md = extractors.download_file_metadata_jsonld(parameters['host'], parameters['secretKey'], f['id'])
+        for md in file_md:
+            if 'content' in md:
+                mdc = md['content']
+                if ('rotation_angle' in mdc) and ('perspective' in mdc) and ('camera_type' in mdc):
+                    found_info = True
+                    # perspective = 'side-view' / 'top-view'
+                    perspective = mdc['perspective']
+                    # angle = -1, 0, 90, 180, 270; set top-view angle to be -1 for later sorting
+                    angle = mdc['rotation_angle'] if perspective != 'top-view' else -1
+                    # camera_type = 'visible/RGB' / 'near-infrared'
+                    camera_type = mdc['camera_type']
+
+                    for pth in img_paths:
+                        if re.findall(str(image_id), pth) != []:
+                            file_objs.append({
+                                'perspective': perspective,
+                                'angle': angle,
+                                'camera_type': camera_type,
+                                'image_path': pth,
+                                'image_id': image_id
+                            })
+        if not found_info:
+            # Get from filename if no metadata is found
+            raw_name = re.findall(r"(VIS|NIR|vis|nir)_(SV|TV|sv|tv)(_\d+)*" , f["filename"])
+            if raw_name != []:
+                    raw_int = re.findall('\d+', raw_name[0][2])
+                    angle = -1 if raw_int == [] else int(raw_int[0]) # -1 for top-view, else angle
+                    camera_type = raw_name[0][0]
+                    perspective = raw_name[0][1].lower()
+
+                    for pth in img_paths:
+                        if re.findall(str(image_id), pth) != []:
+                            file_objs.append({
+                                'perspective': 'side-view' if perspective == 'tv' else 'top-view',
+                                'angle': angle,
+                                'camera_type': 'visible/RGB' if camera_type == 'vis' else 'near-infrared',
+                                'image_path': pth,
+                                'image_id': image_id
+                            })
+
     # sort file objs by angle
-    file_objs = sorted(file_objs, key=lambda k: k['angle']) 
-    print "printing sorted.."
-    print file_objs
+    file_objs = sorted(file_objs, key=lambda k: k['angle'])
     
     # process images by matching angles with plantcv
     for i in [0,2,4,6,8]:
@@ -111,11 +114,19 @@ def process_dataset(parameters):
         print 'vis src: ' + vis_src
         print 'nir src: ' + nir_src
 
+        # Read VIS image
+        img, path, filename = pcv.readimage(vis_src)
+        brass_mask = cv2.imread('masks/mask_brass_tv_z1_L1.png')
+        # Read NIR image
+        nir, path1, filename1 = pcv.readimage(nir_src)
+        nir2 = cv2.imread(nir_src, -1)
+
         if i == 0:
-            vn_traits = pci.process_tv_images(vis_src, nir_src, traits)
+            vn_traits = pcia.process_tv_images_core(vis_id, img, nir_id, nir, nir2, brass_mask, traits)
         else:
-            vn_traits = pci.process_sv_images(vis_src, nir_src, traits)
-        print "finished processing..."
+            vn_traits = pcia.process_sv_images_core(vis_id, img, nir_id, nir, nir2, traits)
+
+        print "uploading resulting metadata"
         # upload the individual file metadata
         metadata = {
             "@context": {
@@ -143,29 +154,16 @@ def process_dataset(parameters):
         extractors.upload_file_metadata_jsonld(mdata=metadata, parameters=parameters)
 
     # compose the summary traits
-    trait_list = [  traits['plant_barcode'], 
-                    traits['genotype'], 
-                    traits['treatment'], 
-                    traits['imagedate'],
-                    np.mean(traits['sv_area']), 
-                    traits['tv_area'], 
-                    np.mean(traits['hull_area']),
-                    np.mean(traits['solidity']), 
-                    np.mean(traits['height']),
-                    np.mean(traits['perimeter'])]
+    trait_list = pcia.generate_traits_list(traits)
 
-
+    # generate output CSV
     outfile = 'avg_traits.csv'
-    with open(outfile, 'w') as csv:
-        csv.write(','.join(map(str, fields)) + '\n')
-        csv.write(','.join(map(str, trait_list)) + '\n')
-        csv.flush()
-        extractors.upload_file_to_dataset(outfile, parameters)
+    pcia.generate_average_csv(outfile, fields, trait_list)
+    extractors.upload_file_to_dataset(outfile, parameters)
     os.remove(outfile)
 
-    # debug
+    # TODO: can we remove this now that separate CSV file is created?
     csv_data = ','.join(map(str, fields)) + '\n' + ','.join(map(str, trait_list)) + '\n'
-    print csv_data
 
     metadata = {
         "@context": {
@@ -185,4 +183,9 @@ def process_dataset(parameters):
 
 
 if __name__ == "__main__":
+    global scriptPath
+
+    # Import PlantcvClowderIndoorAnalysis script from configured location
+    pcia = imp.load_source('PlantcvClowderIndoorAnalysis', scriptPath)
+
     main()

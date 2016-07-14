@@ -29,3 +29,6 @@ sslVerify = os.getenv('RABBITMQ_SSLVERIFY', False)
 
 # Comma delimited list of endpoints and keys for registering extractor information
 registrationEndpoints = os.getenv('REGISTRATION_ENDPOINTS', "http://localhost:9000/clowder/api/extractors?key=key1, http://host2:9000/api/extractors?key=key2")
+
+# Path to script that contains PlantCV modules to import
+scriptPath = "../PlantcvClowderIndoorAnalysis.py"
