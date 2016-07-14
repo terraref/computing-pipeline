@@ -282,15 +282,14 @@ def process_sv_images(session, url, vis_id, nir_id, traits, debug=None):
     nir = cv2.imdecode(nir_array, -1)
     nir_rgb = cv2.cvtColor(nir, cv2.COLOR_GRAY2BGR)
 
-    cmdParams = {
-        "session": session,
-        "url": url
-    }
+    [vis_traits, nir_traits] = process_sv_images_core(vis_id, img, nir_id, nir_rgb, nir, traits, debug)
 
-    process_sv_images_core(vis_id, img, nir_id, nir_rgb, nir, traits, debug, cmdParams)
+    add_plantcv_metadata(session, url, vis_id, vis_traits)
+    add_plantcv_metadata(session, url, nir_id, nir_traits)
+
     return traits
 
-def process_sv_images_core(vis_id, vis_img, nir_id, nir_rgb, nir_cv2, traits, debug=None, cmdParams=None):
+def process_sv_images_core(vis_id, vis_img, nir_id, nir_rgb, nir_cv2, traits, debug=None):
     # Pipeline step
     device = 0
 
@@ -425,12 +424,6 @@ def process_sv_images_core(vis_id, vis_img, nir_id, nir_rgb, nir_cv2, traits, de
     for i in range(2, len(nhist_header)):
         nir_traits[nhist_header[i]] = serialize_color_data(nhist_data[i])
 
-    if cmdParams is not None:
-        session = cmdParams["session"]
-        url = cmdParams["url"]
-        add_plantcv_metadata(session, url, vis_id, vis_traits)
-        add_plantcv_metadata(session, url, nir_id, nir_traits)
-
     # Add data to traits table
     traits['sv_area'].append(vis_traits['area'])
     traits['hull_area'].append(vis_traits['hull-area'])
@@ -478,15 +471,14 @@ def process_tv_images(session, url, vis_id, nir_id, traits, debug=False):
     nir = cv2.imdecode(nir_array, -1)
     nir_rgb = cv2.cvtColor(nir, cv2.COLOR_GRAY2BGR)
 
-    cmdParams = {
-        "session": session,
-        "url": url
-    }
+    [vis_traits, nir_traits] = process_tv_images_core(vis_id, img, nir_id, nir_rgb, nir, brass_mask, traits, debug)
 
-    process_tv_images_core(vis_id, img, nir_id, nir_rgb, nir, brass_mask, traits, debug, cmdParams)
+    add_plantcv_metadata(session, url, vis_id, vis_traits)
+    add_plantcv_metadata(session, url, nir_id, nir_traits)
+
     return traits
 
-def process_tv_images_core(vis_id, vis_img, nir_id, nir_rgb, nir_cv2, brass_mask, traits, debug=None, cmdParams=None):
+def process_tv_images_core(vis_id, vis_img, nir_id, nir_rgb, nir_cv2, brass_mask, traits, debug=None):
     device = 0
 
     # Convert RGB to HSV and extract the Saturation channel
@@ -577,8 +569,6 @@ def process_tv_images_core(vis_id, vis_img, nir_id, nir_rgb, nir_cv2, brass_mask
     for i in range(2, len(color_header)):
         vis_traits[color_header[i]] = serialize_color_data(color_data[i])
 
-
-
     ############################# Use VIS image mask for NIR image#########################
 
 
@@ -609,13 +599,6 @@ def process_tv_images_core(vis_id, vis_img, nir_id, nir_rgb, nir_cv2, brass_mask
         nir_traits[nshape_header[i]] = nshape_data[i]
     for i in range(2, len(nhist_header)):
         nir_traits[nhist_header[i]] = serialize_color_data(nhist_data[i])
-    #print(nir_traits)
-
-    if cmdParams is not None:
-        session = cmdParams["session"]
-        url = cmdParams["url"]
-        add_plantcv_metadata(session, url, vis_id, vis_traits)
-        add_plantcv_metadata(session, url, nir_id, nir_traits)
 
     # Add data to traits table
     traits['tv_area'] = vis_traits['area']
