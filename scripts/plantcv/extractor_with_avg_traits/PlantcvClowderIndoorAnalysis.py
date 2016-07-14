@@ -8,20 +8,24 @@ import cv2
 import plantcv as pcv
 
 
-def process_sv_images(vis_img, nir_img, traits, debug=None):
+def process_sv_images(vis_img, nir_img, traits, debug=False):
     """Process side-view images.
 
     Inputs:
     vis_img = An RGB image.
     nir_img = An NIR grayscale image.
+    vis_traits  = traits table.
+    nir_traits  = traits table.
     traits  = traits table.
     debug   = None, print, or plot. Print = save to file, Plot = print to screen.
 
     :param vis_img: str
     :param nir_img: str
+    :param vis_traits: dict
+    :param nir_traits: dict
     :param traits: dict
     :param debug: str
-    :return: str 
+    :return: 
     """
     # Read VIS image
     img, path, filename = pcv.readimage(vis_img)
@@ -152,12 +156,18 @@ def process_sv_images(vis_img, nir_img, traits, debug=None):
 
     # Add data to traits table
     vis_traits = {}
+    nir_traits = {}
     for i in range(1, len(shape_header)):
         vis_traits[shape_header[i]] = shape_data[i]
     for i in range(1, len(boundary_header)):
         vis_traits[boundary_header[i]] = boundary_data[i]
     for i in range(2, len(color_header)):
         vis_traits[color_header[i]] = serialize_color_data(color_data[i])
+
+    for i in range(1, len(nshape_header)):
+        nir_traits[nshape_header[i]] = nshape_data[i]
+    for i in range(2, len(nhist_header)):
+        nir_traits[nhist_header[i]] = serialize_color_data(nhist_data[i])
     
     traits['sv_area'].append(vis_traits['area'])
     traits['hull_area'].append(vis_traits['hull-area'])
@@ -165,29 +175,7 @@ def process_sv_images(vis_img, nir_img, traits, debug=None):
     traits['height'].append(vis_traits['height_above_bound'])
     traits['perimeter'].append(vis_traits['perimeter'])
 
-
-    # Output shape and color data 
-    ret_csv = ''
-    ret_csv += '\t'.join(map(str, shape_header)) + '\n'
-    ret_csv += '\t'.join(map(str, shape_data)) + '\n'
-    for row in shape_img:
-        ret_csv += '\t'.join(map(str, row)) + '\n'
-    ret_csv += '\t'.join(map(str, color_header)) + '\n'
-    ret_csv += '\t'.join(map(str, color_data)) + '\n'
-    ret_csv += '\t'.join(map(str, boundary_header)) + '\n'
-    ret_csv += '\t'.join(map(str, boundary_data)) + '\n'
-    ret_csv += '\t'.join(map(str, boundary_img1)) + '\n'
-    for row in color_img:
-        ret_csv += '\t'.join(map(str, row)) + '\n'
-
-    ret_csv += '\t'.join(map(str, nhist_header)) + '\n'
-    ret_csv += '\t'.join(map(str, nhist_data)) + '\n'
-    for row in nir_imgs:
-        ret_csv += '\t'.join(map(str, row)) + '\n'
-    ret_csv += '\t'.join(map(str, nshape_header)) + '\n'
-    ret_csv += '\t'.join(map(str, nshape_data)) + '\n'
-    ret_csv += '\t'.join(map(str, nir_shape)) + '\n'
-    return ret_csv
+    return [vis_traits, nir_traits]
 
 
 def process_tv_images(vis_img, nir_img, traits, debug=False):
@@ -196,16 +184,21 @@ def process_tv_images(vis_img, nir_img, traits, debug=False):
     Inputs:
     vis_img = An RGB image.
     nir_img = An NIR grayscale image.
+    vis_traits  = traits table.
+    nir_traits  = traits table.
     traits  = traits table.
     debug   = None, print, or plot. Print = save to file, Plot = print to screen.
 
     :param vis_img: str
     :param nir_img: str
+    :param vis_traits: dict
+    :param nir_traits: dict
     :param traits: dict
     :param debug: str
-    :return:
+    :return: 
     """
     # Read image
+    print ("starting processing...")
     img, path, filename = pcv.readimage(vis_img)
     brass_mask = cv2.imread('masks/mask_brass_tv_z1_L1.png')
 
@@ -320,34 +313,25 @@ def process_tv_images(vis_img, nir_img, traits, debug=False):
                                                                            device, False, debug)
     device, nshape_header, nshape_data, nir_shape = pcv.analyze_object(nir2, filename1, nir_combined, nir_combinedmask,
                                                                        device, debug)
-    
+    print ("adding data...")
     # Add data to traits table
     vis_traits = {}
+    nir_traits = {}
     for i in range(1, len(shape_header)):
         vis_traits[shape_header[i]] = shape_data[i]
     for i in range(2, len(color_header)):
         vis_traits[color_header[i]] = serialize_color_data(color_data[i])    
-    traits['tv_area'] = vis_traits['area']
 
+    for i in range(1, len(nshape_header)):
+        nir_traits[nshape_header[i]] = nshape_data[i]
+    for i in range(2, len(nhist_header)):
+        nir_traits[nhist_header[i]] = serialize_color_data(nhist_data[i])
+
+    traits['tv_area'] = vis_traits['area']
     
-    # Output shape and color data
-    ret_csv = ''
-    ret_csv += '\t'.join(map(str, shape_header)) + '\n'
-    ret_csv += '\t'.join(map(str, shape_data)) + '\n'
-    for row in shape_img:
-        ret_csv += '\t'.join(map(str, row)) + '\n'
-    ret_csv += '\t'.join(map(str, color_header)) + '\n'
-    ret_csv += '\t'.join(map(str, color_data)) + '\n'
-    for row in color_img:
-        ret_csv += '\t'.join(map(str, row)) + '\n'
-    ret_csv += '\t'.join(map(str,nhist_header)) + '\n'
-    ret_csv += '\t'.join(map(str,nhist_data)) + '\n'
-    for row in nir_imgs:
-      ret_csv += '\t'.join(map(str,row)) + '\n'
-    ret_csv += '\t'.join(map(str,nshape_header)) + '\n'
-    ret_csv += '\t'.join(map(str,nshape_data)) + '\n'
-    ret_csv += '\t'.join(map(str,nir_shape)) + '\n'
-    return ret_csv
+    return [vis_traits, nir_traits]
+    print ("finshing the function...")
+
 
 
 def serialize_color_data(list):
@@ -355,5 +339,3 @@ def serialize_color_data(list):
     newlist = [float(x) for x in list]
 
     return newlist
-
-
