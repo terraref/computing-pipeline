@@ -68,7 +68,7 @@ if [ -z "${nco_exe}" ]; then
     echo "ERROR: Unable to find NCO, nco_exe = ${nco_exe}"
     exit 1
 fi # !nco_exe
-nco_lnk=$(readlink -f "${nco_exe}") # [sng] Directory containing NCO
+nco_lnk=$(readlink "${nco_exe}") # [sng] Directory containing NCO
 drc_nco=$(dirname "${nco_lnk}") # [sng] Directory containing NCO
 nco_vrs=$(ncks --version 2>&1 >/dev/null | grep NCO | awk '{print $5}')
 spt_nm=$(basename ${BASH_SOURCE[0]}) # [sng] Script name (Unlike $0, ${BASH_SOURCE[0]} works well with 'source <script>')
