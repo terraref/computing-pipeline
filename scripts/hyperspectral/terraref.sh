@@ -42,6 +42,7 @@ esac # !HOSTNAME
 
 # Production
 # UIUC: ls -R /projects/arpae/terraref/raw_data/ua-mac/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/terraref.out 2>&1 &
+# UIUC: terraref.sh -d 1 -i /projects/arpae/terraref/raw_data/ua-mac/MovingSensor/SWIR/2016-06-28/2016-06-28__09-10-16-386/a33641c2-8a1e-4a63-9d33-ab66717d6b8a_raw
 # UCI:  ls -R ${DATA}/terraref/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O ~/rgr > ~/terraref.out 2>&1 &
 
 # Test cases (for Charlie's machines)
