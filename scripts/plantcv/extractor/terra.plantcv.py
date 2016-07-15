@@ -22,8 +22,23 @@ def main():
 
 # ----------------------------------------------------------------------
 def check_message(parameters):
-    # Expect at least 10 files to execute this processing
-    if len(parameters['filelist']) >= 10:
+    # For now if the dataset already has metadata from this extractor, don't recreate
+    md = extractors.download_dataset_metadata_jsonld(parameters['host'], parameters['secretKey'], parameters['datasetId'], extractorName)
+    if len(md) > 0:
+        for m in md:
+            if 'agent' in m and 'name' in m['agent']:
+                if m['agent']['name'].find(extractorName) > -1:
+                    print("skipping dataset %s, already processed" % parameters['datasetId'])
+                    return False
+
+    # Expect at least 10 relevant files to execute this processing
+    relevantFiles = 0
+    for f in parameters['filelist']:
+        raw_name = re.findall(r"(VIS|NIR|vis|nir)_(SV|TV|sv|tv)(_\d+)*" , f["filename"])
+        if raw_name != []:
+            relevantFiles += 1
+
+    if relevantFiles >= 10:
         return True
     else:
         return False
@@ -32,13 +47,8 @@ def check_message(parameters):
 def process_dataset(parameters):
     # TODO: re-enable once this is merged into Clowder: https://opensource.ncsa.illinois.edu/bitbucket/projects/CATS/repos/clowder/pull-requests/883/overview
     # fetch metadata from dataset to check if we should remove existing entry for this extractor first
-    md = extractors.download_dataset_metadata_jsonld(parameters['host'], parameters['secretKey'], parameters['datasetId'], extractorName)
-    if len(md) > 0:
-        for m in md:
-            if 'agent' in m and 'name' in m['agent']:
-                if m['agent']['name'].find(extractorName) > -1:
-                    print("skipping, already done")
-                    return
+    # md = extractors.download_dataset_metadata_jsonld(parameters['host'], parameters['secretKey'], parameters['datasetId'], extractorName)
+    # if len(md) > 0:
         #extractors.remove_dataset_metadata_jsonld(parameters['host'], parameters['secretKey'], parameters['datasetId'], extractorName)
 
     (fields, traits) = pcia.get_traits_table()
@@ -100,7 +110,7 @@ def process_dataset(parameters):
     file_objs = sorted(file_objs, key=lambda k: k['angle'])
     
     # process images by matching angles with plantcv
-    for i in [0,2,4,6,8]:
+    for i in [x for x in range(len(file_objs)) if x % 2 == 0]:
         if file_objs[i]['camera_type'] == 'visible/RGB':
             vis_src = file_objs[i]['image_path']
             nir_src = file_objs[i+1]['image_path']
@@ -111,8 +121,7 @@ def process_dataset(parameters):
             nir_src = file_objs[i]['image_path']
             vis_id = file_objs[i+1]['image_id']
             nir_id = file_objs[i]['image_id']
-        print 'vis src: ' + vis_src
-        print 'nir src: ' + nir_src
+        print '...processing: %s + %s' % (os.path.basename(vis_src), os.path.basename(nir_src))
 
         # Read VIS image
         img, path, filename = pcv.readimage(vis_src)
@@ -126,7 +135,7 @@ def process_dataset(parameters):
         else:
             vn_traits = pcia.process_sv_images_core(vis_id, img, nir_id, nir, nir2, traits)
 
-        print "uploading resulting metadata"
+        print "...uploading resulting metadata"
         # upload the individual file metadata
         metadata = {
             "@context": {
@@ -161,26 +170,18 @@ def process_dataset(parameters):
     pcia.generate_average_csv(outfile, fields, trait_list)
     extractors.upload_file_to_dataset(outfile, parameters)
     os.remove(outfile)
-
-    # TODO: can we remove this now that separate CSV file is created?
-    csv_data = ','.join(map(str, fields)) + '\n' + ','.join(map(str, trait_list)) + '\n'
-
     metadata = {
         "@context": {
             "@vocab": "https://clowder.ncsa.illinois.edu/clowder/assets/docs/api/index.html#!/files/uploadToDataset"
         },
         "dataset_id": parameters["datasetId"],
-        "content": {"status": "COMPLETED", "csv": csv_data},
+        "content": {"status": "COMPLETED"},
         "agent": {
             "@type": "cat:extractor",
             "extractor_id": parameters['host'] + "/api/extractors/" + extractorName
         }
     }
     extractors.upload_dataset_metadata_jsonld(mdata=metadata, parameters=parameters)
-
-
-
-
 
 if __name__ == "__main__":
     global scriptPath
