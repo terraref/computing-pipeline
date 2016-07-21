@@ -165,7 +165,7 @@ def loadJsonFile(filename):
         f.close()
         return jsonObj
     except IOError:
-        loger.error("- unable to open %s" % filename)
+        logger.error("- unable to open %s" % filename)
         return {}
 
 """Load object into memory from a log file, checking for .backup if main file does not exist"""
