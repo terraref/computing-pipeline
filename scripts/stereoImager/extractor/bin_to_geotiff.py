@@ -125,9 +125,9 @@ def get_image_shape(metadata, which):
 def get_position(metadata):
     try:
         gantry_meta = metadata['lemnatec_measurement_metadata']['gantry_system_variable_metadata']
-        gantry_x = gantry_meta["Position x [m]"]
-        gantry_y = gantry_meta["Position y [m]"]
-        gantry_z = gantry_meta["Position z [m]"]
+        gantry_x = gantry_meta["position x [m]"]
+        gantry_y = gantry_meta["position y [m]"]
+        gantry_z = gantry_meta["position z [m]"]
 
         cam_meta = metadata['lemnatec_measurement_metadata']['sensor_fixed_metadata']
         cam_x = cam_meta["location in camera box x [m]"]
@@ -151,7 +151,7 @@ def get_fov(metadata, camHeight, shape):
     try:
         cam_meta = metadata['lemnatec_measurement_metadata']['sensor_fixed_metadata']
         print cam_meta
-        fov = cam_meta["Field of view at 2m in X- Y- direction [m]"]
+        fov = cam_meta["field of view at 2m in X- Y- direction [m]"]
         print fov
     except KeyError as err:
         fail('Metadata file missing key: ' + err.args[0])
@@ -163,7 +163,7 @@ def get_fov(metadata, camHeight, shape):
         
         # test by Baker
         gantry_meta = metadata['lemnatec_measurement_metadata']['gantry_system_variable_metadata']
-        gantry_z = gantry_meta["Position z [m]"]
+        gantry_z = gantry_meta["position z [m]"]
         fov_offset = (float(gantry_z) - 2) * FOV_MAGIC_NUMBER
         fov_y = fov_y*(FOV_IN_2_METER_PARAM + fov_offset)
         fov_x = (fov_y)/shape[1]*shape[0]
