@@ -236,8 +236,12 @@ def addFileToPendingTransfers(f):
 
     if f.find(config['gantry']['incoming_files_path']) > -1:
         gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
+        # try with and without leading /
+        gantryDirPath = gantryDirPath.replace(config['gantry']['incoming_files_path'][1:], "")
     else:
         gantryDirPath = f.replace(config['globus']['source_path'], "")
+        # try with and without leading /
+        gantryDirPath = gantryDirPath.replace(config['globus']['source_path'][1:], "")
 
     pathParts = gantryDirPath.split("/")
     filename = pathParts[-1]
@@ -600,8 +604,14 @@ def initializeGlobusTransfer():
                 for f in loopingTransfers[ds]['files']:
                     if queueLength < maxQueue:
                         fobj = loopingTransfers[ds]['files'][f]
-                        src_path = os.path.join(config['globus']['source_path'], fobj["path"], fobj["name"])
-                        dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
+                        if fobj["path"].find(config['globus']['source_path']) > -1:
+                            src_path = os.path.join(fobj["path"], fobj["name"])
+                            dest_path = os.path.join(config['globus']['destination_path'],
+                                                     fobj["path"].replace(config['globus']['source_path'], ""),
+                                                     fobj["name"])
+                        else:
+                            src_path = os.path.join(config['globus']['source_path'], fobj["path"], fobj["name"])
+                            dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
                         transferObj.add_item(src_path, dest_path)
 
                         # remainingTransfers will have leftover data once max Globus transfer size is met
