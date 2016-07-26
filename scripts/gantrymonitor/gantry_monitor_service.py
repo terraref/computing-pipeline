@@ -258,9 +258,7 @@ def addFileToPendingTransfers(f):
         }
     })
     status_numPending += 1
-    logger.info("- file queued via API: %s" % f, extra={
-        "filename": f
-    })
+    logger.info("- file queued via API: %s" % f)
 
 """Take line of FTP transfer log and parse a datetime object from it"""
 def parseDateFromFTPLogLine(line):
