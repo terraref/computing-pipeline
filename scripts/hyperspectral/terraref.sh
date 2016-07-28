@@ -59,18 +59,30 @@ esac # !HOSTNAME
 #          3 = As in dbg_lvl=1, and pass debug level through to NCO/ncks
 
 # Set script name, directory, PID, run directory, NCO version
-# NB: dash supports $0 syntax, not ${BASH_SOURCE[0]} syntax
 drc_pwd=${PWD}
+# NB: dash supports $0 syntax, not ${BASH_SOURCE[0]} syntax
 # http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in
 #drc_spt=$(dirname $(readlink ${BASH_SOURCE[0]})) # [sng] Directory containing scripts
-drc_spt="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )" # [sng] Directory containing scripts
+#drc_spt="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )" # [sng] Directory containing scripts
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+drc_spt="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 nco_exe=`which ncks`
 if [ -z "${nco_exe}" ]; then
     echo "ERROR: Unable to find NCO, nco_exe = ${nco_exe}"
     exit 1
 fi # !nco_exe
-nco_lnk=$(readlink "${nco_exe}") # [sng] Directory containing NCO
-drc_nco=$(dirname "${nco_lnk}") # [sng] Directory containing NCO
+# Use stackoverflow method to find NCO directory
+while [ -h "$nco_exe" ]; do
+  DIR="$( cd -P "$( dirname "$nco_exe" )" && pwd )"
+  nco_exe="$(readlink "$nco_exe")"
+  [[ $nco_exe != /* ]] && nco_exe="$DIR/$nco_exe"
+done
+drc_nco="$( cd -P "$( dirname "$nco_exe" )" && pwd )"
 nco_vrs=$(ncks --version 2>&1 >/dev/null | grep NCO | awk '{print $5}')
 spt_nm=$(basename ${BASH_SOURCE[0]}) # [sng] Script name (Unlike $0, ${BASH_SOURCE[0]} works well with 'source <script>')
 spt_pid=$$ # [nbr] Script PID (process ID)
@@ -489,7 +501,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    12 ) typ_in='NC_USHORT' ; ;;
 	    * ) printf "${spt_nm}: ERROR Unknown typ_in in ${hdr_fl}. Debug grep command.\n" ; exit 1 ; ;; # Other
 	esac # !typ_in_ENVI
-	cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ${drc_spt}/foo.nc ${trn_out}"
+	cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ${drc_spt}/dummy.nc ${trn_out}"
 	hst_att="`date`: ${cmd_ln}"
 	att_in="${trn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
