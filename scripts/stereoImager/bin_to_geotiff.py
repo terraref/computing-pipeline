@@ -150,9 +150,7 @@ def get_position(metadata):
 def get_fov(metadata, camHeight, shape):
     try:
         cam_meta = metadata['lemnatec_measurement_metadata']['sensor_fixed_metadata']
-        print cam_meta
         fov = cam_meta["field of view at 2m in X- Y- direction [m]"]
-        print fov
     except KeyError as err:
         fail('Metadata file missing key: ' + err.args[0])
 

@@ -3,7 +3,7 @@
   "name": "terra.demosaic",
   "version": "1.0",
   "description": "Stereo Image Demosaic",
-  "author": "Rob Kooper <kooper@illinois.edu>",
+  "author": "Max Burnette <mburnet2@illinois.edu>",
   "contributors": [],
   "contexts": [],
   "repository": {"repType": "git", "repUrl": "https://opensource.ncsa.illinois.edu/stash/scm/cats/pyclowder.git"},
