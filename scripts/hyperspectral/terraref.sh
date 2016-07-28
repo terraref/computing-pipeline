@@ -62,7 +62,8 @@ esac # !HOSTNAME
 # NB: dash supports $0 syntax, not ${BASH_SOURCE[0]} syntax
 drc_pwd=${PWD}
 # http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in
-drc_spt=$(dirname $(readlink ${BASH_SOURCE[0]})) # [sng] Directory containing scripts
+#drc_spt=$(dirname $(readlink ${BASH_SOURCE[0]})) # [sng] Directory containing scripts
+drc_spt="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )" # [sng] Directory containing scripts
 nco_exe=`which ncks`
 if [ -z "${nco_exe}" ]; then
     echo "ERROR: Unable to find NCO, nco_exe = ${nco_exe}"
@@ -416,12 +417,12 @@ mkdir -p ${drc_tmp}
 
 # Human-readable summary
 if [ ${dbg_lvl} -ge 1 ]; then
-    printf "Terraref hyperspectral data pipeline invoked with:\n"
+    printf "Terraref hyperspectral data workflow invoked with:\n"
     echo "${cmd_ln}"
+    printf "Hyperspectral workflow scripts in directory ${drc_spt}\n"
     printf "NCO version ${nco_vrs} from directory ${drc_nco}\n"
-    printf "Pipeline scripts in directory ${drc_spt}\n"
-    printf "Output stored in directory ${drc_out}\n"
-    printf "Temporary files written to directory ${drc_tmp}\n"
+    printf "Intermediate/temporary files written to directory ${drc_tmp}\n"
+    printf "Final output stored in directory ${drc_out}\n"
 fi # !dbg
 date_srt=$(date +"%s")
 
@@ -488,7 +489,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    12 ) typ_in='NC_USHORT' ; ;;
 	    * ) printf "${spt_nm}: ERROR Unknown typ_in in ${hdr_fl}. Debug grep command.\n" ; exit 1 ; ;; # Other
 	esac # !typ_in_ENVI
-	cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ~zender/nco/data/in.nc ${trn_out}"
+	cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ${drc_spt}/foo.nc ${trn_out}"
 	hst_att="`date`: ${cmd_ln}"
 	att_in="${trn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
