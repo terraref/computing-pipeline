@@ -62,35 +62,36 @@ esac # !HOSTNAME
 drc_pwd=${PWD}
 # NB: dash supports $0 syntax, not ${BASH_SOURCE[0]} syntax
 # http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in
-#drc_spt=$(dirname $(readlink ${BASH_SOURCE[0]})) # [sng] Directory containing scripts
-#drc_spt="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )" # [sng] Directory containing scripts
-SOURCE="${BASH_SOURCE[0]}"
-while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
-  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
-  SOURCE="$(readlink "$SOURCE")"
-  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+spt_src="${BASH_SOURCE[0]}"
+while [ -h "${spt_src}" ]; do # Recursively resolve ${spt_src} until file is no longer a symlink
+  drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
+  spt_src="$(readlink "${spt_src}")"
+  [[ ${spt_src} != /* ]] && spt_src="${drc_spt}/${spt_src}" # If ${spt_src} was relative symlink, resolve it relative to path where symlink file was located
 done
-drc_spt="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
 nco_exe=`which ncks`
 if [ -z "${nco_exe}" ]; then
     echo "ERROR: Unable to find NCO, nco_exe = ${nco_exe}"
     exit 1
 fi # !nco_exe
 # Use stackoverflow method to find NCO directory
-while [ -h "$nco_exe" ]; do
-  DIR="$( cd -P "$( dirname "$nco_exe" )" && pwd )"
-  nco_exe="$(readlink "$nco_exe")"
-  [[ $nco_exe != /* ]] && nco_exe="$DIR/$nco_exe"
+while [ -h "${nco_exe}" ]; do
+  drc_nco="$( cd -P "$( dirname "${nco_exe}" )" && pwd )"
+  nco_exe="$(readlink "${nco_exe}")"
+  [[ ${nco_exe} != /* ]] && nco_exe="${drc_nco}/${nco_exe}"
 done
-drc_nco="$( cd -P "$( dirname "$nco_exe" )" && pwd )"
+drc_nco="$( cd -P "$( dirname "${nco_exe}" )" && pwd )"
 nco_vrs=$(ncks --version 2>&1 >/dev/null | grep NCO | awk '{print $5}')
 spt_nm=$(basename ${BASH_SOURCE[0]}) # [sng] Script name (Unlike $0, ${BASH_SOURCE[0]} works well with 'source <script>')
 spt_pid=$$ # [nbr] Script PID (process ID)
 
-# Set fonts for legibility
-fnt_nrm=`tput sgr0` # Normal
-fnt_bld=`tput bold` # Bold
-fnt_rvr=`tput smso` # Reverse
+# When running in a terminal window (not in an non-interactive batch queue)...
+if [ -n "${TERM}" ]; then
+    # Set fonts for legibility
+    fnt_nrm=`tput sgr0` # Normal
+    fnt_bld=`tput bold` # Bold
+    fnt_rvr=`tput smso` # Reverse
+fi # !TERM
 
 # Defaults for command-line options and some derived variables
 cln_flg='Yes' # [flg] Clean-up (remove) intermediate files before exiting
