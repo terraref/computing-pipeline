@@ -585,7 +585,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	printf "clb(in)  : ${clb_in}\n"
 	printf "clb(out) : ${clb_out}\n"
 #	cmd_clb[${fl_idx}]="ncap2 -O -S ${drc_spt}/terraref.nco ${clb_in} ${clb_out}"
-	cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/terraref.nco ${clb_in} ${clb_out};mv ${clb_in} ${clb_out}"
+	cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/terraref.nco ${clb_in} ${clb_in};mv ${clb_in} ${clb_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_clb[${fl_idx}]}
 	fi # !dbg
