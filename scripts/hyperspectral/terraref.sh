@@ -559,8 +559,8 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 
     # Merge JSON metadata with image data
     if [ "${mrg_flg}" = 'Yes' ]; then
-	mrg_in=${jsn_out}
-	mrg_out=${att_out}
+	mrg_in=${att_out}
+	mrg_out=${jsn_out}
 	printf "mrg(in)  : ${mrg_in}\n"
 	printf "mrg(out) : ${mrg_out}\n"
 	cmd_mrg[${fl_idx}]="ncks -A ${mrg_in} ${mrg_out}"
