@@ -62,7 +62,9 @@ esac # !HOSTNAME
 drc_pwd=${PWD}
 # NB: dash supports $0 syntax, not ${BASH_SOURCE[0]} syntax
 # http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in
+
 spt_src="${BASH_SOURCE[0]}"
+[[ -z $spt_src ]] && spt_src="$drc_pwd/terraref.sh"
 while [ -h "${spt_src}" ]; do # Recursively resolve ${spt_src} until file is no longer a symlink
   drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
   spt_src="$(readlink "${spt_src}")"
@@ -82,7 +84,7 @@ while [ -h "${nco_exe}" ]; do
 done
 drc_nco="$( cd -P "$( dirname "${nco_exe}" )" && pwd )"
 nco_vrs=$(ncks --version 2>&1 >/dev/null | grep NCO | awk '{print $5}')
-spt_nm=$(basename ${BASH_SOURCE[0]}) # [sng] Script name (Unlike $0, ${BASH_SOURCE[0]} works well with 'source <script>')
+spt_nm=$(basename ${spt_src}) # [sng] Script name (Unlike $0, ${BASH_SOURCE[0]} works well with 'source <script>')
 spt_pid=$$ # [nbr] Script PID (process ID)
 
 # When running in a terminal window (not in an non-interactive batch queue)...
