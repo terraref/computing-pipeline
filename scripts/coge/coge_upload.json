@@ -25,7 +25,7 @@ curl -H "Content-Type: application/json" -X PUT --data @experiment_add.json "htt
     ],
     "source_data": [
         {
-            "path": "/iplant/home/coge/coge_data/arabidopsis/reads.fastq",
+            "path": "/iplant/home/shared/terraref/raw_data/filename.fastq",
             "type": "irods"
         }
     ],
