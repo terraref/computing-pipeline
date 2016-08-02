@@ -183,25 +183,28 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     loggerReadings   = JSONArray["environment_sensor_readings"]
 
     for infos in loggerFixedInfos:
+        infosGroup = netCDFHandler.createGroup(infos)
         for subInfos in loggerFixedInfos[infos]:
-            setattr(netCDFHandler, renameTheValue(infos + subInfos), loggerFixedInfos[infos][subInfos])
+            setattr(infosGroup, renameTheValue(infos + subInfos), loggerFixedInfos[infos][subInfos])
 
     netCDFHandler.createDimension("time", None)
 
-    for data in loggerReadings[0]["weather_station"].keys():
+    weatherStationGroup = netCDFHandler.groups["weather_station"]
+    spectrometerGroup   = netCDFHandler.groups["spectrometer"]
+    for data in loggerReadings[0]["weather_station"].keys(): #writing the data from weather station
         value, unit, rawValue           = getListOfWeatherStationValue(loggerReadings, data)
-        valueVariable, rawValueVariable = netCDFHandler.createVariable(data, "f4", ("time", )), netCDFHandler.createVariable("raw_" + data, "f4", ("time", ))
+        valueVariable, rawValueVariable = weatherStationGroup.createVariable(data, "f4", ("time", )), weatherStationGroup.createVariable("raw_" + data, "f4", ("time", ))
             
         valueVariable[:]    = value
         rawValueVariable[:] = rawValue
         setattr(valueVariable, "units", unit[0])
 
-    wvl_lgr, spectrum, maxFixedIntensity = handleSpectrometer(loggerReadings)
+    wvl_lgr, spectrum, maxFixedIntensity = handleSpectrometer(loggerReadings) #writing the data from spectrometer
 
     netCDFHandler.createDimension("wvl_lgr", len(wvl_lgr))
-    wavelengthVariable = netCDFHandler.createVariable("wvl_lgr", "f4", ("wvl_lgr",))
-    spectrumVariable   = netCDFHandler.createVariable("spectrum", "f4", ("time", "wvl_lgr"))
-    intensityVariable  = netCDFHandler.createVariable("maxFixedIntensity", "f4", ("time",))
+    wavelengthVariable = spectrometerGroup.createVariable("wvl_lgr", "f4", ("wvl_lgr",))
+    spectrumVariable   = spectrometerGroup.createVariable("spectrum", "f4", ("time", "wvl_lgr"))
+    intensityVariable  = spectrometerGroup.createVariable("maxFixedIntensity", "f4", ("time",))
 
     wavelengthVariable[:] = wvl_lgr
     spectrumVariable[:,:] = spectrum
@@ -214,9 +217,13 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
 
     for data in loggerReadings[0]:
         if data.startswith("sensor"):
+            if data.endswith("par"):
+                targetGroup = netCDFHandler.groups["par_sensor"]
+            else:
+                targetGroup = netCDFHandler.groups["co2_sensor"]
             sensorValue, sensorUnit, sensorRaw = sensorVariables(loggerReadings, data)
-            sensorValueVariable                = netCDFHandler.createVariable(renameTheValue(data), "f4", ("time", ))
-            sensorRawValueVariable             = netCDFHandler.createVariable("raw_" + renameTheValue(data), "f4", ("time", ))
+            sensorValueVariable                = targetGroup.createVariable(renameTheValue(data), "f4", ("time", ))
+            sensorRawValueVariable             = targetGroup.createVariable("raw_" + renameTheValue(data), "f4", ("time", ))
 
             sensorValueVariable[:]    = sensorValue
             sensorRawValueVariable[:] = sensorRaw

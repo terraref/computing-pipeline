@@ -73,44 +73,6 @@ _UNIX_BASETIME = date(year=1970, month=1, day=1)
 _CAMERA_POSITION = np.array([1.9, 0.855, 0.635])
 
 
-
-# class JsonError(Exception):
-#     '''
-#     User-Defined Error Class
-#     '''
-
-#     def __init__(self, message):
-#         self.message = message
-
-#     def __str__(self):
-#         return repr(self.message)
-
-
-# class TimeMeasurement(object):
-#     '''
-#     Supportive class;
-#     Measuring the time used by unpacking the data
-#     '''
-
-#     def __init__(self, lineName):
-#         self.lineName = lineName
-
-#     def __enter__(self):
-#         self.startTime = time.time()
-
-#     def __exit__(self, *args):
-#         self.endTime = time.time()
-#         self.runningTime = (self.endTime - self.startTime) * 1000
-
-#         reportHandler = open("PerformanceReport.txt", "w")
-
-#         prompt = "%s elapsed time: %.3fms, %.5fs" % (self.lineName,
-#                                                      self.runningTime,
-#                                                      self.runningTime / 1000)
-#         reportHandler.write(prompt)
-#         print(prompt)
-
-
 class DataContainer(object):
     '''
     A class which saves the data from Json file
@@ -136,7 +98,6 @@ class DataContainer(object):
         # file
         setattr(self, "header_info", None)
         netCDFHandler = _fileExistingCheck(outputFilePath, self)
-        yearMonthDate = str()
         delattr(self, "header_info")
 
         if netCDFHandler == 0:
@@ -151,7 +112,9 @@ class DataContainer(object):
                             self.__dict__[members][submembers])
 
                 else:
-                    if "Time" in self.__dict__[members]:
+                    if "time" in self.__dict__[members]:
+                        yearMonthDate = self.__dict__[members]["time"]
+                    elif "Time" in self.__dict__[members]:
                         yearMonthDate = self.__dict__[members]["Time"]
                     setattr(tempGroup, _replaceIllegalChar(submembers),
                             self.__dict__[members][submembers])
@@ -214,8 +177,7 @@ def getDimension(fileName):
     try:
         return int(wavelength.strip('\n').strip('\r')), int(x.strip('\n').strip('\r')), int(y.strip('\n').strip('\r'))
     except:
-        printOnVersion('Fatal Warning: sample, lines and bands variables in header file are broken. Header information\
-         will not be written into the netCDF')
+        printOnVersion('Fatal Warning: sample, lines and bands variables in header file are broken. Header information will not be written into the netCDF')
 
 
 def getWavelength(fileName):
@@ -246,6 +208,9 @@ def _fileExistingCheck(filePath, dataContainer):
     since netCDF does not support the repeating variable names)
     '''
     userPrompt = 'Output file already exists; skip it or overwrite or append? (S, O, A)'
+
+    if os.path.isdir(filePath):
+        filePath += ("/" + filePath.split("/")[-1] + ".nc")
 
     if os.path.exists(filePath):
         netCDFHandler = Dataset(filePath, 'r', format='NETCDF4')
@@ -377,7 +342,22 @@ def translateTime(timeString, yearMonthDate):
 
 def frameIndexParser(fileName, yearMonthDate):
     with open(fileName) as fileHandler:
+        #print [dataMembers.split()[1] for dataMembers in fileHandler.readlines()[1:]]
         return [translateTime(dataMembers.split()[1], yearMonthDate) for dataMembers in fileHandler.readlines()[1:]]
+
+
+def fileDependencyCheck(filePath):
+    '''
+    Check if the input location has all 
+    '''
+    key = str()
+    for roots, directorys, files in os.walk(filePath.rstrip(os.path.split(filePath)[-1])):
+        for file in files:
+            if file.endswith("_raw"):
+                key = file.split("_")[0]
+
+    return {key+"_frameIndex.txt", key+"_metadata.json", key+"_raw.hdr"} -\
+                        set([matchFile for matchFile in files if matchFile.startswith(key)])
 
 
 
@@ -436,8 +416,16 @@ def writeHeaderFile(fileName, netCDFHandler):
         printOnVersion(
             'Warning: default_band variable in the header file is missing.')
 
+
 if __name__ == '__main__':
     fileInput, fileOutput = sys.argv[1], sys.argv[2]
+    missingFiles = fileDependencyCheck(fileInput)
+    if len(missingFiles) > 0:
+        printOnVersion("\033[0;31mOne or more important file(s) is(are) missing. Program terminated:\033[0m")
+
+        for missingFile in missingFiles:
+            printOnVersion("\033[0;31m" + missingFile + " is missing\033[0m")
+        exit()
 
     testCase = jsonHandler(fileInput)
     testCase.writeToNetCDF(fileInput, fileOutput, fileInput + ' ' + fileOutput)

@@ -7,6 +7,7 @@
 # Prerequisites:
 # NCO version 4.6.0 (dated 20160401) or later
 # Python: Python 2.7.X or 3.X (preferred) with netCDF4 module
+# terraref.sh, terraref.nco, JsonDealer.py and EnvironmentalLoggerAnalyser.py must be in same directory
 
 # In Anaconda:
 # conda install netCDF4
@@ -40,7 +41,8 @@ case "${HOSTNAME}" in
 esac # !HOSTNAME
 
 # Production
-# NCSA: ls -R /projects/arpae/terraref/raw_data/ua-mac/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/terraref.out 2>&1 &
+# UIUC: ls -R /projects/arpae/terraref/raw_data/ua-mac/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/terraref.out 2>&1 &
+# UIUC: terraref.sh -d 1 -i /projects/arpae/terraref/raw_data/ua-mac/MovingSensor/SWIR/2016-06-28/2016-06-28__09-10-16-386/a33641c2-8a1e-4a63-9d33-ab66717d6b8a_raw
 # UCI:  ls -R ${DATA}/terraref/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O ~/rgr > ~/terraref.out 2>&1 &
 
 # Test cases (for Charlie's machines)
@@ -56,16 +58,42 @@ esac # !HOSTNAME
 #          2 = As in dbg_lvl=1, but _do not evaluate commands_
 #          3 = As in dbg_lvl=1, and pass debug level through to NCO/ncks
 
-# Set script name and run directory
+# Set script name, directory, PID, run directory, NCO version
 drc_pwd=${PWD}
-nco_version=$(ncks --version 2>&1 >/dev/null | grep NCO | awk '{print $5}')
-spt_nm=$(basename ${0}) # [sng] Script name
+# NB: dash supports $0 syntax, not ${BASH_SOURCE[0]} syntax
+# http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in
+
+spt_src="${BASH_SOURCE[0]}"
+[[ -z "${spt_src}" ]] && spt_src="${drc_pwd}/terraref.sh"
+while [ -h "${spt_src}" ]; do # Recursively resolve ${spt_src} until file is no longer a symlink
+  drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
+  spt_src="$(readlink "${spt_src}")"
+  [[ ${spt_src} != /* ]] && spt_src="${drc_spt}/${spt_src}" # If ${spt_src} was relative symlink, resolve it relative to path where symlink file was located
+done
+drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
+nco_exe=`which ncks`
+if [ -z "${nco_exe}" ]; then
+    echo "ERROR: Unable to find NCO, nco_exe = ${nco_exe}"
+    exit 1
+fi # !nco_exe
+# Use stackoverflow method to find NCO directory
+while [ -h "${nco_exe}" ]; do
+  drc_nco="$( cd -P "$( dirname "${nco_exe}" )" && pwd )"
+  nco_exe="$(readlink "${nco_exe}")"
+  [[ ${nco_exe} != /* ]] && nco_exe="${drc_nco}/${nco_exe}"
+done
+drc_nco="$( cd -P "$( dirname "${nco_exe}" )" && pwd )"
+nco_vrs=$(ncks --version 2>&1 >/dev/null | grep NCO | awk '{print $5}')
+spt_nm=$(basename ${spt_src}) # [sng] Script name (Unlike $0, ${BASH_SOURCE[0]} works well with 'source <script>')
 spt_pid=$$ # [nbr] Script PID (process ID)
 
-# Set fonts for legibility
-fnt_nrm=`tput sgr0` # Normal
-fnt_bld=`tput bold` # Bold
-fnt_rvr=`tput smso` # Reverse
+# When running in a terminal window (not in an non-interactive batch queue)...
+if [ -n "${TERM}" ]; then
+    # Set fonts for legibility
+    fnt_nrm=`tput sgr0` # Normal
+    fnt_bld=`tput bold` # Bold
+    fnt_rvr=`tput smso` # Reverse
+fi # !TERM
 
 # Defaults for command-line options and some derived variables
 cln_flg='Yes' # [flg] Clean-up (remove) intermediate files before exiting
@@ -75,7 +103,7 @@ drc_in='' # [sng] Input file directory
 drc_in_xmp='drc_in' # [sng] Input file directory for examples
 drc_out="${drc_pwd}" # [sng] Output file directory
 drc_out_xmp='drc_out' # [sng] Output file directory for examples
-gaa_sng="--gaa terraref_script=${spt_nm} --gaa terraref_hostname=${HOSTNAME} --gaa terraref_version=${nco_version}" # [sng] Global attributes to add
+gaa_sng="--gaa terraref_script=${spt_nm} --gaa terraref_hostname=${HOSTNAME} --gaa terraref_version=${nco_vrs}" # [sng] Global attributes to add
 hdr_pad='10000' # [B] Pad at end of header section
 in_fl='' # [sng] Input file stub
 in_xmp='test_raw' # [sng] Input file for examples
@@ -370,7 +398,9 @@ if [ ${dbg_lvl} -ge 2 ]; then
     printf "dbg: cln_flg  = ${cln_flg}\n"
     printf "dbg: dbg_lvl  = ${dbg_lvl}\n"
     printf "dbg: drc_in   = ${drc_in}\n"
+    printf "dbg: drc_nco  = ${drc_nco}\n"
     printf "dbg: drc_out  = ${drc_out}\n"
+    printf "dbg: drc_spt  = ${drc_spt}\n"
     printf "dbg: drc_tmp  = ${drc_tmp}\n"
     printf "dbg: gaa_sng  = ${gaa_sng}\n"
     printf "dbg: hdr_pad  = ${hdr_pad}\n"
@@ -402,8 +432,12 @@ mkdir -p ${drc_tmp}
 
 # Human-readable summary
 if [ ${dbg_lvl} -ge 1 ]; then
-    printf "Terraref data pipeline invoked with command:\n"
+    printf "Terraref hyperspectral data workflow invoked with:\n"
     echo "${cmd_ln}"
+    printf "Hyperspectral workflow scripts in directory ${drc_spt}\n"
+    printf "NCO version ${nco_vrs} from directory ${drc_nco}\n"
+    printf "Intermediate/temporary files written to directory ${drc_tmp}\n"
+    printf "Final output stored in directory ${drc_out}\n"
 fi # !dbg
 date_srt=$(date +"%s")
 
@@ -470,7 +504,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    12 ) typ_in='NC_USHORT' ; ;;
 	    * ) printf "${spt_nm}: ERROR Unknown typ_in in ${hdr_fl}. Debug grep command.\n" ; exit 1 ; ;; # Other
 	esac # !typ_in_ENVI
-	cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ~/nco/data/in.nc ${trn_out}"
+	cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ${drc_spt}/dummy.nc ${trn_out}"
 	hst_att="`date`: ${cmd_ln}"
 	att_in="${trn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
@@ -512,7 +546,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	jsn_out="${jsn_fl}.fl${idx_prn}.tmp"
 	printf "jsn(in)  : ${jsn_in}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
-	cmd_jsn[${fl_idx}]="python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${jsn_in} ${jsn_out}"
+	cmd_jsn[${fl_idx}]="python ${drc_spt}/JsonDealer.py ${jsn_in} ${jsn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_jsn[${fl_idx}]}
 	fi # !dbg
@@ -550,7 +584,8 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	clb_out="${clb_fl}.fl${idx_prn}.tmp"
 	printf "clb(in)  : ${clb_in}\n"
 	printf "clb(out) : ${clb_out}\n"
-	cmd_clb[${fl_idx}]="ncap2 -O -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${clb_in} ${clb_out}"
+	cmd_clb[${fl_idx}]="ncap2 -O -S ${drc_spt}/terraref.nco ${clb_in} ${clb_out}"
+#	cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/terraref.nco ${clb_in} ${clb_in};mv ${clb_in} ${clb_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_clb[${fl_idx}]}
 	fi # !dbg
@@ -612,7 +647,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	anl_out="${anl_fl}.fl${idx_prn}.tmp"
 	printf "2D  : ${anl_in}\n"
 	printf "3D  : ${anl_out}\n"
-	cmd_anl[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*wvl_nbr=${wvl_nbr} -S ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/new_analysis.nco ${anl_in} ${anl_out}"
+	cmd_anl[${fl_idx}]="${cmd_mpi[${fl_idx}]} ncap2 -4 -v -O -s \*wvl_nbr=${wvl_nbr} -S ${drc_spt}/new_analysis.nco ${anl_in} ${anl_out}"
 	
 	# Block 5 Loop 2: Execute and/or echo commands
 	if [ ${dbg_lvl} -ge 1 ]; then
