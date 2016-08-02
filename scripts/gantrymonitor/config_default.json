@@ -1,10 +1,10 @@
 {
-  "log_path": "data/log",
-  "completed_tasks_path": "data/completed",
+  "log_path": "/home/monitor/data/log",
+  "completed_tasks_path": "/home/monitor/data/completed",
 
   "local": {
-    "incoming_files_path": "/home/sensors",
-    "deletion_queue": "/home/delete/sensors",
+    "incoming_files_path": "/home/monitor/sensors",
+    "deletion_queue": "/home/monitor/delete/sensors",
     "ftp_log_path": "",
     "file_age_monitor_paths": [],
     "min_file_age_for_transfer_mins": 15,
@@ -14,8 +14,8 @@
   },
 
   "globus": {
-    "source_path": "/home/sensors",
-    "delete_path": "/home/delete/sensors",
+    "source_path": "/home/monitor/sensors",
+    "delete_path": "/home/monitor/delete/sensors",
     "destination_path": "/~/globus",
     "source_endpoint_id": "",
     "destination_endpoint_id": "",
