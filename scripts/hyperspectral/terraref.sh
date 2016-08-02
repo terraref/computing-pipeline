@@ -561,8 +561,8 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 
     # Merge JSON metadata with image data
     if [ "${mrg_flg}" = 'Yes' ]; then
-	mrg_in=${att_out}
-	mrg_out=${jsn_out}
+	mrg_in=${jsn_out}
+	mrg_out=${att_out}
 	printf "mrg(in)  : ${mrg_in}\n"
 	printf "mrg(out) : ${mrg_out}\n"
 	cmd_mrg[${fl_idx}]="ncks -A ${mrg_in} ${mrg_out}"
@@ -584,8 +584,8 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	clb_out="${clb_fl}.fl${idx_prn}.tmp"
 	printf "clb(in)  : ${clb_in}\n"
 	printf "clb(out) : ${clb_out}\n"
-#	cmd_clb[${fl_idx}]="ncap2 -O -S ${drc_spt}/terraref.nco ${clb_in} ${clb_out}"
-	cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/terraref.nco ${clb_in} ${clb_in};mv ${clb_in} ${clb_out}"
+	cmd_clb[${fl_idx}]="ncap2 -O -S ${drc_spt}/terraref.nco ${clb_in} ${clb_out}"
+#	cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/terraref.nco ${clb_in} ${clb_in};mv ${clb_in} ${clb_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_clb[${fl_idx}]}
 	fi # !dbg
