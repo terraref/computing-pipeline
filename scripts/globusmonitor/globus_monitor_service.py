@@ -609,36 +609,6 @@ def notifyClowderOfCompletedTask(task):
             if len(fileFormData)>0 or datasetMD:
                 dsid = fetchDatasetByName(ds, sess, spaceoverride)
                 if dsid:
-                    if len(fileFormData)>0:
-                        # Upload collected files for this dataset
-                        # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
-                        logger.info("%s uploading unprocessed files belonging to %s" % (task['globus_id'], ds), extra={
-                            "dataset_id": dsid,
-                            "dataset_name": ds,
-                            "action": "UPLOADING FILES",
-                            "filelist": fileFormData
-                        })
-
-                        (content, header) = encode_multipart_formdata(fileFormData)
-                        fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
-                                       headers={'Content-Type':header},
-                                       data=content)
-
-                        if fi.status_code != 200:
-                            logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.text))
-                            return False
-                        else:
-                            loaded = fi.json()
-                            if 'ids' in loaded:
-                                for fobj in loaded['ids']:
-                                    logger.info("++ added file %s" % fobj['name'])
-                                    updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
-                                    writeCompletedTaskToDisk(updatedTask)
-                            else:
-                                logger.info("++ added file %s" % lastFile)
-                                updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
-                                writeCompletedTaskToDisk(updatedTask)
-
                     if datasetMD:
                         # Upload metadata
                         dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
@@ -668,6 +638,36 @@ def notifyClowderOfCompletedTask(task):
                                     "metadata": datasetMD
                                 })
                                 del updatedTask['contents'][ds]['md']
+                                writeCompletedTaskToDisk(updatedTask)
+
+                    if len(fileFormData)>0:
+                        # Upload collected files for this dataset
+                        # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
+                        logger.info("%s uploading unprocessed files belonging to %s" % (task['globus_id'], ds), extra={
+                            "dataset_id": dsid,
+                            "dataset_name": ds,
+                            "action": "UPLOADING FILES",
+                            "filelist": fileFormData
+                        })
+
+                        (content, header) = encode_multipart_formdata(fileFormData)
+                        fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
+                                       headers={'Content-Type':header},
+                                       data=content)
+
+                        if fi.status_code != 200:
+                            logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.text))
+                            return False
+                        else:
+                            loaded = fi.json()
+                            if 'ids' in loaded:
+                                for fobj in loaded['ids']:
+                                    logger.info("++ added file %s" % fobj['name'])
+                                    updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
+                                    writeCompletedTaskToDisk(updatedTask)
+                            else:
+                                logger.info("++ added file %s" % lastFile)
+                                updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
                                 writeCompletedTaskToDisk(updatedTask)
                 else:
                     logger.error("- dataset id for %s could not be found/created" % ds)
