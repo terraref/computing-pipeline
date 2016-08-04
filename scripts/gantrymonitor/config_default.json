@@ -7,8 +7,8 @@
   "status_log_path": "/home/gantry/data/log/monitor_status.json",
 
   "gantry": {
-    "incoming_files_path": "/home/gantry/sensors",
-    "deletion_queue": "/home/gantry/delete/sensors",
+    "incoming_files_path": "/home/gantry/sites",
+    "deletion_queue": "/home/gantry/delete/sites",
     "ftp_log_path": "/var/log",
     "file_check_frequency_secs": 60,
     "max_pending_files": 40000,
@@ -18,8 +18,8 @@
   },
 
   "globus": {
-    "source_path": "/gantry_data/LemnaTec",
-    "delete_path": "/gantry_data/LemnaTec/ToDelete",
+    "source_path": "/gantry_data",
+    "delete_path": "/gantry_data/ToDelete",
     "destination_path": "/~/globus",
     "source_endpoint_id": "",
     "destination_endpoint_id": "",

@@ -32,6 +32,7 @@ config = {}
 
 # Used by the FTP log reader to track progress
 status_lastFTPLogLine = ""
+status_lastNasLogLine = ""
 status_numPending = 0
 status_numActive = 0
 
@@ -119,7 +120,8 @@ def getStatus():
         "pending_file_transfers": status_numPending,
         "active_globus_tasks": status_numActive,
         "completed_globus_tasks": completedTasks,
-        "last_ftp_log_line_read": status_lastFTPLogLine
+        "last_ftp_log_line_read": status_lastFTPLogLine,
+        "last_nas_log_line_read": status_lastNasLogLine
     }
 
 """Load contents of .json file into a JSON object"""
@@ -229,25 +231,44 @@ def cleanPendingTransfers():
         if 'files' not in pendingTransfers[ds] and 'md' not in pendingTransfers[ds]:
             del pendingTransfers[ds]
 
-"""Add a particular file to pendingTransfers"""
+"""Add a particular file to pendingTransfers from manual API"""
 def addFileToPendingTransfers(f):
     global pendingTransfers
     global status_numPending
 
-    if f.find(config['gantry']['incoming_files_path']) > -1:
-        gantryDirPath = f.replace(config['gantry']['incoming_files_path'], "")
-        # try with and without leading /
-        gantryDirPath = gantryDirPath.replace(config['gantry']['incoming_files_path'][1:], "")
-    else:
-        gantryDirPath = f.replace(config['globus']['source_path'], "")
-        # try with and without leading /
-        gantryDirPath = gantryDirPath.replace(config['globus']['source_path'][1:], "")
+    gantryDir = config['gantry']['incoming_files_path']
+    dockerDir = config['globus']['source_path']
 
+    # Get path starting at the site level (e.g. LemnaTec, MAC)
+    if f.find(gantryDir) > -1:
+        # try with and without leading /
+        gantryDirPath = f.replace(gantryDir, "")
+        gantryDirPath = gantryDirPath.replace(gantryDir[1:], "")
+    else:
+        # try with and without leading /
+        gantryDirPath = f.replace(dockerDir, "")
+        gantryDirPath = gantryDirPath.replace(dockerDir[1:], "")
+
+    # Get meta info from file path
+    # /LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
+    # /LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
+    # /MAC/lightning/2016-01-01/weather_2016_06_29.dat
     pathParts = gantryDirPath.split("/")
+
+    # Filename is always last
     filename = pathParts[-1]
-    sensorname = ("EnvironmentLogger" if (f.find("EnvironmentLogger")>-1 or f.find("EnviromentLogger")>-1)
-                  else (pathParts[-4] if len(pathParts)>3 else "unknown_sensor"))
+
+    # Timestamp is one level up from filename
     timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
+
+    # Sensor name varies based on folder structure
+    if timestamp.find("__") > -1 and len(pathParts) > 3:
+        sensorname = pathParts[-4]
+    if len(pathParts) > 2:
+        sensorname = pathParts[-3].replace("EnviromentLogger", "EnvironmentLogger")
+    else:
+        sensorname = "unknown_sensor"
+
     datasetID = sensorname +" - "+timestamp
     gantryDirPath = gantryDirPath.replace(filename, "")
 
@@ -261,8 +282,6 @@ def addFileToPendingTransfers(f):
             }
         }
     })
-    status_numPending += 1
-    logger.info("- file queued via API: %s" % f)
 
 """Take line of FTP transfer log and parse a datetime object from it"""
 def parseDateFromFTPLogLine(line):
@@ -305,6 +324,7 @@ class TransferQueue(restful.Resource):
             if p.find(srcpath) == -1:
                 p = os.path.join(srcpath, p)
             addFileToPendingTransfers(p)
+            logger.info("- file queued via API: %s" % p)
 
         # Multiple file path entries under 'paths'
         if 'paths' in req:
@@ -312,7 +332,9 @@ class TransferQueue(restful.Resource):
                 if p.find(srcpath) == -1:
                     p = os.path.join(srcpath, p)
                 addFileToPendingTransfers(p)
+                logger.info("- file queued via API: %s" % p)
 
+        cleanPendingTransfers()
         writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
         return 201
 
@@ -380,11 +402,7 @@ def generateGlobusSubmissionID():
 
 """Check for files ready for transmission and return list"""
 def getGantryFilesForTransfer():
-    transferQueue = {}
     foundFiles = []
-
-    gantryDir = config['gantry']['incoming_files_path']
-    dockerDir = config['globus']['source_path']
     maxPending = config["gantry"]["max_pending_files"]
 
     # Get list of files from FTP log, if log is specified
@@ -399,38 +417,10 @@ def getGantryFilesForTransfer():
                 foundFiles.append(found)
 
     for f in foundFiles:
-        # Get dataset info & path details from found file
-        if f.find(gantryDir) > -1:
-            gantryDirPath = f.replace(gantryDir, "")
-        else:
-            gantryDirPath = f.replace(dockerDir, "")
-
-        pathParts = gantryDirPath.split("/")
-        filename = pathParts[-1]
-        # TODO: Don't hardcode ELogger but come up with generalized folder structure parsing
-        sensorname = ("EnvironmentLogger" if (f.find("EnvironmentLogger")>-1 or f.find("EnviromentLogger")>-1)
-                        else (pathParts[-4] if len(pathParts)>3 else "unknown_sensor"))
-        timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
-        datasetID = sensorname +" - "+timestamp
-        gantryDirPath = gantryDirPath.replace(filename, "")
-
         # Skip hidden/system files
-        if f == "" or filename[0] == ".":
+        if f == "" or f.split("/")[-1][0] == ".":
             continue
-
-        # Check add entry for this dataset if necessary
-        if datasetID not in pendingTransfers: pendingTransfers[datasetID] = {}
-        if 'files' not in pendingTransfers[datasetID]: pendingTransfers[datasetID]['files'] = {}
-        if datasetID not in transferQueue: transferQueue[datasetID] = {}
-        if 'files' not in transferQueue[datasetID]: transferQueue[datasetID]['files'] = {}
-
-        if filename not in pendingTransfers[datasetID]['files']:
-            transferQueue[datasetID]['files'][filename] = {
-                "name": filename,
-                "path": gantryDirPath[1:] if gantryDirPath[0 ]== "/" else gantryDirPath
-            }
-
-    return transferQueue
+        addFileToPendingTransfers(f)
 
 """Check folders in config for files older than the configured age, and queue for transfer"""
 def getNewFilesFromWatchedFolders(alreadyFound):
@@ -455,54 +445,31 @@ def getNewFilesFromWatchedFolders(alreadyFound):
 
 """Check FTP log files to determine new files that were successfully moved to staging area"""
 def getNewFilesFromFTPLogs():
-    global status_lastFTPLogLine
+    global status_lastFTPLogLine, status_lastNasLogLine
 
     current_lastFTPLogLine = status_lastFTPLogLine
+    current_lastNasLogLine = status_lastNasLogLine
     maxPending = config["gantry"]["max_pending_files"]
-    foundFiles = []
-
-    logger.info("- reading logs from: "+status_lastFTPLogLine)
     logDir = config["gantry"]["ftp_log_path"]
+    foundFiles = []
     if logDir == "":
         # Don't perform a scan if no log file is defined
         return foundFiles
 
-    # xferlog archived files are by date, e.g. "xferlog-20160501", "xferlog-20160502" - find these
-    def isOldXferLog(fname):
-        return fname.find("xferlog-") > -1
-    lognames = filter(isOldXferLog, os.listdir(logDir))
-    lognames.sort()
-
-    # Example log line:
-    #Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
-    lastLine = copy.copy(status_lastFTPLogLine)
-    lastReadTime = parseDateFromFTPLogLine(lastLine)
-
-    currLog = os.path.join(logDir, "xferlog")
-    backLog = 0
-
+    # NASLOG - handle first as it will have fewer files/less frequent updates -----------------------------
+    # /gantry_data/MAC/lightning/2016-06-29/LW110_ALARM1min.dat
+    logger.info("- reading naslog from: "+status_lastNasLogLine)
+    lastLine = copy.copy(status_lastNasLogLine)
+    currLog = os.path.join(logDir, "naslog")
     foundResumePoint = False
     handledBackLog = True
     while not (foundResumePoint and handledBackLog):
-        with (open(currLog, 'r+') if currLog.find(".gz")==-1 else gzip.open(currLog, 'r+')) as f:
-            logger.info("- scanning "+currLog)
-            # If no most recent scanned line available, just start from beginning of current log file
+        with open(currLog, 'r+') as f:
             if lastLine == "":
-                initialLine = False
                 foundResumePoint = True
-            else:
-                initialLine = True
 
             for line in f:
                 line = line.rstrip()
-                if initialLine and handledBackLog:
-                    firstLineTime = parseDateFromFTPLogLine(line)
-                    if firstLineTime <= lastReadTime:
-                        # File begins before most recent line - should be scanned
-                        initialLine = False
-                    elif firstLineTime > lastReadTime:
-                        # File begins after most recent line - need to go back 1 file at least
-                        break
 
                 if line == lastLine:
                     logger.debug("- found the resume point")
@@ -510,62 +477,118 @@ def getNewFilesFromFTPLogs():
 
                 elif foundResumePoint:
                     if line != "":
-                        current_lastFTPLogLine = line
+                        current_lastNasLogLine = line
 
-                    # We're past the last scanned line, so capture these lines if complete & ending in 'c'
-                    if re.search('ftp \d \* c', line.rstrip()):
-                        # Extract filename from log entry, after an IP address and a number (byte count?)
-                        fnameRegex = '::ffff:\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \d+ ((\/?.)+) +\w _'
-                        fname = re.search(fnameRegex, line)
-                        if fname:
-                            fullname = fname.group(1).rstrip()
-                            # Check if file still exists before queuing for Globus
-                            if os.path.exists(fullname.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])):
-                                fullname = fullname.replace(config['globus']['source_path'],"")
-                                foundFiles.append(fullname)
-                            else:
-                                logger.info("Skipping missing file from FTP log: "+fullname)
+                    # Check if file still exists before queuing for Globus
+                    if os.path.exists(fullname.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])):
+                        fullname = fullname.replace(config['globus']['source_path'],"")
+                        foundFiles.append(fullname)
+                    else:
+                        logger.info("Skipping missing file from naslog: "+fullname)
 
                 if status_numPending+len(foundFiles) >= maxPending:
                     break
 
-        # If we didn't find last line in this file, look into the previous file
-        if not foundResumePoint:
-            handledBackLog = False
-            backLog += 1
+    # XFERLOG -  archived files are by date, e.g. "xferlog-20160501", "xferlog-20160502" --------------------------
+    # Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
+    if status_numPending+len(foundFiles) < maxPending:
+        logger.info("- reading xfer logs from: "+status_lastFTPLogLine)
+        def isOldXferLog(fname):
+            return fname.find("xferlog-") > -1
+        lognames = filter(isOldXferLog, os.listdir(logDir))
+        lognames.sort()
 
-            if abs(backLog) > len(lognames):
-                # No previous logs, so just start with current one
-                currLog = os.path.join(logDir, "xferlog")
-                foundResumePoint = True
-                backLog = 0
+        lastLine = copy.copy(status_lastFTPLogLine)
+        lastReadTime = parseDateFromFTPLogLine(lastLine)
+
+        currLog = os.path.join(logDir, "xferlog")
+        backLog = 0
+        foundResumePoint = False
+        handledBackLog = True
+        while not (foundResumePoint and handledBackLog):
+            with (open(currLog, 'r+') if currLog.find(".gz")==-1 else gzip.open(currLog, 'r+')) as f:
+                logger.info("- scanning "+currLog)
+                # If no most recent scanned line available, just start from beginning of current log file
+                if lastLine == "":
+                    initialLine = False
+                    foundResumePoint = True
+                else:
+                    initialLine = True
+
+                for line in f:
+                    line = line.rstrip()
+                    if initialLine and handledBackLog:
+                        firstLineTime = parseDateFromFTPLogLine(line)
+                        if firstLineTime <= lastReadTime:
+                            # File begins before most recent line - should be scanned
+                            initialLine = False
+                        elif firstLineTime > lastReadTime:
+                            # File begins after most recent line - need to go back 1 file at least
+                            break
+
+                    if line == lastLine:
+                        logger.debug("- found the resume point")
+                        foundResumePoint = True
+
+                    elif foundResumePoint:
+                        if line != "":
+                            current_lastFTPLogLine = line
+
+                        # We're past the last scanned line, so capture these lines if complete & ending in 'c'
+                        if re.search('ftp \d \* c', line.rstrip()):
+                            # Extract filename from log entry, after an IP address and a number (byte count?)
+                            fnameRegex = '::ffff:\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \d+ ((\/?.)+) +\w _'
+                            fname = re.search(fnameRegex, line)
+                            if fname:
+                                fullname = fname.group(1).rstrip()
+                                # Check if file still exists before queuing for Globus
+                                if os.path.exists(fullname.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])):
+                                    fullname = fullname.replace(config['globus']['source_path'],"")
+                                    foundFiles.append(fullname)
+                                else:
+                                    logger.info("Skipping missing file from FTP log: "+fullname)
+
+                    if status_numPending+len(foundFiles) >= maxPending:
+                        break
+
+            # If we didn't find last line in this file, look into the previous file
+            if not foundResumePoint:
+                handledBackLog = False
+                backLog += 1
+
+                if abs(backLog) > len(lognames):
+                    # No previous logs, so just start with current one
+                    currLog = os.path.join(logDir, "xferlog")
+                    foundResumePoint = True
+                    backLog = 0
+                else:
+                    currLog = os.path.join(logDir, lognames[-backLog])
+
+                logger.debug("- walking back to %s" % currLog)
+
+            # If we filled up the pending queue handling backlog, don't move onto newer files yet
+            elif len(foundFiles)+status_numPending >= maxPending:
+                logger.debug("- maximum number of pending files reached")
+                handledBackLog = True
+
+            # If we found last line in a previous file, climb back up to current file and get its contents too
+            elif backLog > 0:
+                backLog -= 1
+                if backLog != 0:
+                    currLogName = lognames[-backLog]
+                    #currLogName = "xferlog-"+str(backLog) if backLog > 0 else "xferlog"
+                else:
+                    currLogName = "xferlog"
+                currLog = os.path.join(logDir, currLogName)
+                logger.debug("- walking up to %s" % currLog)
+
+            # If we found the line and handled all backlogged files, we're ready to go
             else:
-                currLog = os.path.join(logDir, lognames[-backLog])
-
-            logger.debug("- walking back to %s" % currLog)
-
-        # If we filled up the pending queue handling backlog, don't move onto newer files yet
-        elif len(foundFiles)+status_numPending >= maxPending:
-            logger.debug("- maximum number of pending files reached")
-            handledBackLog = True
-
-        # If we found last line in a previous file, climb back up to current file and get its contents too
-        elif backLog > 0:
-            backLog -= 1
-            if backLog != 0:
-                currLogName = lognames[-backLog]
-                #currLogName = "xferlog-"+str(backLog) if backLog > 0 else "xferlog"
-            else:
-                currLogName = "xferlog"
-            currLog = os.path.join(logDir, currLogName)
-            logger.debug("- walking up to %s" % currLog)
-
-        # If we found the line and handled all backlogged files, we're ready to go
-        else:
-            handledBackLog = True
+                handledBackLog = True
 
     logger.info("- found %s files from logs" % len(foundFiles))
     status_lastFTPLogLine = current_lastFTPLogLine
+    status_lastNasLogLine = current_lastNasLogLine
     return foundFiles
 
 """Initiate Globus transfer with batch of files and add to activeTasks - recurse until max xfers reached or pending empty """
@@ -838,10 +861,7 @@ def gantryMonitorLoop():
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if gantryWait <= 0:
             if status_numPending < config["gantry"]["max_pending_files"]:
-                newPending = getGantryFilesForTransfer()
-                pendingTransfers.update(newPending)
-
-                # Clean up the pending object of straggling keys, then initialize Globus transfer
+                getGantryFilesForTransfer()
                 cleanPendingTransfers()
                 if status_numPending > 0:
                     writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
@@ -870,6 +890,7 @@ if __name__ == '__main__':
     if os.path.exists(config["status_log_path"]):
         monitorData = loadJsonFile(config["status_log_path"])
         status_lastFTPLogLine = monitorData["last_ftp_log_line_read"]
+        status_lastNasLogLine = monitorData["last_nas_log_line_read"]
 
     # Load any previous active/pending transfers
     activeTasks = loadTasksFromDisk(config['active_tasks_path'])
