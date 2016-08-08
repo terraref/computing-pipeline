@@ -202,6 +202,9 @@ def createLocalSymlink(srcPath, destPath, filename):
         logger.info("- creating symlink to %s in %s" % (filename, destPath))
         os.symlink(os.path.join(srcPath, filename),
                    os.path.join(destPath, filename))
+
+        # Change original file to make it immutable
+        subprocess.call(["chattr", "-i", os.path.join(srcPath, filename)])
     except OSError:
         logger.error("- unable to create directories for %s" % destPath)
         return
@@ -231,7 +234,7 @@ def cleanPendingTransfers():
         if 'files' not in pendingTransfers[ds] and 'md' not in pendingTransfers[ds]:
             del pendingTransfers[ds]
 
-"""Add a particular file to pendingTransfers from manual API"""
+"""Add a particular file to pendingTransfers"""
 def addFileToPendingTransfers(f):
     global pendingTransfers
     global status_numPending
