@@ -32,6 +32,7 @@ if(!exists(clb_nbr)) *clb_nbr=73; // [nbr] Calibration number
 defdim("wvl_nvr",wvl_nvr_nbr);
 wvl_nvr[wvl_nvr]=0.0f; // [m]
 wvl_nvr@long_name="Wavelength of environmental sensor";
+wvl_nvr@standard_name="sensor_band_central_radiation_wavelength";
 wvl_nvr@units="meter";
 wvl_nvr@provenance="EnvironmentalLogger calibration information from file S05673_08062015.IrradCal provided by TinoDornbusch and discussed here: https://github.com/terraref/reference-data/issues/30#issuecomment-217518434";
 
@@ -146,6 +147,7 @@ wvl_nvr*=1.0e-9; // [m]
 wvl_dlt[wvl_nvr]=0.0f;
 wvl_dlt@long_name="Bandwidth of environmental sensor";
 wvl_dlt@units="meter";
+wvl_dlt@standard_name="bandwidth";
 wvl_dlt@notes="Bandwidth, also called dispersion, is between 0.455-0.495 nm across all channels. Values computed as differences between midpoints of adjacent band-centers.";
 *idx=wvl_dlt.size()-1;
 *wvl_lft[wvl_nvr]=0.0;
@@ -269,6 +271,7 @@ flx_sns*=1.0e-6; // [J cnt-1]
 
 // Change Hyperspectral Imager wavelengths from nm to m (SI)
 wavelength*=1.0e-9; // [m]
+wavelength@standard_name="radiation_wavelength";  
 wavelength@units="meter";  
 
 // [cnt] Exposure from white reference sheet/panel
@@ -289,6 +292,7 @@ rfl_wht@units="1";
 // [W m-2 m-1] Downwelling spectral irradiance (measured by environmental sensor)
 flx_dwn[wavelength]=2.0e9f;
 flx_dwn@long_name="Downwelling spectral irradiance";
+flx_dwn@standard_name="surface_downwelling_radiative_flux_per_unit_wavelength_in_air";
 flx_dwn@units="watt meter-2 meter-1"; 
 
 // Intermediate quantities (not archived)
@@ -296,8 +300,9 @@ flx_dwn@units="watt meter-2 meter-1";
 *cst_cnv=(xps_wht-xps_drk)/(flx_dwn*rfl_wht);
 
 // [frc] = Reflectance of image (i.e., plants)
-rfl_img=xps_img/(flx_dwn*cst_cnv);
+rfl_img[wavelength,y,x]=xps_img/(flx_dwn*cst_cnv);
 rfl_img@long_name="Reflectance of image";
+rfl_img@standard_name="surface_albedo";
 rfl_img@units="1";
   
 if(0){
