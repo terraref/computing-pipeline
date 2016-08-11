@@ -242,6 +242,15 @@ def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=No
     # Strip portions of paths that differ between <true source path> and <internal Docker path>
     gantryDir = config['gantry']['incoming_files_path']
     dockerDir = config['globus']['source_path']
+    whitelist = config['gantry']["directory_whitelist"]
+
+    whitelisted = False
+    for w in whitelist:
+        if f.find(w) == 0:
+            whitelisted = True
+    if not whitelisted:
+        logger.error("path %s is not whitelisted; skipping" % f)
+        return
 
     # Get path starting at the site level (e.g. LemnaTec, MAC)
     if f.find(gantryDir) > -1:
@@ -263,17 +272,20 @@ def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=No
     filename = pathParts[-1]
 
     # Timestamp is one level up from filename
-    timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
+    if not timestamp:
+        timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
 
     # Sensor name varies based on folder structure
-    if timestamp.find("__") > -1 and len(pathParts) > 3:
-        sensorname = pathParts[-4]
-    elif len(pathParts) > 2:
-        sensorname = pathParts[-3].replace("EnviromentLogger", "EnvironmentLogger")
-    else:
-        sensorname = "unknown_sensor"
+    if not sensorname:
+        if timestamp.find("__") > -1 and len(pathParts) > 3:
+            sensorname = pathParts[-4]
+        elif len(pathParts) > 2:
+            sensorname = pathParts[-3].replace("EnviromentLogger", "EnvironmentLogger")
+        else:
+            sensorname = "unknown_sensor"
 
-    datasetname = sensorname +" - "+timestamp
+    if not datasetname:
+        datasetname = sensorname +" - "+timestamp
     gantryDirPath = gantryDirPath.replace(filename, "")
 
     newTransfer = {
@@ -685,6 +697,15 @@ def initializeGlobusTransfer():
                         else:
                             src_path = os.path.join(config['globus']['source_path'], fobj["path"], fobj["name"])
                             dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
+
+                        # Clean up dest path to new folder structure
+                        # /globus/sites/ua-mac/raw_data/LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
+                        # /globus/sites/ua-mac/raw_data/LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
+                        # /globus/sites/ua-mac/raw_data/MAC/lightning/2016-01-01/weather_2016_06_29.dat
+                        dest_path = dest_path.replace("LemnaTec/", "")
+                        dest_path = dest_path.replace("MovingSensor/", "")
+                        dest_path = dest_path.replace("MAC/", "")
+
                         transferObj.add_item(src_path, dest_path)
 
                         # remainingTransfers will have leftover data once max Globus transfer size is met
@@ -948,7 +969,10 @@ if __name__ == '__main__':
     if os.path.exists(os.path.join(config["log_path"], "monitor_status.json")):
         monitorData = loadJsonFile(os.path.join(config["log_path"], "monitor_status.json"))
         status_lastFTPLogLine = monitorData["last_ftp_log_line_read"]
-        status_lastNasLogLine = monitorData["last_nas_log_line_read"]
+        if "last_nas_log_line_read" in monitorData:
+            status_lastNasLogLine = monitorData["last_nas_log_line_read"]
+        else:
+            status_lastNasLogLine = ""
 
     # Load any previous active/pending transfers
     activeTasks = loadTasksFromDisk(os.path.join(config['log_path'], "active_tasks.json"))
