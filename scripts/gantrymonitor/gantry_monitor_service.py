@@ -281,12 +281,13 @@ def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=No
             "files": {
                 filename: {
                     "name": filename,
-                    "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath,
-                    "md": filemetadata
+                    "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath
                 }
             }
         }
     }
+    if filemetadata and filemetadata != {}:
+        newTransfer[datasetname]["files"][filename]["md"] = filemetadata
     if spaceid:
         newTransfer['space_id'] = spaceid
 
