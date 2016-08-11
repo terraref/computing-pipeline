@@ -23,21 +23,14 @@ if [ -z "${HOSTNAME}" ]; then
 	export HOSTNAME=`/usr/bin/hostname`
     fi # !hostname
 fi # HOSTNAME
-# Default input and output directory is ${DATA}
-if [ -z "${DATA}" ]; then
-    case "${HOSTNAME}" in 
-	cg-gpu* ) DATA="/lustre/atlas/world-shared/cli115/${USER}" ; ;; # NCSA roger compute nodes named cg-gpuNN, fxm GB/node
-	* ) DATA='/tmp' ; ;; # Other
-    esac # !HOSTNAME
-fi # DATA
-# Ensure batch jobs access correct 'mpirun' (or, on edison, 'aprun') command, netCDF library, and NCO executables and library:
+# Ensure batch jobs access correct executables and libraries for python, mpirun, netCDF, and NCO:
 case "${HOSTNAME}" in 
     cg-gpu* )
-# 20160422: /usr/bin/python is version 2.6.6. Must load Python 2.7+
-	module add gdal-stack-2.7.10 
-	module add netcdf nco
-#        export PATH='/home/zender/bin'\:${PATH}
-#	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
+	module add gdal-stack-2.7.10 # 20160422: /usr/bin/python is version 2.6.6. Must load Python 2.7+
+	module add netcdf nco # terraref.sh requires NCO version 4.6.0 (dated 20160401) or later
+	# Following two lines guarantee use of latest NCO executables Zender's directories:
+	#       export PATH='/home/zender/bin'\:${PATH}
+	#	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
 esac # !HOSTNAME
 
 # Production
