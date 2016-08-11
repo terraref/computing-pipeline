@@ -1,6 +1,6 @@
 {
-  "log_path": "/home/monitor/data/log",
-  "completed_tasks_path": "/home/monitor/data/completed",
+  "log_path": "/home/gantry/data/log",
+  "completed_tasks_path": "/home/gantry/data/completed",
 
   "gantry": {
     "incoming_files_path": "/home/gantry/sites",
