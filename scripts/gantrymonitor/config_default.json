@@ -1,32 +1,26 @@
 {
-  "log_path": "/home/gantry/data/log/log.txt",
-  "active_tasks_path": "/home/gantry/data/log/active_tasks.json",
-  "pending_transfers_path": "/home/gantry/data/log/pending_transfers.json",
-  "inaccessible_files_path": "/home/gantry/data/log/inaccessible_files.txt",
+  "log_path": "/home/gantry/data/log",
   "completed_tasks_path": "/home/gantry/data/completed",
-  "status_log_path": "/home/gantry/data/log/monitor_status.json",
 
   "gantry": {
-    "incoming_files_path": "/home/gantry/sensors",
-    "deletion_queue": "/home/gantry/delete/sensors",
+    "incoming_files_path": "/home/gantry/sites",
+    "deletion_queue": "/home/gantry/delete/sites",
     "ftp_log_path": "/var/log",
+    "file_age_monitor_paths": [],
+    "min_file_age_for_transfer_mins": 15,
     "file_check_frequency_secs": 60,
     "max_pending_files": 40000,
-    "globus_transfer_frequency_secs": 90,
-    "file_age_monitor_paths": [],
-    "min_file_age_for_transfer_mins": 15
+    "globus_transfer_frequency_secs": 90
   },
 
   "globus": {
-    "source_path": "/gantry_data/LemnaTec",
-    "delete_path": "/gantry_data/LemnaTec/ToDelete",
+    "source_path": "/gantry_data",
+    "delete_path": "/gantry_data/ToDelete",
     "destination_path": "/~/globus",
     "source_endpoint_id": "",
     "destination_endpoint_id": "",
     "username": "globus_username",
     "password": "globus_password",
-    "authentication_username": "source_endpoint_login",
-    "authentication_password": "source_endpoint_password",
     "authentication_refresh_frequency_secs": 43200,
     "max_transfer_file_count": 500,
     "max_active_tasks": 100
