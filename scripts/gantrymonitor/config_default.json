@@ -11,12 +11,7 @@
     "file_check_frequency_secs": 60,
     "max_pending_files": 40000,
     "globus_transfer_frequency_secs": 90,
-    "directory_whitelist": [
-      "/gantry_data/LemnaTec/MovingSensor/",
-      "/gantry_data/LemnaTec/EnvironmentLogger/",
-      "/gantry_data/LemnaTec/3DScannerRawDataTmp/",
-      "/gantry_data/MAC/"
-    ]
+    "directory_whitelist": []
   },
 
   "globus": {
