@@ -465,8 +465,7 @@ def getNewFilesFromFTPLogs():
     lastLine = copy.copy(status_lastNasLogLine)
     currLog = os.path.join(logDir, "naslog")
     foundResumePoint = False
-    handledBackLog = True
-    while not (foundResumePoint and handledBackLog):
+    while not foundResumePoint:
         with open(currLog, 'r+') as f:
             if lastLine == "":
                 foundResumePoint = True
