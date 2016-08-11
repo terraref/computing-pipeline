@@ -403,8 +403,8 @@ def generateGlobusSubmissionID():
         logger.error("- could not generate new Globus submission ID (%s: %s)" % (status_code, status_message))
         return None
 
-"""Check for files ready for transmission and return list"""
-def getGantryFilesForTransfer():
+"""Check for files ready for transmission and queue them"""
+def queueGantryFilesForTransfer():
     foundFiles = []
     maxPending = config["gantry"]["max_pending_files"]
 
@@ -863,7 +863,7 @@ def gantryMonitorLoop():
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if gantryWait <= 0:
             if status_numPending < config["gantry"]["max_pending_files"]:
-                getGantryFilesForTransfer()
+                queueGantryFilesForTransfer()
                 cleanPendingTransfers()
                 if status_numPending > 0:
                     writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
