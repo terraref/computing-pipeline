@@ -55,16 +55,15 @@ esac # !HOSTNAME
 
 # dbg_lvl: 0 = Quiet, print basic status during evaluation
 #          1 = Print configuration, full commands, and status to output during evaluation
-#          2 = As in dbg_lvl=1, but _do not evaluate commands_
+#          2 = As in dbg_lvl=1, but do _not_ evaluate commands
 #          3 = As in dbg_lvl=1, and pass debug level through to NCO/ncks
 
 # Set script name, directory, PID, run directory, NCO version
 drc_pwd=${PWD}
 # NB: dash supports $0 syntax, not ${BASH_SOURCE[0]} syntax
 # http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in
-
 spt_src="${BASH_SOURCE[0]}"
-[[ -z "${spt_src}" ]] && spt_src="${drc_pwd}/terraref.sh"
+[[ -z "${spt_src}" ]] && spt_src="${0}" # Use ${0} when BASH_SOURCE is unavailable (e.g., dash)
 while [ -h "${spt_src}" ]; do # Recursively resolve ${spt_src} until file is no longer a symlink
   drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
   spt_src="$(readlink "${spt_src}")"
@@ -584,8 +583,14 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	clb_out="${clb_fl}.fl${idx_prn}.tmp"
 	printf "clb(in)  : ${clb_in}\n"
 	printf "clb(out) : ${clb_out}\n"
-	cmd_clb[${fl_idx}]="ncap2 -O -S ${drc_spt}/terraref.nco ${clb_in} ${clb_out}"
-#	cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/terraref.nco ${clb_in} ${clb_in};mv ${clb_in} ${clb_out}"
+	# NB: ncap2 can only append root-level data to files with groups, and cannot create/copy groups itself
+	# Hyperspectral Metadata has always been placed in groups
+	# As of ~201605 Environmental Sensor uses groups
+	# Calibration (theoretically) uses ES data (for absolute fluxes), so must be done on group files
+	# Following command would not propagate any group data/metadata from input to output file
+	# cmd_clb[${fl_idx}]="ncap2 -O -S ${drc_spt}/terraref.nco ${clb_in} ${clb_out}"
+	# Hence perform calibration as root-level append operation, then move file to output file
+	cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/terraref.nco ${clb_in} ${clb_in};/bin/mv -f ${clb_in} ${clb_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_clb[${fl_idx}]}
 	fi # !dbg
@@ -627,7 +632,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	rip_out=${out_fl}
 	printf "rip(in)  : ${rip_in}\n"
 	printf "rip(out) : ${rip_out}\n"
-	cmd_rip[${fl_idx}]="mv ${rip_in} ${rip_out}"
+	cmd_rip[${fl_idx}]="/bin/mv -f ${rip_in} ${rip_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_rip[${fl_idx}]}
 	fi # !dbg
