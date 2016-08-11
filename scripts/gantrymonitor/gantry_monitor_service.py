@@ -478,8 +478,8 @@ def getNewFilesFromWatchedFolders(alreadyFound):
     foundFiles = []
 
     # Get list of files last modified more than X minutes ago
-    watchDirs = config['local']['file_age_monitor_paths']
-    fileAge = config['local']['min_file_age_for_transfer_mins']
+    watchDirs = config['gantry']['file_age_monitor_paths']
+    fileAge = config['gantry']['min_file_age_for_transfer_mins']
     maxPending = config["gantry"]["max_pending_files"]
 
     for currDir in watchDirs:
@@ -821,7 +821,7 @@ def globusMonitorLoop():
     global status_numActive
 
     # Prepare timers for tracking how often different refreshes are executed
-    globusWait = config['local']['globus_transfer_frequency_secs'] # bundle pending files and transfer
+    globusWait = config['gantry']['globus_transfer_frequency_secs'] # bundle pending files and transfer
     apiWait = config['ncsa_api']['api_check_frequency_secs'] # check status of sent files
     authWait = config['globus']['authentication_refresh_frequency_secs'] # renew globus auth
 
@@ -843,7 +843,7 @@ def globusMonitorLoop():
                     initializeGlobusTransfer()
 
             # Reset wait to check gantry incoming directory again
-            globusWait = config['local']['globus_transfer_frequency_secs']
+            globusWait = config['gantry']['globus_transfer_frequency_secs']
             writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
 
         # Check with NCSA Globus monitor API for completed transfers
@@ -869,7 +869,7 @@ def globusMonitorLoop():
 
                     # Move files to staging area for deletion
                     if globusStatus == "SUCCEEDED":
-                        deleteDir = config['local']['deletion_queue']
+                        deleteDir = config['gantry']['deletion_queue']
                         if deleteDir != "":
                             for ds in task['contents']:
                                 if 'files' in task['contents'][ds]:
@@ -879,8 +879,8 @@ def globusMonitorLoop():
                                                       os.path.join(deleteDir, fobj['path']), fobj['name'])
 
                             # Crawl and remove empty directories
-                            # logger.info("- removing empty directories in "+config['local']['incoming_files_path'])
-                            # subprocess.call(["find", config['local']['incoming_files_path'], "-type", "d", "-empty", "-delete"])
+                            # logger.info("- removing empty directories in "+config['gantry']['incoming_files_path'])
+                            # subprocess.call(["find", config['gantry']['incoming_files_path'], "-type", "d", "-empty", "-delete"])
 
                     del activeTasks[globusID]
                     writeTasksToDisk(config['active_tasks_path'], activeTasks)
@@ -921,7 +921,7 @@ def gantryMonitorLoop():
                     writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
 
             # Reset wait to check gantry incoming directory again
-            gantryWait = config['local']['file_check_frequency_secs']
+            gantryWait = config['gantry']['file_check_frequency_secs']
             writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
 
 if __name__ == '__main__':
