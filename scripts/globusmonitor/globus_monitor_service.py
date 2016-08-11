@@ -228,7 +228,7 @@ def writeCompletedTaskToDisk(task):
     f.close()
 
 """Find dataset id if dataset exists, creating if necessary"""
-def fetchDatasetByName(datasetName, requestsSession):
+def fetchDatasetByName(datasetName, requestsSession, spaceOverride=None):
     if datasetName not in datasetMap:
         ds = requestsSession.post(config['clowder']['host']+"/api/datasets/createempty",
                                   headers={"Content-Type": "application/json"},
@@ -244,7 +244,7 @@ def fetchDatasetByName(datasetName, requestsSession):
                 "action": "DATASET CREATED"
             })
             writeDataToDisk(config['dataset_map_path'], datasetMap)
-            addDatasetToSpacesCollections(datasetName, dsid, requestsSession)
+            addDatasetToSpacesCollections(datasetName, dsid, requestsSession, spaceOverride)
             return dsid
         else:
             logger.error("- cannot create dataset (%s: %s)" % (ds.status_code, ds.text))
@@ -271,12 +271,12 @@ def fetchDatasetByName(datasetName, requestsSession):
                     logger.error("- cannot find dataset %s; creating new dataset %s" % (dsid, datasetName))
                     # Could not find dataset so we'll just delete the record and create a new one
                     del datasetMap[datasetName]
-                    return fetchDatasetByName(datasetName, requestsSession)
+                    return fetchDatasetByName(datasetName, requestsSession, spaceOverride)
             else:
                 logger.error("- cannot find dataset %s; creating new dataset %s" % (dsid, datasetName))
                 # Could not find dataset so we'll just delete the record and create a new one
                 del datasetMap[datasetName]
-                return fetchDatasetByName(datasetName, requestsSession)
+                return fetchDatasetByName(datasetName, requestsSession, spaceOverride)
 
 """Find dataset id if dataset exists, creating if necessary"""
 def fetchCollectionByName(collectionName, requestsSession):
@@ -333,36 +333,40 @@ def fetchCollectionByName(collectionName, requestsSession):
                 return fetchCollectionByName(collectionName, requestsSession)
 
 """Add dataset to Space and Sensor, Date Collections"""
-def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession):
-    sensorName = datasetName.split(" - ")[0]
-    timestamp = datasetName.split(" - ")[1].split("__")[0]
-
+def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession, spaceId=None):
     logger.info("- adding ds %s to collections/spaces for %s" % (datasetID, datasetName), extra={
         "dataset_id": datasetID,
         "dataset_name": datasetName,
         "action": "ADDING TO SPACE + COLLECTIONS"
     })
-    sensColl = fetchCollectionByName(sensorName, requestsSession)
-    if sensColl:
-        sc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (sensColl, datasetID))
-        if sc.status_code != 200:
-            logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, sensColl, sc.status_code, sc.text))
-        else:
-            logger.debug("- adding to collection %s OK" % sensorName)
 
-    timeColl = fetchCollectionByName(timestamp, requestsSession)
-    if timeColl:
-        tc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (timeColl, datasetID))
-        if tc.status_code != 200:
-            logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, timeColl, tc.status_code, tc.text))
-        else:
-            logger.debug("- adding to collection %s OK" % timestamp)
+    if datasetName.find(" - ") > -1:
+        sensorName = datasetName.split(" - ")[0]
+        timestamp = datasetName.split(" - ")[1].split("__")[0]
 
-    if config['clowder']['primary_space'] != "":
-        spid = config['clowder']['primary_space']
-        sp = requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addDatasetToSpace/%s" % (spid, datasetID))
+        sensColl = fetchCollectionByName(sensorName, requestsSession)
+        if sensColl:
+            sc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (sensColl, datasetID))
+            if sc.status_code != 200:
+                logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, sensColl, sc.status_code, sc.text))
+            else:
+                logger.debug("- adding to collection %s OK" % sensorName)
+
+        timeColl = fetchCollectionByName(timestamp, requestsSession)
+        if timeColl:
+            tc = requestsSession.post(config['clowder']['host']+"/api/collections/%s/datasets/%s" % (timeColl, datasetID))
+            if tc.status_code != 200:
+                logger.error("- could not add ds %s to coll %s (%s: %s)" % (datasetID, timeColl, tc.status_code, tc.text))
+            else:
+                logger.debug("- adding to collection %s OK" % timestamp)
+
+    if not spaceId and config['clowder']['primary_space'] != "":
+        spaceId = config['clowder']['primary_space']
+
+    if spaceId:
+        sp = requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addDatasetToSpace/%s" % (spaceId, datasetID))
         if sp.status_code != 200:
-            logger.error("- could not add ds "+datasetID+" to space "+spid+" ("+str(sp.status_code)+" - "+sp.text+")")
+            logger.error("- could not add ds "+datasetID+" to space "+spaceId+" ("+str(sp.status_code)+" - "+sp.text+")")
         else:
             logger.debug("- adding to space %s OK" % spid)
 
@@ -479,7 +483,9 @@ class MetadataLoader(restful.Resource):
         sess.auth = (clowderUser, clowderPass)
 
         md = clean_json_keys(req['md'])
-        dsid = fetchDatasetByName(req['dataset'], sess)
+        spaceoverride = req['space_name'] if 'space_name' in req else None
+
+        dsid = fetchDatasetByName(req['dataset'], sess, spaceoverride)
         if dsid:
             logger.info("- adding metadata to dataset "+dsid, extra={
                 "dataset_id": dsid,
@@ -567,6 +573,8 @@ def notifyClowderOfCompletedTask(task):
 
         # Prepare upload object with all file(s) found
         updatedTask = safeCopy(task)
+
+        spaceoverride = task['contents']['space_id'] if 'space_id' in task['contents'] else None
         for ds in task['contents']:
             fileFormData = []
             datasetMD = None
@@ -599,38 +607,8 @@ def notifyClowderOfCompletedTask(task):
                             writeCompletedTaskToDisk(updatedTask)
 
             if len(fileFormData)>0 or datasetMD:
-                dsid = fetchDatasetByName(ds, sess)
+                dsid = fetchDatasetByName(ds, sess, spaceoverride)
                 if dsid:
-                    if len(fileFormData)>0:
-                        # Upload collected files for this dataset
-                        # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
-                        logger.info("%s uploading unprocessed files belonging to %s" % (task['globus_id'], ds), extra={
-                            "dataset_id": dsid,
-                            "dataset_name": ds,
-                            "action": "UPLOADING FILES",
-                            "filelist": fileFormData
-                        })
-
-                        (content, header) = encode_multipart_formdata(fileFormData)
-                        fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
-                                       headers={'Content-Type':header},
-                                       data=content)
-
-                        if fi.status_code != 200:
-                            logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.text))
-                            return False
-                        else:
-                            loaded = fi.json()
-                            if 'ids' in loaded:
-                                for fobj in loaded['ids']:
-                                    logger.info("++ added file %s" % fobj['name'])
-                                    updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
-                                    writeCompletedTaskToDisk(updatedTask)
-                            else:
-                                logger.info("++ added file %s" % lastFile)
-                                updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
-                                writeCompletedTaskToDisk(updatedTask)
-
                     if datasetMD:
                         # Upload metadata
                         dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
@@ -660,6 +638,36 @@ def notifyClowderOfCompletedTask(task):
                                     "metadata": datasetMD
                                 })
                                 del updatedTask['contents'][ds]['md']
+                                writeCompletedTaskToDisk(updatedTask)
+
+                    if len(fileFormData)>0:
+                        # Upload collected files for this dataset
+                        # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
+                        logger.info("%s uploading unprocessed files belonging to %s" % (task['globus_id'], ds), extra={
+                            "dataset_id": dsid,
+                            "dataset_name": ds,
+                            "action": "UPLOADING FILES",
+                            "filelist": fileFormData
+                        })
+
+                        (content, header) = encode_multipart_formdata(fileFormData)
+                        fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
+                                       headers={'Content-Type':header},
+                                       data=content)
+
+                        if fi.status_code != 200:
+                            logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.text))
+                            return False
+                        else:
+                            loaded = fi.json()
+                            if 'ids' in loaded:
+                                for fobj in loaded['ids']:
+                                    logger.info("++ added file %s" % fobj['name'])
+                                    updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
+                                    writeCompletedTaskToDisk(updatedTask)
+                            else:
+                                logger.info("++ added file %s" % lastFile)
+                                updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
                                 writeCompletedTaskToDisk(updatedTask)
                 else:
                     logger.error("- dataset id for %s could not be found/created" % ds)

@@ -235,10 +235,11 @@ def cleanPendingTransfers():
             del pendingTransfers[ds]
 
 """Add a particular file to pendingTransfers"""
-def addFileToPendingTransfers(f):
+def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None, spaceid=None, filemetadata={}):
     global pendingTransfers
     global status_numPending
 
+    # Strip portions of paths that differ between <true source path> and <internal Docker path>
     gantryDir = config['gantry']['incoming_files_path']
     dockerDir = config['globus']['source_path']
 
@@ -267,16 +268,16 @@ def addFileToPendingTransfers(f):
     # Sensor name varies based on folder structure
     if timestamp.find("__") > -1 and len(pathParts) > 3:
         sensorname = pathParts[-4]
-    if len(pathParts) > 2:
+    elif len(pathParts) > 2:
         sensorname = pathParts[-3].replace("EnviromentLogger", "EnvironmentLogger")
     else:
         sensorname = "unknown_sensor"
 
-    datasetID = sensorname +" - "+timestamp
+    datasetname = sensorname +" - "+timestamp
     gantryDirPath = gantryDirPath.replace(filename, "")
 
-    pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), {
-        datasetID: {
+    newTransfer = {
+        datasetname: {
             "files": {
                 filename: {
                     "name": filename,
@@ -284,7 +285,13 @@ def addFileToPendingTransfers(f):
                 }
             }
         }
-    })
+    }
+    if filemetadata and filemetadata != {}:
+        newTransfer[datasetname]["files"][filename]["md"] = filemetadata
+    if spaceid:
+        newTransfer['space_id'] = spaceid
+
+    pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), newTransfer)
 
 """Take line of FTP transfer log and parse a datetime object from it"""
 def parseDateFromFTPLogLine(line):
@@ -318,15 +325,52 @@ Add a file to the transfer queue manually so it can be sent to NCSA Globus"""
 class TransferQueue(restful.Resource):
 
     def post(self):
+        """
+        Example POST content:
+            {
+                "path": "file1.txt",
+                "md": {...metadata object...},
+                "dataset_name": "snapshot123456",
+                "space_id": "571fbfefe4b032ce83d96006"
+            }
+        ...or...
+            {
+                "paths": ["file1.txt", "file2.jpg", "file3.jpg"...],
+                "file_metadata": {
+                    "file1.txt": {...metadata object...},
+                    "file2.jpg": {...metadata object...}
+                }
+                "dataset_name": "snapshot123456",
+                "space_id": "571fbfefe4b032ce83d96006"
+            }
+        ...or...
+            {
+                "paths": ["file1.txt", "file2.jpg", "file3.jpg"...],
+                "sensor_name": "VIS",
+                "timestamp": "2016-06-29__10-28-43-323",
+                "space_id": "571fbfefe4b032ce83d96006"
+            }
+
+        In the second example, resulting dataset is called "VIS - 2016-06-29__10-28-43-323"
+
+        To associate metadata with the given dataset, include a "metadata.json" file.
+        """
+
         req = request.get_json(force=True)
         srcpath = config['globus']['source_path']
+
+        sensorname = req['sensor_name'] if 'sensor_name' in req else None
+        datasetname = req['dataset_name'] if 'dataset_name' in req else None
+        timestamp = req['timestamp'] if 'timestamp' in req else None
+        spaceid = req['space_id'] if 'space_id' in req else None
 
         # Single file path entry under 'path'
         if 'path' in req:
             p = req['path']
             if p.find(srcpath) == -1:
                 p = os.path.join(srcpath, p)
-            addFileToPendingTransfers(p)
+            filemetadata = {} if 'md' not in req else req['md']
+            addFileToPendingTransfers(p, sensorname, timestamp, datasetname, spaceid, filemetadata)
             logger.info("- file queued via API: %s" % p)
 
         # Multiple file path entries under 'paths'
@@ -334,7 +378,11 @@ class TransferQueue(restful.Resource):
             for p in req['paths']:
                 if p.find(srcpath) == -1:
                     p = os.path.join(srcpath, p)
-                addFileToPendingTransfers(p)
+                if 'file_metadata' in req and p in req['file_metadata']:
+                    filemetadata = req['file_metadata'][p]
+                else:
+                    filemetadata = {}
+                addFileToPendingTransfers(p, sensorname, timestamp, datasetname, spaceid, filemetadata)
                 logger.info("- file queued via API: %s" % p)
 
         cleanPendingTransfers()
@@ -669,6 +717,10 @@ def initializeGlobusTransfer():
                     logger.error("- problem initializing Globus transfer")
                     status_code = 503
                     status_message = e
+                except:
+                    logger.error("- unexpected problem initializing Globus transfer")
+                    status_code = 503
+                    status_message = e
 
             if status_code == 200 or status_code == 202:
                 # Notify NCSA monitor of new task, and add to activeTasks for logging
@@ -792,7 +844,7 @@ def globusMonitorLoop():
 
             # Reset wait to check gantry incoming directory again
             globusWait = config['gantry']['globus_transfer_frequency_secs']
-            writeTasksToDisk(config["status_log_path"], getStatus())
+            writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
 
         # Check with NCSA Globus monitor API for completed transfers
         if apiWait <= 0:
@@ -845,7 +897,7 @@ def globusMonitorLoop():
 
             # Reset timer to check NCSA api for transfer updates again
             apiWait = config['ncsa_api']['api_check_frequency_secs']
-            writeTasksToDisk(config["status_log_path"], getStatus())
+            writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
 
         # Refresh Globus auth tokens
         if authWait <= 0:
@@ -854,7 +906,7 @@ def globusMonitorLoop():
 
 """Continually monitor FTP log for new files to transmit and add them to pendingTransfers"""
 def gantryMonitorLoop():
-    gantryWait = 1 #config['gantry']['file_check_frequency_secs'] # look for new files to send
+    gantryWait = 1 # look for new files to send
 
     while True:
         time.sleep(1)
@@ -870,7 +922,7 @@ def gantryMonitorLoop():
 
             # Reset wait to check gantry incoming directory again
             gantryWait = config['gantry']['file_check_frequency_secs']
-            writeTasksToDisk(config["status_log_path"], getStatus())
+            writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
 
 if __name__ == '__main__':
     # Try to load custom config file, falling back to default values where not overridden
@@ -884,20 +936,20 @@ if __name__ == '__main__':
     # Initialize logger handlers
     with open(os.path.join(rootPath,"config_logging.json"), 'r') as f:
         log_config = json.load(f)
-        log_config['handlers']['file']['filename'] = config["log_path"]
+        log_config['handlers']['file']['filename'] = os.path.join(config["log_path"], "log.txt")
         logging.config.dictConfig(log_config)
     logger = logging.getLogger('gantry')
 
     # Get last read log line from previous run
-    if os.path.exists(config["status_log_path"]):
-        monitorData = loadJsonFile(config["status_log_path"])
+    if os.path.exists(os.path.join(config["log_path"], "monitor_status.json")):
+        monitorData = loadJsonFile(os.path.join(config["log_path"], "monitor_status.json"))
         status_lastFTPLogLine = monitorData["last_ftp_log_line_read"]
         status_lastNasLogLine = monitorData["last_nas_log_line_read"]
 
     # Load any previous active/pending transfers
-    activeTasks = loadTasksFromDisk(config['active_tasks_path'])
+    activeTasks = loadTasksFromDisk(os.path.join(config['log_path'], "active_tasks.json"))
     status_numActive = len(activeTasks)
-    pendingTransfers = loadTasksFromDisk(config['pending_transfers_path'])
+    pendingTransfers = loadTasksFromDisk(os.path.join(config['log_path'], "pending_transfers.json"))
     cleanPendingTransfers()
 
     logger.info("- loaded data from active and pending log files")
