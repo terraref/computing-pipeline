@@ -398,7 +398,7 @@ class TransferQueue(restful.Resource):
                 logger.info("- file queued via API: %s" % p)
 
         cleanPendingTransfers()
-        writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
+        writeTasksToDisk(os.path.join(config['log_path'], "pending_transfers.json"), pendingTransfers)
         return 201
 
 """ / status
@@ -760,7 +760,7 @@ def initializeGlobusTransfer():
                     "started": str(datetime.datetime.now()),
                     "status": "IN PROGRESS"
                 }
-                writeTasksToDisk(config['active_tasks_path'], activeTasks)
+                writeTasksToDisk(os.path.join(config['log_path'], "active_tasks.json"), activeTasks)
 
                 # Now that we've safely sent the pending transfers, remove them
                 for ds in currentTransferBatch:
@@ -770,7 +770,7 @@ def initializeGlobusTransfer():
                                 del pendingTransfers[ds]['files'][f]
 
                 notifyMonitorOfNewTransfer(globusID, currentTransferBatch)
-                writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
+                writeTasksToDisk(os.path.join(config['log_path'], "pending_transfers.json"), pendingTransfers)
             else:
                 # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
                 logger.error("- Globus transfer initialization failed for %s (%s: %s)" % (ds, status_code, status_message))
@@ -862,7 +862,7 @@ def globusMonitorLoop():
                 cleanPendingTransfers()
                 while status_numPending > 0 and status_numActive < config['globus']['max_active_tasks']:
                     logger.info("- pending files found. initializing Globus transfer.")
-                    writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
+                    writeTasksToDisk(os.path.join(config['log_path'], "pending_transfers.json"), pendingTransfers)
                     initializeGlobusTransfer()
 
             # Reset wait to check gantry incoming directory again
@@ -906,7 +906,7 @@ def globusMonitorLoop():
                             # subprocess.call(["find", config['gantry']['incoming_files_path'], "-type", "d", "-empty", "-delete"])
 
                     del activeTasks[globusID]
-                    writeTasksToDisk(config['active_tasks_path'], activeTasks)
+                    writeTasksToDisk(os.path.join(config['log_path'], "active_tasks.json"), activeTasks)
 
                 # If the Globus monitor isn't even aware of this transfer, try to notify it!
                 elif globusStatus == "NOT FOUND":
@@ -941,7 +941,7 @@ def gantryMonitorLoop():
                 queueGantryFilesForTransfer()
                 cleanPendingTransfers()
                 if status_numPending > 0:
-                    writeTasksToDisk(config['pending_transfers_path'], pendingTransfers)
+                    writeTasksToDisk(os.path.join(config['log_path'], "pending_transfers.json"), pendingTransfers)
 
             # Reset wait to check gantry incoming directory again
             gantryWait = config['gantry']['file_check_frequency_secs']
