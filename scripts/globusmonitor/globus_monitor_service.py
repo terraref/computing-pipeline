@@ -368,7 +368,7 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession, space
         if sp.status_code != 200:
             logger.error("- could not add ds "+datasetID+" to space "+spaceId+" ("+str(sp.status_code)+" - "+sp.text+")")
         else:
-            logger.debug("- adding to space %s OK" % spid)
+            logger.debug("- adding to space %s OK" % spaceId)
 
 # ----------------------------------------------------------
 # API COMPONENTS
