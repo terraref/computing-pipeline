@@ -246,7 +246,7 @@ def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=No
 
     whitelisted = False
     for w in whitelist:
-        if f.find(w) == 0:
+        if f.find(w) == 0 or f.find(w.replace(dockerDir,"")) == 0:
             whitelisted = True
     if not whitelisted:
         logger.error("path %s is not whitelisted; skipping" % f)
@@ -712,6 +712,8 @@ def initializeGlobusTransfer():
 
                         # remainingTransfers will have leftover data once max Globus transfer size is met
                         queueLength += 1
+                        fobj["orig_path"] = fobj["path"]
+                        fobj["path"] = dest_path
                         currentTransferBatch[ds]['files'][f] = fobj
                     else:
                         break
