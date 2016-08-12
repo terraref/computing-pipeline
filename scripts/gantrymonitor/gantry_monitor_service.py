@@ -531,7 +531,7 @@ def getNewFilesFromFTPLogs():
                 foundResumePoint = True
 
             for line in f:
-                line = line.rstrip()
+                line = line.replace("\n","").rstrip()
 
                 if line == lastLine:
                     logger.debug("- found the resume point")
@@ -542,11 +542,11 @@ def getNewFilesFromFTPLogs():
                         current_lastNasLogLine = line
 
                     # Check if file still exists before queuing for Globus
-                    if os.path.exists(fullname.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])):
-                        fullname = fullname.replace(config['globus']['source_path'],"")
-                        foundFiles.append(fullname)
+                    if os.path.exists(line.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])):
+                        line = line.replace(config['globus']['source_path'],"")
+                        foundFiles.append(line)
                     else:
-                        logger.info("Skipping missing file from naslog: "+fullname)
+                        logger.info("Skipping missing file from naslog: "+line)
 
                 if status_numPending+len(foundFiles) >= maxPending:
                     break
