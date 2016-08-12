@@ -699,12 +699,14 @@ def initializeGlobusTransfer():
                             dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
 
                         # Clean up dest path to new folder structure
-                        # sites/ua-mac/raw_data/LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
-                        # sites/ua-mac/raw_data/LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
-                        # sites/ua-mac/raw_data/MAC/lightning/2016-01-01/weather_2016_06_29.dat
+                        # ua-mac/raw_data/LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
+                        # ua-mac/raw_data/LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
+                        # ua-mac/raw_data/LemnaTec/3DScannerRawDataTmp/scanner3DTop/2016-01-01/2016-08-02__09-42-51-195/file.json
+                        # ua-mac/raw_data/MAC/lightning/2016-01-01/weather_2016_06_29.dat
                         dest_path = dest_path.replace("LemnaTec/", "")
                         dest_path = dest_path.replace("MovingSensor/", "")
                         dest_path = dest_path.replace("MAC/", "")
+                        dest_path = dest_path.replace("3DScannerRawDataTmp/", "")
 
                         transferObj.add_item(src_path, dest_path)
 
