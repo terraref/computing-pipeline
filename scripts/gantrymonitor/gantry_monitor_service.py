@@ -199,12 +199,13 @@ def createLocalSymlink(srcPath, destPath, filename):
         if not os.path.isdir(destPath):
             os.makedirs(destPath)
 
-        logger.info("- creating symlink to %s in %s" % (filename, destPath))
+        logger.info("- creating symlink to %s in %s" % (os.path.join(srcPath, filename), destPath))
         os.symlink(os.path.join(srcPath, filename),
                    os.path.join(destPath, filename))
 
         # Change original file to make it immutable
         srcPath = srcPath.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])
+        logger.debug("- chattr for %s" % srcPath)
         subprocess.call(["chattr", "-i", os.path.join(srcPath, filename)])
     except OSError:
         logger.error("- unable to create directories for %s" % destPath)
