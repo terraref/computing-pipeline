@@ -16,7 +16,7 @@
 
   "globus": {
     "source_path": "/gantry_data",
-    "delete_path": "/gantry_data/ToDelete",
+    "delete_path": "/gantry_data/ToDelete/sites",
     "destination_path": "/~/globus",
     "source_endpoint_id": "",
     "destination_endpoint_id": "",

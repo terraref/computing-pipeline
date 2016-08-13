@@ -204,6 +204,7 @@ def createLocalSymlink(srcPath, destPath, filename):
                    os.path.join(destPath, filename))
 
         # Change original file to make it immutable
+        srcPath = srcPath.replace(config['globus']['delete_path'], config['gantry']['deletion_queue'])
         subprocess.call(["chattr", "-i", os.path.join(srcPath, filename)])
     except OSError:
         logger.error("- unable to create directories for %s" % destPath)
