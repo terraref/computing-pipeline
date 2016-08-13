@@ -204,7 +204,7 @@ def createLocalSymlink(srcPath, destPath, filename):
                    os.path.join(destPath, filename))
 
         # Change original file to make it immutable
-        srcPath = srcPath.replace(config['globus']['delete_path'], config['gantry']['deletion_queue'])
+        srcPath = srcPath.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])
         subprocess.call(["chattr", "-i", os.path.join(srcPath, filename)])
     except OSError:
         logger.error("- unable to create directories for %s" % destPath)
@@ -901,7 +901,7 @@ def globusMonitorLoop():
                                 if 'files' in task['contents'][ds]:
                                     for f in task['contents'][ds]['files']:
                                         fobj = task['contents'][ds]['files'][f]
-                                        createLocalSymlink(os.path.join(config['globus']['delete_path'], fobj['path']),
+                                        createLocalSymlink(os.path.join(config['globus']['source_path'], fobj['path']),
                                                       os.path.join(deleteDir, fobj['path']), fobj['name'])
 
                             # Crawl and remove empty directories
