@@ -194,21 +194,21 @@ def writeCompletedTransferToDisk(transfer):
     f.close()
 
 """Create symlink to src file in destPath"""
-def createLocalSymlink(srcPath, destPath, filename):
+def createLocalSymlink(srcPath, destPath):
     try:
-        if not os.path.isdir(destPath):
-            os.makedirs(destPath)
+        dest_dirs = destPath.replace(os.path.basename(destPath), "")
+        if not os.path.isdir(dest_dirs):
+            os.makedirs(dest_dirs)
 
-        logger.info("- creating symlink to %s in %s" % (os.path.join(srcPath, filename), destPath))
-        os.symlink(os.path.join(srcPath, filename),
-                   os.path.join(destPath, filename))
+        logger.info("- creating symlink to %s in %s" % (srcPath, destPath))
+        os.symlink(srcPath, destPath)
 
         # Change original file to make it immutable
         srcPath = srcPath.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])
-        logger.debug("- chattr for %s" % srcPath)
-        subprocess.call(["chattr", "-i", os.path.join(srcPath, filename)])
-    except OSError:
-        logger.error("- unable to create directories for %s" % destPath)
+        #logger.debug("- chattr for %s" % srcPath)
+        #subprocess.call(["chattr", "-i", os.path.join(srcPath, filename)])
+    except OSError as e:
+        logger.error("- error on symlink (%s - %s)" % (e.errno, e.strerror))
         return
 
 """Clear out any datasets from pendingTransfers without files or metadata"""
@@ -295,7 +295,8 @@ def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=No
             "files": {
                 filename: {
                     "name": filename,
-                    "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath
+                    "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath,
+                    "orig_path": f
                 }
             }
         }
@@ -902,8 +903,21 @@ def globusMonitorLoop():
                                 if 'files' in task['contents'][ds]:
                                     for f in task['contents'][ds]['files']:
                                         fobj = task['contents'][ds]['files'][f]
-                                        createLocalSymlink(os.path.join(config['globus']['source_path'], fobj['path']),
-                                                      os.path.join(deleteDir, fobj['path']), fobj['name'])
+                                        if 'orig_path' in fobj:
+                                            srcPath = os.path.join(config['globus']['source_path'], fobj['orig_path'])
+                                        else:
+                                            # TODO: This can go away once transitional xfers are handled
+                                            cp = fobj['path']
+                                            if cp.find("/EnvironmentLogger")>-1 or cp.find("/3DScannerRawDataTmp")>-1:
+                                                cp = cp.replace("/ua-mac/raw_data", "/LemnaTec")
+                                            elif cp.find("/lightning")>-1 or cp.find("/weather")>-1 or cp.find("/irrigation")>-1:
+                                                cp = cp.replace("/ua-mac/raw_data", "/MAC")
+                                            else: # MovingSensors
+                                                cp = cp.replace("/ua-mac/raw_data", "/LemnaTec/MovingSensors")
+                                            srcPath = os.path.join(config['globus']['source_path'], cp)
+                                        if fobj['name'] not in srcPath:
+                                            srcPath = os.path.join(srcPath, fobj['name'])
+                                        createLocalSymlink(srcPath, srcPath.replace(config['globus']['source_path'], deleteDir))
 
                             # Crawl and remove empty directories
                             # logger.info("- removing empty directories in "+config['gantry']['incoming_files_path'])
