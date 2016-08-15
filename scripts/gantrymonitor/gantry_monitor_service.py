@@ -208,7 +208,8 @@ def createLocalSymlink(srcPath, destPath):
         #logger.debug("- chattr for %s" % srcPath)
         subprocess.call(["chattr", "-i", srcPath])
     except OSError as e:
-        logger.error("- error on symlink (%s - %s)" % (e.errno, e.strerror))
+        if e.errno != 17:
+            logger.error("- error on symlink (%s - %s)" % (e.errno, e.strerror))
         return
 
 """Clear out any datasets from pendingTransfers without files or metadata"""
