@@ -269,6 +269,18 @@ flx_sns={ // [uJ cnt-1] 10 sensitivities per line, 1024 total
 // Change flux sensitivity from [uJ cnt-1] to [J cnt-1] (SI)
 flx_sns*=1.0e-6; // [J cnt-1]
 
+// Add georeferenced coordinates
+// Add georeferenced coordinates
+x=array(0.0,0.001,$x);
+x@long_name="Position on north-south axis";
+x@units="meter";
+x@algorithm="CSZ implemented these fake data to be replaced by real formula once available.";
+
+y=array(0.0,0.00098526434004512529576754637665,$y);
+y@long_name="Position on east-west axis";
+y@units="meter";
+y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144. y is defined as 0.9853 mm per pixel. Exact number is 0.98526434004512529576754637665 mm.";
+  
 // Change Hyperspectral Imager wavelengths from nm to m (SI)
 wavelength*=1.0e-9; // [m]
 wavelength@standard_name="radiation_wavelength";  
