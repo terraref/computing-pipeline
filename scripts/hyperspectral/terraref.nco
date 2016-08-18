@@ -272,12 +272,12 @@ flx_sns*=1.0e-6; // [J cnt-1]
 // Add georeferenced coordinates
 // Add georeferenced coordinates
 x=array(0.0,0.001,$x);
-x@long_name="Position on north-south axis";
+x@long_name="North-south offset from start position";
 x@units="meter";
 x@algorithm="CSZ implemented these fake data to be replaced by real formula once available.";
 
 y=array(0.0,0.00098526434004512529576754637665,$y);
-y@long_name="Position on east-west axis";
+y@long_name="East-west offset from start position";
 y@units="meter";
 y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144. y is defined as 0.9853 mm per pixel. Exact number is 0.98526434004512529576754637665 mm.";
   

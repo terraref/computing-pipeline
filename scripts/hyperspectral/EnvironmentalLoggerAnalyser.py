@@ -28,8 +28,8 @@ python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLo
 
 Roger production:
 module add gdal-stack-2.7.10
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py /projects/arpae/terraref/raw_data/ua-mac/EnvironmentLogger/2016-04-07/2016-04-07_12-00-07_enviromentlogger.json ~/rgr
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py /projects/arpae/terraref/raw_data/ua-mac/EnvironmentLogger/2016-06-01/2016-06-01_10-52-52_environmentlogger.json ~/rgr
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py /projects/arpae/terraref/sites/ua-mac/raw_data/EnvironmentLogger/2016-04-07/2016-04-07_12-00-07_enviromentlogger.json ~/rgr
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/EnvironmentalLoggerAnalyser.py /projects/arpae/terraref/sites/ua-mac/raw_data/EnvironmentLogger/2016-06-01/2016-06-01_10-52-52_environmentlogger.json ~/rgr
 
 EnvironmentalLoggerAnalyser.py takes the first argument as the input folder (containing JSON files,
 but it can also be one single file) and the second argument as the output folder (output netCDF files go here).

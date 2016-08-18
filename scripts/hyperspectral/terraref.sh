@@ -15,6 +15,22 @@
 # Direct install:
 # scp ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.sh roger-login.ncsa.illinois.edu:terraref/computing-pipeline/scripts/hyperspectral/terraref.sh
 
+# Set script name, directory, PID, run directory
+drc_pwd=${PWD}
+# Set these before 'module' command which can overwrite ${BASH_SOURCE[0]}
+# NB: dash supports $0 syntax, not ${BASH_SOURCE[0]} syntax
+# http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in
+spt_src="${BASH_SOURCE[0]}"
+[[ -z "${spt_src}" ]] && spt_src="${0}" # Use ${0} when BASH_SOURCE is unavailable (e.g., dash)
+while [ -h "${spt_src}" ]; do # Recursively resolve ${spt_src} until file is no longer a symlink
+  drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
+  spt_src="$(readlink "${spt_src}")"
+  [[ ${spt_src} != /* ]] && spt_src="${drc_spt}/${spt_src}" # If ${spt_src} was relative symlink, resolve it relative to path where symlink file was located
+done
+drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
+spt_nm=$(basename ${spt_src}) # [sng] Script name (Unlike $0, ${BASH_SOURCE[0]} works well with 'source <script>')
+spt_pid=$$ # [nbr] Script PID (process ID)
+
 # Configure paths at High-Performance Computer Centers (HPCCs) based on ${HOSTNAME}
 if [ -z "${HOSTNAME}" ]; then
     if [ -f /bin/hostname ] && [ -x /bin/hostname ]; then
@@ -34,8 +50,8 @@ case "${HOSTNAME}" in
 esac # !HOSTNAME
 
 # Production
-# UIUC: ls -R /projects/arpae/terraref/raw_data/ua-mac/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/terraref.out 2>&1 &
-# UIUC: terraref.sh -d 1 -i /projects/arpae/terraref/raw_data/ua-mac/MovingSensor/SWIR/2016-06-28/2016-06-28__09-10-16-386/a33641c2-8a1e-4a63-9d33-ab66717d6b8a_raw
+# UIUC: ls -R /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/terraref.out 2>&1 &
+# UIUC: terraref.sh -d 1 -i /projects/arpae/terraref/sites/ua-mac/raw_data/SWIR/2016-06-28/2016-06-28__09-10-16-386/a33641c2-8a1e-4a63-9d33-ab66717d6b8a_raw
 # UCI:  ls -R ${DATA}/terraref/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O ~/rgr > ~/terraref.out 2>&1 &
 
 # Test cases (for Charlie's machines)
@@ -51,18 +67,7 @@ esac # !HOSTNAME
 #          2 = As in dbg_lvl=1, but do _not_ evaluate commands
 #          3 = As in dbg_lvl=1, and pass debug level through to NCO/ncks
 
-# Set script name, directory, PID, run directory, NCO version
-drc_pwd=${PWD}
-# NB: dash supports $0 syntax, not ${BASH_SOURCE[0]} syntax
-# http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in
-spt_src="${BASH_SOURCE[0]}"
-[[ -z "${spt_src}" ]] && spt_src="${0}" # Use ${0} when BASH_SOURCE is unavailable (e.g., dash)
-while [ -h "${spt_src}" ]; do # Recursively resolve ${spt_src} until file is no longer a symlink
-  drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
-  spt_src="$(readlink "${spt_src}")"
-  [[ ${spt_src} != /* ]] && spt_src="${drc_spt}/${spt_src}" # If ${spt_src} was relative symlink, resolve it relative to path where symlink file was located
-done
-drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
+# Set NCO version and directory
 nco_exe=`which ncks`
 if [ -z "${nco_exe}" ]; then
     echo "ERROR: Unable to find NCO, nco_exe = ${nco_exe}"
@@ -76,8 +81,6 @@ while [ -h "${nco_exe}" ]; do
 done
 drc_nco="$( cd -P "$( dirname "${nco_exe}" )" && pwd )"
 nco_vrs=$(ncks --version 2>&1 >/dev/null | grep NCO | awk '{print $5}')
-spt_nm=$(basename ${spt_src}) # [sng] Script name (Unlike $0, ${BASH_SOURCE[0]} works well with 'source <script>')
-spt_pid=$$ # [nbr] Script PID (process ID)
 
 # When running in a terminal window (not in an non-interactive batch queue)...
 if [ -n "${TERM}" ]; then
