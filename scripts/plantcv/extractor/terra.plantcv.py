@@ -3,6 +3,7 @@ import imp
 import re
 import os
 import logging
+import requests
 
 from config import *
 import pyclowder.extractors as extractors
@@ -42,7 +43,6 @@ def check_message(parameters):
         return True
     else:
         return False
-
 
 def process_dataset(parameters):
     # TODO: re-enable once this is merged into Clowder: https://opensource.ncsa.illinois.edu/bitbucket/projects/CATS/repos/clowder/pull-requests/883/overview
@@ -169,6 +169,7 @@ def process_dataset(parameters):
     outfile = 'avg_traits.csv'
     pcia.generate_average_csv(outfile, fields, trait_list)
     extractors.upload_file_to_dataset(outfile, parameters)
+    submitToBety(outfile)
     os.remove(outfile)
     metadata = {
         "@context": {
@@ -182,6 +183,23 @@ def process_dataset(parameters):
         }
     }
     extractors.upload_dataset_metadata_jsonld(mdata=metadata, parameters=parameters)
+
+def submitToBety(file):
+    global betyAPI, betyKey
+
+    if betyAPI != "":
+        sess = requests.Session()
+        headers = {'Content-type': 'text/csv'}
+        r = sess.post("%s?key=%s" % (betyAPI, betyKey),
+                  files={'avg_traits.csv': open(file, 'rb')},
+                  headers=headers)
+
+        if r.status_code == 200:
+            print("CSV successfully uploaded to BETYdb.")
+        else:
+            print("Error uploading CSV to BETYdb %s" % r.status_code)
+
+
 
 if __name__ == "__main__":
     global scriptPath

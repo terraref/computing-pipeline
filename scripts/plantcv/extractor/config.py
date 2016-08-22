@@ -32,3 +32,7 @@ registrationEndpoints = os.getenv('REGISTRATION_ENDPOINTS', "http://localhost:90
 
 # Path to script that contains PlantCV modules to import
 scriptPath = "../PlantcvClowderIndoorAnalysis.py"
+
+# BETYdb instance information for submitting output CSV (skipped if betyAPI is empty)
+betyAPI = "https://terraref.ncsa.illinois.edu/bety/api/beta/traits.csv"
+betyKey = ""
