@@ -111,6 +111,7 @@ class DataContainer(object):
         setattr(self, "header_info", None)
         netCDFHandler = _fileExistingCheck(outputFilePath, self)
         delattr(self, "header_info")
+        printOnVersion('\033[0;31mProcessing ...\033[0m')
 
         if not netCDFHandler:
             return
@@ -224,7 +225,7 @@ def _fileExistingCheck(filePath, dataContainer):
     user will decide whether skip or overwrite it (no append,
     since netCDF does not support the repeating variable names)
     '''
-    userPrompt = '\033[0;31mOutput file already exists; skip it or overwrite or append? (\033[4;31mS\033[0;31mkip, \033[4;31mO\033[0;31mverwrite, \033[4;31mA\033[0;31mppend\033[0m)'
+    userPrompt = '\033[0;31m--> Output file already exists; skip it or overwrite or append? (\033[4;31mS\033[0;31mkip, \033[4;31mO\033[0;31mverwrite, \033[4;31mA\033[0;31mppend\033[0m)'
 
     if os.path.isdir(filePath):
         filePath += ("/" + filePath.split("/")[-1] + ".nc")
@@ -337,6 +338,7 @@ def jsonHandler(jsonFile):
     pass the json object to built-in json module
     '''
     with open(jsonFile[:-4] + '_metadata.json') as fileHandler:
+        jsonCheck(fileHandler)
         return json.loads(fileHandler.read(), object_hook=_filteringTheHeadings)
 
 
@@ -385,7 +387,16 @@ def fileDependencyCheck(filePath):
                 return {key+"_frameIndex.txt", key+"_metadata.json", key+"_raw.hdr"} -\
                         set([matchFile for matchFile in files if matchFile.startswith(illegalFileRegex.match(file).group(1))])
 
+def jsonCheck(fileHandler):
+    cache = list()
+    for data in fileHandler.readlines():
+        if ':' in data:
+            if data.split(':')[0].strip() in cache:
+                printOnVersion('\033[0;31m--> Warning: Multiple keys are mapped to a single value; such illegal mapping may cause the loss of important data.\033[0m')
+                printOnVersion(''.join(('\033[0;31m--> The file path is ', fileHandler.name, ', and the key is ', data.split(':')[0].strip(), '\033[0m')))
+            cache.append(data.split(':')[0].strip())
 
+    fileHandler.seek(0)
 
 def writeHeaderFile(fileName, netCDFHandler):
     '''
@@ -455,3 +466,4 @@ if __name__ == '__main__':
 
     testCase = jsonHandler(fileInput)
     testCase.writeToNetCDF(fileInput, fileOutput, fileInput + ' ' + fileOutput)
+    printOnVersion('\033[0;31mDone.\033[0m')
