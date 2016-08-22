@@ -109,8 +109,8 @@ def main():
 ###########################################
 def get_traits_table():
     # Compiled traits table
-    fields = ('plant_barcode', 'genotype', 'treatment', 'imagedate', 'sv_area', 'tv_area', 'hull_area',
-              'solidity', 'height', 'perimeter')
+    fields = ('entity', 'cultivar', 'treatment', 'local_datetime', 'sv_area', 'tv_area', 'hull_area',
+              'solidity', 'height', 'perimeter', 'access_level', 'species', 'site')
     traits = {'plant_barcode' : '',
               'genotype' : '',
               'treatment' : '',
@@ -120,7 +120,10 @@ def get_traits_table():
               'hull_area' : [],
               'solidity' : [],
               'height' : [],
-              'perimeter' : []}
+              'perimeter' : [],
+              'access_level': '2',
+              'species': '2588',
+              'site': '6000000866'}
 
     return (fields, traits)
 
@@ -135,7 +138,11 @@ def generate_traits_list(traits):
                     average_trait(traits['hull_area']),
                     average_trait(traits['solidity']),
                     average_trait(traits['height']),
-                    average_trait(traits['perimeter'])]
+                    average_trait(traits['perimeter']),
+                    traits['access_level'],
+                    traits['species'],
+                    traits['site']
+                ]
 
     return trait_list
 
