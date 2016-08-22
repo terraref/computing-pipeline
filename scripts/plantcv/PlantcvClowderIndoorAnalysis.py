@@ -122,8 +122,8 @@ def get_traits_table():
               'height' : [],
               'perimeter' : [],
               'access_level': '2',
-              'species': '2588',
-              'site': '6000000866'}
+              'species': 'Sorghum bicolor',
+              'site': 'Danforth Plant Science Center Bellweather Phenotyping Facility'}
 
     return (fields, traits)
 
