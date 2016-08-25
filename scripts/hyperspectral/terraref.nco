@@ -312,7 +312,7 @@ flx_dwn@units="watt meter-2 meter-1";
 *cst_cnv=(xps_wht-xps_drk)/(flx_dwn*rfl_wht);
 
 // [frc] = Reflectance of image (i.e., plants)
-rfl_img[wavelength,y,x]=0.0; // Pre-assign to zero to avoid attribute propagation next line
+rfl_img[wavelength,y,x]=0.0f; // Pre-assign to zero to avoid attribute propagation next line
 rfl_img=xps_img/(flx_dwn*cst_cnv);
 rfl_img@long_name="Reflectance of image";
 rfl_img@standard_name="surface_albedo";
