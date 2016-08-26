@@ -288,6 +288,7 @@ wavelength@standard_name="radiation_wavelength";
 wavelength@units="meter";  
 
 // Calibrate image from raw counts to reflectance
+// Procedure documented 
 
 // [cnt] Exposure from white reference sheet/panel
 xps_wht[wavelength,x]=maximum_exposure;
