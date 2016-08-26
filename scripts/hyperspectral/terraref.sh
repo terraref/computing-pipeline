@@ -585,15 +585,26 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	# Calibration (theoretically) uses ES data (for absolute fluxes), so must be done on group files
 	# Following command would not propagate any group data/metadata from input to output file
 	# cmd_clb[${fl_idx}]="ncap2 -O -S ${drc_spt}/terraref.nco ${clb_in} ${clb_out}"
-	# Hence perform calibration as root-level append operation, then move file to output file
-	cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/terraref.nco ${clb_in} ${clb_in};/bin/mv -f ${clb_in} ${clb_out}"
+	# Hence perform calibration as root-level append operation, then, if successful, move file to output file
+	cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/terraref.nco ${clb_in} ${clb_in}"
+	if [ ${dbg_lvl} -ge 1 ]; then
+	    echo ${cmd_clb[${fl_idx}]}
+	fi # !dbg
+	if [ ${dbg_lvl} -ne 2 ]; then
+	    eval ${cmd_clb[${fl_idx}]}
+	    if [ $? -ne 0 ]; then
+		printf "${spt_nm}: ERROR Failed to calibrate data in ncap2. Debug this:\n${cmd_clb[${fl_idx}]}\n"
+		exit 1
+	    fi # !err
+	fi # !dbg
+	cmd_clb[${fl_idx}]="/bin/mv -f ${clb_in} ${clb_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_clb[${fl_idx}]}
 	fi # !dbg
 	if [ ${dbg_lvl} -ne 2 ]; then
 	    eval ${cmd_clb[${fl_idx}]}
 	    if [ $? -ne 0 ] || [ ! -f ${clb_out} ]; then
-		printf "${spt_nm}: ERROR Failed to calibrate data. Debug this:\n${cmd_clb[${fl_idx}]}\n"
+		printf "${spt_nm}: ERROR Failed to move calibrated data. Debug this:\n${cmd_clb[${fl_idx}]}\n"
 		exit 1
 	    fi # !err
 	fi # !dbg
