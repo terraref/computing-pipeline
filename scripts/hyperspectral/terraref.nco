@@ -287,6 +287,8 @@ wavelength*=1.0e-9; // [m]
 wavelength@standard_name="radiation_wavelength";  
 wavelength@units="meter";  
 
+// Calibrate image from raw counts to reflectance
+
 // [cnt] Exposure from white reference sheet/panel
 xps_wht[wavelength,x]=maximum_exposure;
 xps_wht@long_name="Exposure from white reference sheet/panel";
@@ -312,7 +314,7 @@ flx_dwn@units="watt meter-2 meter-1";
 // [cnt/(W m-2 m-1)] Proportionality constant between reflected spectral flux and Exposure
 *cst_cnv=(xps_wht-xps_drk)/(flx_dwn*rfl_wht);
 
-// [frc] = Reflectance of image (i.e., plants)
+// [frc] = Reflectance of image (plant reflectance)
 // 20160826: Pre-assigning to zero would create additional copy and increase required memory
 // Instead use implicit casting, and overwrite attributes propagated from xps_img
 //rfl_img[wavelength,y,x]=0.0f;
