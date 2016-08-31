@@ -165,12 +165,14 @@ def process_dataset(parameters):
     # compose the summary traits
     trait_list = pcia.generate_traits_list(traits)
 
-    # generate output CSV
+    # generate output CSV & send to Clowder + BETY
     outfile = 'avg_traits.csv'
     pcia.generate_average_csv(outfile, fields, trait_list)
     extractors.upload_file_to_dataset(outfile, parameters)
     submitToBety(outfile)
     os.remove(outfile)
+
+    # Flag dataset as processed by extractor
     metadata = {
         "@context": {
             "@vocab": "https://clowder.ncsa.illinois.edu/clowder/assets/docs/api/index.html#!/files/uploadToDataset"
@@ -189,10 +191,9 @@ def submitToBety(file):
 
     if betyAPI != "":
         sess = requests.Session()
-        headers = {'Content-type': 'text/csv'}
         r = sess.post("%s?key=%s" % (betyAPI, betyKey),
-                  files={'avg_traits.csv': open(file, 'rb')},
-                  headers=headers)
+                  data=file(open(file, 'rb')).read(),
+                  headers={'Content-type': 'text/csv'})
 
         if r.status_code == 200:
             print("CSV successfully uploaded to BETYdb.")
