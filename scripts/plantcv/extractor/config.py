@@ -13,7 +13,7 @@
 import os
 
 # name to show in rabbitmq queue list
-extractorName = os.getenv('RABBITMQ_QUEUE', "terraPlantCV")
+extractorName = os.getenv('RABBITMQ_QUEUE', "terra.plantcv")
 
 # URL to be used for connecting to rabbitmq
 rabbitmqURL = os.getenv('RABBITMQ_URI', "amqp://guest:guest@127.0.0.1/%2f")

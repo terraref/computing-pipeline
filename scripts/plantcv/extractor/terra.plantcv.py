@@ -4,6 +4,7 @@ import re
 import os
 import logging
 import requests
+import json
 
 from config import *
 import pyclowder.extractors as extractors
@@ -59,6 +60,21 @@ def process_dataset(parameters):
         if p[-4:] == '.jpg' or p[-4:] == '.png':
             img_paths.append(p)
 
+        # Get metadata for avg_traits from file metadata
+        elif p.endswith("_metadata.json") and not p.endswith("_dataset_metadata.json"):
+            with open(p) as ds_md:
+                md_set = json.load(ds_md)
+                for md in md_set:
+                    if 'content' in md:
+                        needed_fields = ['plant_barcode', 'genotype', 'treatment', 'imagedate']
+                        for fld in needed_fields:
+                            if traits[fld] == '' and fld in md['content']:
+                                if fld == 'imagedate':
+                                    traits[fld] = md['content'][fld].replace(" ", "T")
+                                else:
+                                    traits[fld] = md['content'][fld]
+                                
+
     # build list of file descriptor dictionaries with sensor info
     file_objs = []
     for f in parameters['filelist']:
@@ -87,6 +103,7 @@ def process_dataset(parameters):
                                 'image_path': pth,
                                 'image_id': image_id
                             })
+
         if not found_info:
             # Get from filename if no metadata is found
             raw_name = re.findall(r"(VIS|NIR|vis|nir)_(SV|TV|sv|tv)(_\d+)*" , f["filename"])
@@ -186,19 +203,22 @@ def process_dataset(parameters):
     }
     extractors.upload_dataset_metadata_jsonld(mdata=metadata, parameters=parameters)
 
-def submitToBety(file):
+def submitToBety(csvfile):
     global betyAPI, betyKey
 
     if betyAPI != "":
         sess = requests.Session()
+        print(csvfile)
+        print("%s?key=%s" % (betyAPI, betyKey))
         r = sess.post("%s?key=%s" % (betyAPI, betyKey),
-                  data=file(open(file, 'rb')).read(),
+                  data=file(csvfile, 'rb').read(),
                   headers={'Content-type': 'text/csv'})
 
-        if r.status_code == 200:
+        if r.status_code == 200 or r.status_code == 201:
             print("CSV successfully uploaded to BETYdb.")
         else:
             print("Error uploading CSV to BETYdb %s" % r.status_code)
+            print(r.text)
 
 
 
