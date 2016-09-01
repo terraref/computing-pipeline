@@ -2,18 +2,18 @@
 
 # Purpose: Convert raw imagery from 2D raster to 3D compressed netCDF annotated with metadata
 
-# Source: https://github.com/terraref/computing-pipeline/tree/master/scripts/hyperspectral/terraref.sh
+# Source: https://github.com/terraref/computing-pipeline/tree/master/scripts/hyperspectral/hyperspectral_workflow.sh
 
 # Prerequisites:
 # NCO version 4.6.0 (dated 20160401) or later
 # Python: Python 2.7.X or 3.X (preferred) with netCDF4 module
-# terraref.sh, terraref.nco, JsonDealer.py and EnvironmentalLoggerAnalyser.py must be in same directory
+# hyperspectral_workflow.sh, hyperspectral_calibration.nco, hyperspectral_metadata.py and environmental_logger_json2netcdf.py must be in same directory
 
 # In Anaconda:
 # conda install netCDF4
 
 # Direct install:
-# scp ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.sh roger-login.ncsa.illinois.edu:terraref/computing-pipeline/scripts/hyperspectral/terraref.sh
+# scp ~/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_workflow.sh roger-login.ncsa.illinois.edu:terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_workflow.sh
 
 # Set script name, directory, PID, run directory
 drc_pwd=${PWD}
@@ -43,24 +43,24 @@ fi # HOSTNAME
 case "${HOSTNAME}" in 
     cg-gpu* )
 	module add gdal-stack-2.7.10 # 20160422: /usr/bin/python is version 2.6.6. Must load Python 2.7+
-	module add netcdf nco # terraref.sh requires NCO version 4.6.0 (dated 20160401) or later
+	module add netcdf nco # hyperspectral_workflow.sh requires NCO version 4.6.0 (dated 20160401) or later
 	# Following two lines guarantee use of latest NCO executables Zender's directories:
 	#       export PATH='/home/zender/bin'\:${PATH}
 	#	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
 esac # !HOSTNAME
 
 # Production
-# UIUC: ls -R /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/terraref.out 2>&1 &
-# UIUC: terraref.sh -d 1 -i /projects/arpae/terraref/sites/ua-mac/raw_data/SWIR/2016-06-28/2016-06-28__09-10-16-386/a33641c2-8a1e-4a63-9d33-ab66717d6b8a_raw
-# UCI:  ls -R ${DATA}/terraref/MovingSensor/VNIR/2016-04-07/*/*_raw | terraref.sh -d 1 -O ~/rgr > ~/terraref.out 2>&1 &
+# UIUC: ls -R /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-04-07/*/*_raw | hyperspectral_workflow.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/terraref.out 2>&1 &
+# UIUC: hyperspectral_workflow.sh -d 1 -i /projects/arpae/terraref/sites/ua-mac/raw_data/SWIR/2016-06-28/2016-06-28__09-10-16-386/a33641c2-8a1e-4a63-9d33-ab66717d6b8a_raw
+# UCI:  ls -R ${DATA}/terraref/MovingSensor/VNIR/2016-04-07/*/*_raw | hyperspectral_workflow.sh -d 1 -O ~/rgr > ~/terraref.out 2>&1 &
 
 # Test cases (for Charlie's machines)
-# terraref.sh $fl > ~/terraref.out 2>&1 &
+# hyperspectral_workflow.sh $fl > ~/terraref.out 2>&1 &
 
 # Debugging and Benchmarking:
-# terraref.sh -d 1 -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/terraref.out 2>&1 &
-# terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
-# terraref.sh -d 1 -i ${DATA}/terraref/MovingSensor/VNIR/2016-03-05/2016-03-05__09-46_17_450/72235cd1-35d5-480a-8443-14281ded1a63_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
+# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/MovingSensor/VNIR/2016-03-05/2016-03-05__09-46_17_450/72235cd1-35d5-480a-8443-14281ded1a63_raw -o foo.nc -O ~/rgr > ~/terraref.out 2>&1 &
 
 # dbg_lvl: 0 = Quiet, print basic status during evaluation
 #          1 = Print configuration, full commands, and status to output during evaluation
@@ -308,7 +308,7 @@ if [ -n "${in_fl}" ]; then
 else # !in_fl
     # Detecting input on stdin:
     # http://stackoverflow.com/questions/2456750/detect-presence-of-stdin-contents-in-shell-script
-    # ls *_raw | terraref.sh -D 1 -O ~/rgr
+    # ls *_raw | hyperspectral_workflow.sh -D 1 -O ~/rgr
     if [ -t 0 ]; then 
 	if [ "${drc_in_usr_flg}" = 'Yes' ]; then
 	    for fl in "${drc_in}"/*_raw ; do
@@ -499,7 +499,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    12 ) typ_in='NC_USHORT' ; ;;
 	    * ) printf "${spt_nm}: ERROR Unknown typ_in in ${hdr_fl}. Debug grep command.\n" ; exit 1 ; ;; # Other
 	esac # !typ_in_ENVI
-	cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ${drc_spt}/dummy.nc ${trn_out}"
+	cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ${drc_spt}/hyperspectral_dummy.nc ${trn_out}"
 	hst_att="`date`: ${cmd_ln}"
 	att_in="${trn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
@@ -541,7 +541,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	jsn_out="${jsn_fl}.fl${idx_prn}.tmp"
 	printf "jsn(in)  : ${jsn_in}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
-	cmd_jsn[${fl_idx}]="python ${drc_spt}/JsonDealer.py ${jsn_in} ${jsn_out}"
+	cmd_jsn[${fl_idx}]="python ${drc_spt}/hyperspectral_metadata.py ${jsn_in} ${jsn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_jsn[${fl_idx}]}
 	fi # !dbg
@@ -584,9 +584,9 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	# As of ~201605 Environmental Sensor uses groups
 	# Calibration (theoretically) uses ES data (for absolute fluxes), so must be done on group files
 	# Following command would not propagate any group data/metadata from input to output file
-	# cmd_clb[${fl_idx}]="ncap2 -O -S ${drc_spt}/terraref.nco ${clb_in} ${clb_out}"
+	# cmd_clb[${fl_idx}]="ncap2 -O -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_out}"
 	# Hence perform calibration as root-level append operation, then, if successful, move file to output file
-	cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/terraref.nco ${clb_in} ${clb_in}"
+	cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_in}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_clb[${fl_idx}]}
 	fi # !dbg
@@ -653,7 +653,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
     fi # !rip_flg
 
     # 20160330: Entire block made obsolete by ncks conversion capability
-    # Keep template in terraref.sh in case parallelization with barrier becomes attractive again
+    # Keep template in hyperspectral_workflow.sh in case parallelization with barrier becomes attractive again
     if [ 0 -eq 1 ]; then
 	anl_in=${att_fl}
 	anl_out="${anl_fl}.fl${idx_prn}.tmp"
@@ -704,7 +704,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 done # !fl_idx
 
 # 20160330: Entire block made obsolete by ncks conversion capability
-# Keep in terraref.sh until wavelength capability re-implemented
+# Keep in hyperspectral_workflow.sh until wavelength capability re-implemented
 if [ 0 -eq 1 ]; then
     # Parallel mode will often exit loop after a partial batch, wait() for remaining jobs to finish
     if [ -n "${par_opt}" ]; then

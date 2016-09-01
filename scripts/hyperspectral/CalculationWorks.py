@@ -1,11 +1,11 @@
 '''
-A supporting module for EnvironmentalLoggerAnalyser.py and JsonDealer.py.
+A supporting module for environmental_logger_json2netcdf.py and hyperspectral_metadata.py.
 This module is in charge of all the calculation works needed in the
-EnvironmentalLoggerAnalyser.py (converting the data made by environmental logger)
-and JsonDealer.py (group up the supporting files for data_raw).
+environmental_logger_json2netcdf.py (converting the data made by environmental logger)
+and hyperspectral_metadata.py (group up the supporting files for data_raw).
 
 The main block is only used for testing. Most of the contents will be imported by
-JsonDealer and EnvironmentalLoggerAnalyser
+hyperspectral_metadata and environmental_logger_json2netcdf
 ----------------------------------------------------------------------------------------
 
 Prerequisite:
@@ -15,13 +15,13 @@ Prerequisite:
 ----------------------------------------------------------------------------------------
 
 Important Note:
-Please place this module together with JsonDealer.py and EnvironmentalLoggerAnalyser.py
+Please place this module together with hyperspectral_metadata.py and environmental_logger_json2netcdf.py
 ----------------------------------------------------------------------------------------
 Referece:
 Many algorithms and data are based the discussion threads in Github discussion thread:
 https://github.com/terraref/reference-data/issues/32#issuecomment-221893430
 
-and terraref.nco file (calibration)
+and hyperspectral_calibration.nco file (calibration)
 and Professor Zender.
 ----------------------------------------------------------------------------------------
 '''

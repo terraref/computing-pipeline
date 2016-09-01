@@ -10,12 +10,12 @@ This script works with both Python 2.7+ and 3+, depending on the netCDF4 module 
 Thanks for the advice from Professor Zender and sample data from Dr. LeBauer.
 ----------------------------------------------------------------------------------------
 Usage (commandline):
-python JsonDealerPath filePath1 filePath2
+python hyperspectral_metadata.py filePath1 filePath2
 
 where
-JsonDealerPath is where this script located
-filePath1      is where the source data file located <data_name>
-filePath2      is users' expected output location
+hyperspectral_metadata.py is where this script located
+filePath1      is source data file
+filePath2      is user's desired output file
 
 Warning:
 Make sure the json metadata ended with <data_name>+_metadata.json and the hdr file ended with <data_name>+_raw.hdr
@@ -25,32 +25,20 @@ Data: data_raw
 Metadata: data_metadata.json
 Header: data_raw.hdr
 
-You just need to type in 
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/data_raw ${DATA}/terraref/output
+The correct command is
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_metadata.py ${DATA}/terraref/data_raw ${DATA}/terraref/output
 
-JsonDealer will authomatically find data_raw, data_metadata.json and data_raw.hdr for you
+hyperspectral_metadata.py will authomatically find data_raw, data_metadata.json and data_raw.hdr
 
 Example:
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/data
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_metadata.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/data
 ----------------------------------------------------------------------------------------
-UPDATE LOG
+UPDATE LOG (reverse chronological order)
 
-Update 4.1:
-Merged with DataProcess module; now JsonDealer will do all the jobs.
+Update 20160901:
+Rename from JsonDealer.py to hyperspectral_metadata.py
 
-Update 4.12:
-Fixed bugs in getting dimensions from the header file.
-
-Update 4.25:
-Attributes and variables now looks nicer.
-Rename "Velocity ..." as "Gantry Speed ..."
-Set the "default bands" variable from the header file as attributes of "exposure" variable.
-
-Update 5.9:
-Now the JsonDealer.py will also parse the data from frameIndex.txt
-the time-related variable (except history) will be recorded as the offset to the _UNIX_BASETIME
-
-Update 8.22:
+Update 20160822:
 Fix major bugs, including:
 1. file checking functions now works as expectedly by reimplemented with regular expression
 2. the data from "user_given_metadata" are saved as group attributes except those time variables
@@ -58,7 +46,22 @@ Fix major bugs, including:
 Other improvements including better implementations on DataContainer and a more friendly prompts to users
 when the output file had already existed.
 
-JsonDealer widely uses regular expressions to match string; although most of them are compatible
+Update 20160509:
+Now the JsonDealer.py will also parse the data from frameIndex.txt
+the time-related variable (except history) will be recorded as the offset to the _UNIX_BASETIME
+
+Update 20160425:
+Attributes and variables now looks nicer.
+Rename "Velocity ..." as "Gantry Speed ..."
+Set the "default bands" variable from the header file as attributes of "exposure" variable.
+
+Update 20160412:
+Fixed bugs in getting dimensions from the header file.
+
+Update 20160401:
+Merged with DataProcess module; now JsonDealer will do all the jobs.
+
+hyperspectral_metadata widely uses regular expressions to match string; although most of them are compatible
 with Java, PHP, Perl, etc., some of the regular expressions are only supported by the Python standard.
 ----------------------------------------------------------------------------------------
 '''

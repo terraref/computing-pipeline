@@ -29,7 +29,7 @@ from netCDF4 import Dataset
 import struct
 import os
 import time
-from JsonDealer import isDigit
+from hyperspectral_metadata import isDigit
 
 #Note: datatype so far has not included type 6 and 9. They are complex and double-precison complex
 #key: ENVI type

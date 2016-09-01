@@ -3,8 +3,8 @@
 /* Purpose: NCO/ncap2 script to process and calibrate Terraref exposure data
 
    Usage:
-   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/test_raw.nc ~/foo.nc
-   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/whiteReference_raw.nc ~/foo.nc */
+   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_calibration.nco ${DATA}/terraref/test_raw.nc ~/foo.nc
+   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_calibration.nco ${DATA}/terraref/whiteReference_raw.nc ~/foo.nc */
 
 // Declare flags as RAM variables or they will clutter output file
 *flg_tst=1s; // [flg] Test mode
