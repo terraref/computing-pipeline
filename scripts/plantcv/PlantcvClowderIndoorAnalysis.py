@@ -91,7 +91,10 @@ def main():
             traits['plant_barcode'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['plant_barcode']
             traits['genotype'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['genotype']
             traits['treatment'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['treatment']
-            traits['imagedate'] = metadata['visible/RGB'][perspective][rotation_angle]['content']['imagedate']
+            # imagedate must be in format YYYY-MM-DDTHH:MM:SS.sss e.g. "2014-06-23T16:55:57.625"
+            imgdate = metadata['visible/RGB'][perspective][rotation_angle]['content']['imagedate']
+            if imgdate.find(" ") > -1: imgdate = imgdate.replace(" ", "T")
+            traits['imagedate'] = imgdate
 
             if perspective == 'side-view':
                 process_sv_images(sess, args.url, vis_id, nir_id, traits)
@@ -109,8 +112,8 @@ def main():
 ###########################################
 def get_traits_table():
     # Compiled traits table
-    fields = ('plant_barcode', 'genotype', 'treatment', 'imagedate', 'sv_area', 'tv_area', 'hull_area',
-              'solidity', 'height', 'perimeter')
+    fields = ('entity', 'cultivar', 'treatment', 'local_datetime', 'sv_area', 'tv_area', 'hull_area',
+              'solidity', 'height', 'perimeter', 'access_level', 'species', 'site')
     traits = {'plant_barcode' : '',
               'genotype' : '',
               'treatment' : '',
@@ -120,7 +123,10 @@ def get_traits_table():
               'hull_area' : [],
               'solidity' : [],
               'height' : [],
-              'perimeter' : []}
+              'perimeter' : [],
+              'access_level': '2',
+              'species': 'Sorghum bicolor',
+              'site': 'Danforth Plant Science Center Bellweather Phenotyping Facility'}
 
     return (fields, traits)
 
@@ -135,7 +141,11 @@ def generate_traits_list(traits):
                     average_trait(traits['hull_area']),
                     average_trait(traits['solidity']),
                     average_trait(traits['height']),
-                    average_trait(traits['perimeter'])]
+                    average_trait(traits['perimeter']),
+                    traits['access_level'],
+                    traits['species'],
+                    traits['site']
+                ]
 
     return trait_list
 
