@@ -80,6 +80,9 @@ def process_dataset(parameters):
 	returncode = subprocess.call(["bash", workerScript, "-d", "1", "-I", inputDirectory, "-O", outputDirectory])
 	print 'done creating output file (%s)' % (returncode)
 
+	if returncode != 0:
+		print 'terraref.sh encountered an error'
+
 	# Verify outfile exists and upload to clowder
 	if os.path.exists(outFilePath):
 		print 'output file detected'
@@ -87,13 +90,11 @@ def process_dataset(parameters):
 			print 'uploading output file...'
 			extractors.upload_file_to_dataset(filepath=outFilePath, parameters=parameters)
 			print 'done uploading'
-		else:
-			print 'terraref.sh encountered an error'
 		# Clean up the output file.
 		os.remove(outFilePath)
 	else:
 		print 'no output file was produced'
-	
+
 	print 'cleaning up...'
 	# Clean up the input files.
 	for fileExt in files:
