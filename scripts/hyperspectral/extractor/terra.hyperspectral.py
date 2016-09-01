@@ -1,94 +1,141 @@
+#!/usr/bin/env python
 import os
-import shutil
-import logging
 import subprocess
-
+import logging
 from config import *
 import pyclowder.extractors as extractors
 
+
 def main():
-    global extractorName, messageType, rabbitmqExchange, rabbitmqURL, registrationEndpoints, scriptDirectory
+	global extractorName, messageType, rabbitmqExchange, rabbitmqURL
 
-    #set logging
-    logging.basicConfig(format='%(levelname)-7s : %(name)s -  %(message)s', level=logging.WARN)
-    logging.getLogger('pyclowder.extractors').setLevel(logging.INFO)
+	# Set logging
+	logging.basicConfig(format='%(levelname)-7s : %(name)s -  %(message)s', level=logging.WARN)
+	logging.getLogger('pyclowder.extractors').setLevel(logging.INFO)
 
-    #connect to rabbitmq
-    extractors.connect_message_bus(extractorName=extractorName, messageType=messageType, processFileFunction=process_dataset,
-                                   checkMessageFunction=check_message, rabbitmqExchange=rabbitmqExchange, rabbitmqURL=rabbitmqURL)
+	# Connect to rabbitmq
+	extractors.connect_message_bus(
+		extractorName        = extractorName,
+		messageType          = messageType,
+		rabbitmqExchange     = rabbitmqExchange,
+		rabbitmqURL          = rabbitmqURL,
+		processFileFunction  = process_dataset,
+		checkMessageFunction = check_message
+	)
 
 def check_message(parameters):
-    # Check for a left and right file before beginning processing
-    if len(parameters['filelist']) >= 2:
-        return "bypass"
-    else:
-        return False
+	# Check for expected input files before beginning processing
+	if has_all_files(parameters):
+		if has_output_file(parameters):
+			print 'skipping, output file already exists'
+			return False
+		else:
+			# Handle the message but do not download any files automatically.
+			return "bypass"
+	else:
+		print 'skipping, not all input files are ready'
+		return False
 
+# ----------------------------------------------------------------------
+# Process the dataset message and upload the results
 def process_dataset(parameters):
-    print("PD")
-    print(parameters)
-    # TODO: re-enable once this is merged into Clowder: https://opensource.ncsa.illinois.edu/bitbucket/projects/CATS/repos/clowder/pull-requests/883/overview
-    # fetch metadata from dataset to check if we should remove existing entry for this extractor first
-    md = extractors.download_dataset_metadata_jsonld(parameters['host'], parameters['secretKey'], parameters['datasetId'], extractorName)
-    if len(md) > 0:
-        for m in md:
-            if 'agent' in m and 'name' in m['agent']:
-                if m['agent']['name'].find(extractorName) > -1:
-                    print("skipping, already done")
-                    return
-                    #extractors.remove_dataset_metadata_jsonld(parameters['host'], parameters['secretKey'], parameters['datasetId'], extractorName)
-    #    pass
+	global extractorName, workerScript, inputDirectory, outputDirectory
 
-    # Find _raw and _raw.hdr files in dataset
-    rawfileid = None
-    hdrfileid = None
-    for f in parameters['filelist']:
-        fname = f['filename']
-        if fname[-4:] == "_raw":
-            rawfileid = f['id']
-            rawfilename = fname
-        elif f['filename'][-8:] == "_raw.hdr":
-            hdrfileid = f['id']
-            hdrfilename = fname
+	# Find input files in dataset
+	files = get_all_files(parameters)
 
-    if rawfileid and hdrfileid:
-        # Download _raw and _raw.hdr files to temp directory
-        rawfile = extractors.download_file(parameters['channel'], parameters['header'], parameters['host'], parameters['secretKey'],
-                                           rawfileid, rawfileid, "_raw")
-        hdrfile = extractors.download_file(parameters['channel'], parameters['header'], parameters['host'], parameters['secretKey'],
-                                           hdrfileid, hdrfileid, "_raw.hdr")
+	# Download files to input directory
+	for fileExt in files:
+		files[fileExt]['path'] = extractors.download_file(
+			channel            = parameters['channel'],
+			header             = parameters['header'],
+			host               = parameters['host'],
+			key                = parameters['secretKey'],
+			fileid             = files[fileExt]['id'],
+			# What's this argument for?
+			intermediatefileid = files[fileExt]['id'],
+			ext                = fileExt
+		)
+		# Restore temp filenames to original - script requires specific name formatting so tmp names aren't suitable
+		files[fileExt]['old_path'] = files[fileExt]['path']
+		files[fileExt]['path'] = os.path.join(inputDirectory, files[fileExt]['filename'])
+		os.rename(files[fileExt]['old_path'], files[fileExt]['path'])
+		print 'found %s file: %s' % (fileExt, files[fileExt]['path'])
 
-        # Restore temp filenames to original - script requires specific name formatting so tmp names aren't suitable
-        tempDir = rawfile.replace(os.path.basename(rawfile), "")
-        os.rename(rawfile, os.path.join(tempDir, rawfilename))
-        os.rename(hdrfile, os.path.join(tempDir, hdrfilename))
-        rawfile = os.path.join(tempDir, rawfilename)
-        hdrfile = os.path.join(tempDir, hdrfilename)
+	# Invoke terraref.sh
+	outFilePath = os.path.join(outputDirectory, get_output_filename(files['_raw']['filename']))
+	print 'invoking terraref.sh to create: %s' % outFilePath
+	subprocess.call(["bash", workerScript, "-d", "1", "-I", inputDirectory, "-O", outputDirectory])
+	print 'done creating output file'
 
-        # Invoke terraref.sh
-        print("found raw file: %s" % os.path.basename(rawfile))
-        print("found hdr file: %s" % os.path.basename(hdrfile))
-        outfile = rawfile.replace("_raw", ".nc4")
-        print("invoking terraref.sh to create: %s" % os.path.basename(outfile))
-        subprocess.call([os.path.join(scriptDirectory, "terraref.sh"), "-i", rawfile, "-o", outfile])
+	# Verify outfile exists and upload to clowder
+	if os.path.exists(outFilePath):
+		print 'uploading output file...'
+		extractors.upload_file_to_dataset(filepath=outFilePath, parameters=parameters)
+		print 'done uploading'
+	
+	print 'cleaning up...'
+	# Clean up the input files.
+	for fileExt in files:
+		os.remove(files[fileExt]['path'])
+	# Clean up the output file.
+	os.remove(outFilePath)
+	print 'done cleaning'
 
-        # Verify outfile exists and upload to clowder
-        if os.path.exists(outfile):
-            extractors.upload_file_to_dataset(outfile, parameters)
+# ----------------------------------------------------------------------
+# Find as many expected files as possible and return the set.
+def get_all_files(parameters):
+	files = {
+		'_raw': None,
+		'_raw.hdr': None,
+		'_image.jpg': None,
+		'_metadata.json': None,
+		'_frameIndex.txt': None,
+		'_settings.txt': None
+	}
+	
+	if 'filelist' in parameters:
+		for fileItem in parameters['filelist']:
+			fileId   = fileItem['id']
+			fileName = fileItem['filename']
+			for fileExt in files:
+				if fileName[-len(fileExt):] == fileExt:
+					files[fileExt] = {
+						'id': fileId,
+						'filename': fileName
+					}
+	return files
 
-            # Tell Clowder this is completed so subsequent file uploads don't daisy-chain
-            metadata = {
-                "@context": {
-                    "@vocab": "https://clowder.ncsa.illinois.edu/clowder/assets/docs/api/index.html#!/files/uploadToDataset"
-                },
-                "dataset_id": parameters["datasetId"],
-                "content": {"status": "COMPLETED"},
-                "agent": {
-                    "@type": "cat:extractor",
-                    "extractor_id": parameters['host'] + "/api/extractors/" + extractorName
-                }
-            }
-            extractors.upload_dataset_metadata_jsonld(mdata=metadata, parameters=parameters)
+# ----------------------------------------------------------------------
+# Returns the output filename.
+def get_output_filename(raw_filename):
+	return '%s.nc' % raw_filename[:-len('_raw')]
+
+# ----------------------------------------------------------------------
+# Returns true if all expected files are found.
+def has_all_files(parameters):
+	files = get_all_files(parameters)
+	allFilesFound = True
+	for fileExt in files:
+		if files[fileExt] == None:
+			allFilesFound = False
+	return allFilesFound
+
+# ----------------------------------------------------------------------
+# Returns true if the output file is present.
+def has_output_file(parameters):
+	if 'filelist' not in parameters:
+		return False
+	if not has_all_files(parameters):
+		return False
+	files = get_all_files(parameters)
+	outFilename = get_output_filename(files['_raw']['filename'])
+	outFileFound = False
+	for fileItem in parameters['filelist']:
+		if outFilename == fileItem['filename']:
+			outFileFound = True
+			break
+	return outFileFound
 
 if __name__ == "__main__":
-    main()
+	main()
