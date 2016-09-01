@@ -91,14 +91,10 @@ def process_dataset(parameters):
 # ----------------------------------------------------------------------
 # Find as many expected files as possible and return the set.
 def get_all_files(parameters):
-	files = {
-		'_raw': None,
-		'_raw.hdr': None,
-		'_image.jpg': None,
-		'_metadata.json': None,
-		'_frameIndex.txt': None,
-		'_settings.txt': None
-	}
+    global requiredInputFiles
+    files = dict()
+    for fileExt in requiredInputFiles:
+        files[fileExt] = None
 	
 	if 'filelist' in parameters:
 		for fileItem in parameters['filelist']:

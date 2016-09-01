@@ -33,3 +33,15 @@ workerScript = os.getenv('WORKER_SCRIPT', "terraref.sh")
 # Workspace for input/output files.
 inputDirectory = os.getenv('INPUTDIR', "./input")
 outputDirectory = os.getenv('OUTPUTDIR', "./output")
+
+# The extractor will only run when all these files are present.
+# These are just filename postfixes for file matching.
+# A few other things depend on the `_raw` file.
+requiredInputFiles = [
+	'_raw',
+	'_raw.hdr',
+	'_image.jpg',
+	'_metadata.json',
+	'_frameIndex.txt',
+	'_settings.txt'
+]
