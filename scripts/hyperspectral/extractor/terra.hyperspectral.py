@@ -1,4 +1,16 @@
 #!/usr/bin/env python
+
+"""
+terra.hyperspectral.py
+
+This extractor will trigger when a file is added to a dataset in Clowder.
+It checks if all the required input files are present in the dataset while the
+output file is not present. The output filename is always determined from the
+filename of the `_raw` file.
+If the check is OK, it calls the `workerScript` defined in the config file to
+create a netCDF output file and adds that to the same dataset.
+"""
+
 import os
 import subprocess
 import logging
