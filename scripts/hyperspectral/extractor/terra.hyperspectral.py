@@ -103,11 +103,11 @@ def process_dataset(parameters):
 # ----------------------------------------------------------------------
 # Find as many expected files as possible and return the set.
 def get_all_files(parameters):
-    global requiredInputFiles
-    files = dict()
-    for fileExt in requiredInputFiles:
-        files[fileExt] = None
-	
+	global requiredInputFiles
+	files = dict()
+	for fileExt in requiredInputFiles:
+		files[fileExt] = None
+
 	if 'filelist' in parameters:
 		for fileItem in parameters['filelist']:
 			fileId   = fileItem['id']
