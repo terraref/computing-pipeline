@@ -10,12 +10,12 @@ This script works with both Python 2.7+ and 3+, depending on the netCDF4 module 
 Thanks for the advice from Professor Zender and sample data from Dr. LeBauer.
 ----------------------------------------------------------------------------------------
 Usage (commandline):
-python JsonDealerPath filePath1 filePath2
+python hyperspectral_metadata.py filePath1 filePath2
 
 where
-JsonDealerPath is where this script located
-filePath1      is where the source data file located <data_name>
-filePath2      is users' expected output location
+hyperspectral_metadata.py is where this script located
+filePath1      is source data file
+filePath2      is user's desired output file
 
 Warning:
 Make sure the json metadata ended with <data_name>+_metadata.json and the hdr file ended with <data_name>+_raw.hdr
@@ -25,30 +25,44 @@ Data: data_raw
 Metadata: data_metadata.json
 Header: data_raw.hdr
 
-You just need to type in 
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/data_raw ${DATA}/terraref/output
+The correct command is
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_metadata.py ${DATA}/terraref/data_raw ${DATA}/terraref/output
 
-JsonDealer will authomatically find data_raw, data_metadata.json and data_raw.hdr for you
+hyperspectral_metadata.py will authomatically find data_raw, data_metadata.json and data_raw.hdr
 
 Example:
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/JsonDealer.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/data
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_metadata.py ${DATA}/terraref/test_metadata.json ${DATA}/terraref/data
 ----------------------------------------------------------------------------------------
-UPDATE LOG
+UPDATE LOG (reverse chronological order)
 
-Update 4.1:
-Merged with DataProcess module; now JsonDealer will do all the jobs.
+Update 20160901:
+Rename from JsonDealer.py to hyperspectral_metadata.py
 
-Update 4.12:
-Fixed bugs in getting dimensions from the header file.
+Update 20160822:
+Fix major bugs, including:
+1. file checking functions now works as expectedly by reimplemented with regular expression
+2. the data from "user_given_metadata" are saved as group attributes except those time variables
+3. translateTime() now could calculate either time since Unix base time or the time split between certain time points
+Other improvements including better implementations on DataContainer and a more friendly prompts to users
+when the output file had already existed.
 
-Update 4.25:
+Update 20160509:
+Now the JsonDealer.py will also parse the data from frameIndex.txt
+the time-related variable (except history) will be recorded as the offset to the _UNIX_BASETIME
+
+Update 20160425:
 Attributes and variables now looks nicer.
 Rename "Velocity ..." as "Gantry Speed ..."
 Set the "default bands" variable from the header file as attributes of "exposure" variable.
 
-Update 5.9:
-Now the JsonDealer.py will also parse the data from frameIndex.txt
-the time-related variable (except history) will be recorded as the offset to the _UNIX_BASETIME
+Update 20160412:
+Fixed bugs in getting dimensions from the header file.
+
+Update 20160401:
+Merged with DataProcess module; now JsonDealer will do all the jobs.
+
+hyperspectral_metadata widely uses regular expressions to match string; although most of them are compatible
+with Java, PHP, Perl, etc., some of the regular expressions are only supported by the Python standard.
 ----------------------------------------------------------------------------------------
 '''
 import numpy as np
@@ -56,21 +70,22 @@ import json
 import time
 import sys
 import os
+import re
 import platform
 import struct
 from datetime import date, datetime
 from netCDF4 import Dataset
 
-_CONSTRUCTOR_TEMPLATE  = '''self.{var} = source[u'lemnatec_measurement_metadata'][u'{var}']'''
 _UNIT_DICTIONARY = {'m': 'meter',
                     's': 'second', 'm/s': 'meter second-1', '': ''}
 _VELOCITY_DICTIONARY = {'x': 'u', 'y': 'v', 'z': 'w'}
 DATATYPE = {'1': ('H', 2), '2': ('i', 4), '3': ('l', 4), '4': ('f', 4), '5': (
     'd', 8), '12': ('H', 4), '13': ('L', 4), '14': ('q', 8), '15': ('Q', 8)}
-_RAW_VERSION = platform.python_version()[0]
-_UNIX_BASETIME = date(year=1970, month=1, day=1)
-
-_CAMERA_POSITION = np.array([1.9, 0.855, 0.635])
+_RAW_VERSION      = platform.python_version()[0]
+_UNIX_BASETIME    = date(year=1970, month=1, day=1)
+_FILENAME_PATTERN = r'^(\S+)_(\w{3,10})[.](\w{3,4})$'
+_TIME_PATTERN     = re.compile(r'(\d{4})-(\d{2})-(\d{2})'), re.compile(r'(\d{2})/(\d{2})/(\d{4})\s(\d{2}):(\d{2}):(\d{2})'), re.compile(r'(\d{2}):(\d{2}):(\d{2})')
+_CAMERA_POSITION  = np.array([1.9, 0.855, 0.635])
 
 
 class DataContainer(object):
@@ -80,7 +95,7 @@ class DataContainer(object):
 
     def __init__(self, source):
         for members in source[u'lemnatec_measurement_metadata']:
-            exec(_CONSTRUCTOR_TEMPLATE.format(var=members))
+            setattr(self, members, source[u'lemnatec_measurement_metadata'][members])
 
     def __str__(self):
         result = str()
@@ -99,19 +114,25 @@ class DataContainer(object):
         setattr(self, "header_info", None)
         netCDFHandler = _fileExistingCheck(outputFilePath, self)
         delattr(self, "header_info")
+        printOnVersion('\033[0;31mProcessing ...\033[0m')
 
-        if netCDFHandler == 0:
+        if not netCDFHandler:
             return
 
         ##### Write the data from metadata to netCDF #####
         for members in self.__dict__:
             tempGroup = netCDFHandler.createGroup(members)
             for submembers in self.__dict__[members]:
-                if not isDigit(self.__dict__[members][submembers]):
+                if not isDigit(self.__dict__[members][submembers]): #Case for letter variables
+                    if 'date' in submembers:
+                        tempVariable = tempGroup.createVariable(_replaceIllegalChar(submembers), 'f8')
+                        tempVariable.assignValue(translateTime(self.__dict__[members][submembers]))
+                        setattr(tempVariable, "units",     "days since 1970-01-01 00:00:00")
+                        setattr(tempVariable, "calender", "gregorian")
                     setattr(tempGroup, _replaceIllegalChar(submembers),
                             self.__dict__[members][submembers])
 
-                else:
+                else: #Case for digits variables
                     if "time" in self.__dict__[members]:
                         yearMonthDate = self.__dict__[members]["time"]
                     elif "Time" in self.__dict__[members]:
@@ -144,7 +165,7 @@ class DataContainer(object):
         writeHeaderFile(inputFilePath, netCDFHandler)
 
         ##### Write the data from frameIndex files to netCDF #####
-        tempFrameTime = frameIndexParser(inputFilePath.strip("raw")+"frameIndex.txt", yearMonthDate)
+        tempFrameTime = frameIndexParser(''.join((inputFilePath.strip("raw"), "frameIndex.txt")), yearMonthDate)
         netCDFHandler.createDimension("y", len(tempFrameTime))
         frameTime    = netCDFHandler.createVariable("frametime", "f8", ("y",))
         frameTime[:] = tempFrameTime
@@ -153,7 +174,7 @@ class DataContainer(object):
 
 
         ##### Write the history to netCDF #####
-        netCDFHandler.history = _timeStamp() + ': python ' + commandLine
+        netCDFHandler.history = ''.join((_timeStamp(), ': python ', commandLine))
 
         netCDFHandler.close()
 
@@ -207,7 +228,7 @@ def _fileExistingCheck(filePath, dataContainer):
     user will decide whether skip or overwrite it (no append,
     since netCDF does not support the repeating variable names)
     '''
-    userPrompt = 'Output file already exists; skip it or overwrite or append? (S, O, A)'
+    userPrompt = '\033[0;31m--> Output file already exists; skip it or overwrite or append? (\033[4;31mS\033[0;31mkip, \033[4;31mO\033[0;31mverwrite, \033[4;31mA\033[0;31mppend\033[0m)'
 
     if os.path.isdir(filePath):
         filePath += ("/" + filePath.split("/")[-1] + ".nc")
@@ -262,8 +283,8 @@ def _replaceIllegalChar(string):
     elif "Position" in string:
         string = 'Position in ' + string[-1].upper() + ' Direction'
 
-    string.replace('/', '_per_')
-    string.replace(' ', '_')
+    string = string.replace('/', '_per_')
+    string = string.replace(' ', '_')
     if '(' in string:
         string = string[:string.find('(') - 1]
     elif '[' in string:
@@ -320,6 +341,7 @@ def jsonHandler(jsonFile):
     pass the json object to built-in json module
     '''
     with open(jsonFile[:-4] + '_metadata.json') as fileHandler:
+        jsonCheck(fileHandler)
         return json.loads(fileHandler.read(), object_hook=_filteringTheHeadings)
 
 
@@ -330,36 +352,54 @@ def printOnVersion(prompt):
         exec("print(prompt)")
 
 
-def translateTime(timeString, yearMonthDate):
-    hourUnpack = datetime.strptime(timeString, "%H:%M:%S").timetuple()
-    timeUnpack = datetime.strptime(yearMonthDate, "%m/%d/%Y %H:%M:%S").timetuple()
-    timeSplit  = date(year=timeUnpack.tm_year, month=timeUnpack.tm_mon,
-                     day=timeUnpack.tm_mday) - _UNIX_BASETIME
+def translateTime(yearMonthDate, frameTimeString=None):
+    hourUnpack, timeUnpack = None, None
 
-    return (timeSplit.total_seconds() + hourUnpack.tm_hour * 3600.0 + hourUnpack.tm_min * 60.0 +
-            hourUnpack.tm_sec) / (3600.0 * 24.0)
+    if frameTimeString:
+        hourUnpack = datetime.strptime(frameTimeString, "%H:%M:%S").timetuple()
+    
+    if _TIME_PATTERN[1].match(yearMonthDate):
+        timeUnpack = datetime.strptime(yearMonthDate, "%m/%d/%Y %H:%M:%S").timetuple()
+    elif _TIME_PATTERN[0].match(yearMonthDate):
+        timeUnpack = datetime.strptime(yearMonthDate, "%Y-%m-%d").timetuple()
+
+    timeSplit  = date(year=timeUnpack.tm_year, month=timeUnpack.tm_mon,
+                      day=timeUnpack.tm_mday) - _UNIX_BASETIME
+    if frameTimeString:
+        return (timeSplit.total_seconds() + hourUnpack.tm_hour * 3600.0 + hourUnpack.tm_min * 60.0 +
+                hourUnpack.tm_sec) / (3600.0 * 24.0)
+    else:
+        return timeSplit.total_seconds() / (3600.0 * 24.0)
 
 
 def frameIndexParser(fileName, yearMonthDate):
     with open(fileName) as fileHandler:
-        #print [dataMembers.split()[1] for dataMembers in fileHandler.readlines()[1:]]
-        return [translateTime(dataMembers.split()[1], yearMonthDate) for dataMembers in fileHandler.readlines()[1:]]
+        return [translateTime(yearMonthDate, dataMembers.split()[1]) for dataMembers in fileHandler.readlines()[1:]]
 
 
 def fileDependencyCheck(filePath):
     '''
     Check if the input location has all 
     '''
-    key = str()
+    key              = str()
+    illegalFileRegex = re.compile(_FILENAME_PATTERN)
     for roots, directorys, files in os.walk(filePath.rstrip(os.path.split(filePath)[-1])):
         for file in files:
-            if file.endswith("_raw"):
-                key = file.split("_")[0]
+            if re.match(_FILENAME_PATTERN, file):
+                key = illegalFileRegex.match(file).group(1)
+                return {key+"_frameIndex.txt", key+"_metadata.json", key+"_raw.hdr"} -\
+                        set([matchFile for matchFile in files if matchFile.startswith(illegalFileRegex.match(file).group(1))])
 
-    return {key+"_frameIndex.txt", key+"_metadata.json", key+"_raw.hdr"} -\
-                        set([matchFile for matchFile in files if matchFile.startswith(key)])
+def jsonCheck(fileHandler):
+    cache = list()
+    for data in fileHandler.readlines():
+        if ':' in data:
+            if data.split(':')[0].strip() in cache:
+                printOnVersion('\033[0;31m--> Warning: Multiple keys are mapped to a single value; such illegal mapping may cause the loss of important data.\033[0m')
+                printOnVersion(''.join(('\033[0;31m--> The file path is ', fileHandler.name, ', and the key is ', data.split(':')[0].strip(), '\033[0m')))
+            cache.append(data.split(':')[0].strip())
 
-
+    fileHandler.seek(0)
 
 def writeHeaderFile(fileName, netCDFHandler):
     '''
@@ -377,9 +417,9 @@ def writeHeaderFile(fileName, netCDFHandler):
 
     # mainDataHandler, tempVariable = open(fileName + '_raw'), netCDFHandler.createVariable(
     #     'exposure_2', 'f8', ('band', 'x', 'y'))  # ('band', 'x', 'y')
-    fileSize = os.path.getsize(fileName)
-    dataNumber, dataType, dataSize = fileSize / DATATYPE[hdrInfo['data type']][-1], DATATYPE[hdrInfo['data type']][0],\
-        DATATYPE[hdrInfo['data type']][-1]
+    # fileSize = os.path.getsize(fileName)
+    # dataNumber, dataType, dataSize = fileSize / DATATYPE[hdrInfo['data type']][-1], DATATYPE[hdrInfo['data type']][0],\
+    #     DATATYPE[hdrInfo['data type']][-1]
 
     # with TimeMeasurement("unpacking") as lineTiming: #measuring the time
     # value =
@@ -429,3 +469,4 @@ if __name__ == '__main__':
 
     testCase = jsonHandler(fileInput)
     testCase.writeToNetCDF(fileInput, fileOutput, fileInput + ' ' + fileOutput)
+    printOnVersion('\033[0;31mDone.\033[0m')

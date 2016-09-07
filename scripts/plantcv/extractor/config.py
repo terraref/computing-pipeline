@@ -13,7 +13,7 @@
 import os
 
 # name to show in rabbitmq queue list
-extractorName = os.getenv('RABBITMQ_QUEUE', "terraPlantCV")
+extractorName = os.getenv('RABBITMQ_QUEUE', "terra.plantcv")
 
 # URL to be used for connecting to rabbitmq
 rabbitmqURL = os.getenv('RABBITMQ_URI', "amqp://guest:guest@127.0.0.1/%2f")
@@ -32,3 +32,7 @@ registrationEndpoints = os.getenv('REGISTRATION_ENDPOINTS', "http://localhost:90
 
 # Path to script that contains PlantCV modules to import
 scriptPath = "../PlantcvClowderIndoorAnalysis.py"
+
+# BETYdb instance information for submitting output CSV (skipped if betyAPI is empty)
+betyAPI = "https://terraref.ncsa.illinois.edu/bety/api/beta/traits.csv"
+betyKey = ""

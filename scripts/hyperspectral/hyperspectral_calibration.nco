@@ -3,8 +3,8 @@
 /* Purpose: NCO/ncap2 script to process and calibrate Terraref exposure data
 
    Usage:
-   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/test_raw.nc ~/foo.nc
-   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/terraref.nco ${DATA}/terraref/whiteReference_raw.nc ~/foo.nc */
+   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_calibration.nco ${DATA}/terraref/test_raw.nc ~/foo.nc
+   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_calibration.nco ${DATA}/terraref/whiteReference_raw.nc ~/foo.nc */
 
 // Declare flags as RAM variables or they will clutter output file
 *flg_tst=1s; // [flg] Test mode
@@ -269,10 +269,26 @@ flx_sns={ // [uJ cnt-1] 10 sensitivities per line, 1024 total
 // Change flux sensitivity from [uJ cnt-1] to [J cnt-1] (SI)
 flx_sns*=1.0e-6; // [J cnt-1]
 
+// Add georeferenced coordinates
+// Store x and y in double-precision in case we use lat/lon
+// If stored as meters from image or gantry corner, then single-precision would be sufficient
+x=array(0.0,0.001,$x);
+x@long_name="North-south offset from start position";
+x@units="meter";
+x@algorithm="CSZ implemented these fake data to be replaced by real formula once available.";
+
+y=array(0.0,0.00098526434004512529576754637665,$y);
+y@long_name="East-west offset from start position";
+y@units="meter";
+y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144. y is defined as 0.9853 mm per pixel. Exact number is 0.98526434004512529576754637665 mm.";
+  
 // Change Hyperspectral Imager wavelengths from nm to m (SI)
 wavelength*=1.0e-9; // [m]
 wavelength@standard_name="radiation_wavelength";  
 wavelength@units="meter";  
+
+// Calibrate image from raw counts to reflectance
+// Procedure documented 
 
 // [cnt] Exposure from white reference sheet/panel
 xps_wht[wavelength,x]=maximum_exposure;
@@ -299,8 +315,10 @@ flx_dwn@units="watt meter-2 meter-1";
 // [cnt/(W m-2 m-1)] Proportionality constant between reflected spectral flux and Exposure
 *cst_cnv=(xps_wht-xps_drk)/(flx_dwn*rfl_wht);
 
-// [frc] = Reflectance of image (i.e., plants)
-rfl_img[wavelength,y,x]=0.0; // Pre-assign to zero to avoid attribute propagation next line
+// [frc] = Reflectance of image (plant reflectance)
+// 20160826: Pre-assigning to zero would create additional copy and increase required memory
+// Instead use implicit casting, and overwrite attributes propagated from xps_img
+//rfl_img[wavelength,y,x]=0.0f;
 rfl_img=xps_img/(flx_dwn*cst_cnv);
 rfl_img@long_name="Reflectance of image";
 rfl_img@standard_name="surface_albedo";
