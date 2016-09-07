@@ -238,7 +238,8 @@ def cleanPendingTransfers():
             del pendingTransfers[ds]
 
 """Add a particular file to pendingTransfers"""
-def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None, spaceid=None, filemetadata={}):
+def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None, spaceid=None, filemetadata={},
+                              manual=False):
     global pendingTransfers
     global status_numPending
 
@@ -247,13 +248,15 @@ def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=No
     dockerDir = config['globus']['source_path']
     whitelist = config['gantry']["directory_whitelist"]
 
-    whitelisted = False
-    for w in whitelist:
-        if f.find(w) == 0 or f.find(w.replace(dockerDir,"")) == 0:
-            whitelisted = True
-    if not whitelisted:
-        logger.error("path %s is not whitelisted; skipping" % f)
-        return
+    # Only check whitelist if scanning from FTP, not if manually submitted
+    if not manual:
+        whitelisted = False
+        for w in whitelist:
+            if f.find(w) == 0 or f.find(w.replace(dockerDir,"")) == 0:
+                whitelisted = True
+        if not whitelisted:
+            logger.error("path %s is not whitelisted; skipping" % f)
+            return
 
     # Get path starting at the site level (e.g. LemnaTec, MAC)
     if f.find(gantryDir) > -1:
@@ -269,6 +272,7 @@ def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=No
     # /LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
     # /LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
     # /MAC/lightning/2016-01-01/weather_2016_06_29.dat
+    # /LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
     pathParts = gantryDirPath.split("/")
 
     # Filename is always last
@@ -289,6 +293,7 @@ def addFileToPendingTransfers(f, sensorname=None, timestamp=None, datasetname=No
 
     if not datasetname:
         datasetname = sensorname +" - "+timestamp
+
     gantryDirPath = gantryDirPath.replace(filename, "")
 
     newTransfer = {
@@ -386,7 +391,7 @@ class TransferQueue(restful.Resource):
             if p.find(srcpath) == -1:
                 p = os.path.join(srcpath, p)
             filemetadata = {} if 'md' not in req else req['md']
-            addFileToPendingTransfers(p, sensorname, timestamp, datasetname, spaceid, filemetadata)
+            addFileToPendingTransfers(p, sensorname, timestamp, datasetname, spaceid, filemetadata, True)
             logger.info("- file queued via API: %s" % p)
 
         # Multiple file path entries under 'paths'
@@ -398,7 +403,7 @@ class TransferQueue(restful.Resource):
                     filemetadata = req['file_metadata'][p]
                 else:
                     filemetadata = {}
-                addFileToPendingTransfers(p, sensorname, timestamp, datasetname, spaceid, filemetadata)
+                addFileToPendingTransfers(p, sensorname, timestamp, datasetname, spaceid, filemetadata, True)
                 logger.info("- file queued via API: %s" % p)
 
         cleanPendingTransfers()
@@ -711,6 +716,14 @@ def initializeGlobusTransfer():
                         dest_path = dest_path.replace("MovingSensor/", "")
                         dest_path = dest_path.replace("MAC/", "")
                         dest_path = dest_path.replace("3DScannerRawDataTmp/", "")
+                        # /ua-mac/raw_data/LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
+                        if dest_path.find("MovingSensor.reproc") > -1:
+                            new_dest_path = ""
+                            dirs = dest_path.split("/")
+                            for dir_part in dirs:
+                                if dir_part.find("MovingSensor.reproc") == -1:
+                                    new_dest_path = os.path.join(new_dest_path, dir_part)
+                            dest_path = new_dest_path
 
                         transferObj.add_item(src_path, dest_path)
 
