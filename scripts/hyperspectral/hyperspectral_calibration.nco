@@ -77,22 +77,22 @@ wavelength@units="meter";
 // 20160908: actual values are not yet available so we use this guesstimate
 *exposure_dark_guesstimate=ushort(10); // [cnt]
 
-max_xps_img=xps_img.max($y,$x);
-max_xps_img@long_name="Maximum image exposure at each wavelength";
-max_xps_img@units="Counts on scale from 0 to 2^16-1 = 65535";
+xps_img_max=xps_img.max($y,$x);
+xps_img_max@long_name="Maximum image exposure at each wavelength";
+xps_img_max@units="Counts on scale from 0 to 2^16-1 = 65535";
 
 // [cnt] Exposure from spectralon reference target
 //xps_rfr[wavelength,x]=exposure_reference_guesstimate; // Produces reflectances too small by ~10^5
-xps_rfr[wavelength,x]=ushort(max_xps_img*(factory_calibrated_reflectance_guesstimate/maximum_plant_reflectance_guesstimate));
+xps_rfr[wavelength,x]=ushort(xps_img_max*(factory_calibrated_reflectance_guesstimate/maximum_plant_reflectance_guesstimate));
 xps_rfr@long_name="Exposure from spectralon reference target";
 xps_rfr@units="Counts on scale from 0 to 2^16-1 = 65535";
 
-min_xps_img=xps_img.min($y,$x);
-min_xps_img@long_name="Minimum image exposure at each wavelength";
-min_xps_img@units="Counts on scale from 0 to 2^16-1 = 65535";
+xps_img_min=xps_img.min($y,$x);
+xps_img_min@long_name="Minimum image exposure at each wavelength";
+xps_img_min@units="Counts on scale from 0 to 2^16-1 = 65535";
 
 // [cnt] Exposure from dark current image
-xps_drk[wavelength,x]=min_xps_img*0.01;
+xps_drk[wavelength,x]=xps_img_min*0.01;
 xps_drk@long_name="Exposure from dark current image";
 xps_drk@units="Counts on scale from 0 to 2^16-1 = 65535";
 
