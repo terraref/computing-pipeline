@@ -4,6 +4,10 @@
 
 # Source: https://github.com/terraref/computing-pipeline/tree/master/scripts/hyperspectral/hyperspectral_workflow.sh
 
+# Documentation:
+# https://docs.google.com/document/d/1w_zHHlrPVKsy1mnW9wrVzAU2edVqZH8i1IZa5BZxVpo/edit#heading=h.jjfbhbos05cc # Calibration employed since 20160908
+# https://github.com/terraref/computing-pipeline/issues/88 # Calibration employed until 20160908
+
 # Prerequisites:
 # NCO version 4.6.0 (dated 20160401) or later
 # Python: Python 2.7.X or 3.X (preferred) with netCDF4 module

@@ -2,8 +2,11 @@
 
 /* Purpose: NCO/ncap2 script to process and calibrate Terraref exposure data
 
+   Documentation:
+   https://docs.google.com/document/d/1w_zHHlrPVKsy1mnW9wrVzAU2edVqZH8i1IZa5BZxVpo/edit#heading=h.jjfbhbos05cc # Calibration employed since 20160908
+   https://github.com/terraref/computing-pipeline/issues/88 # Calibration employed until 20160908
+
    Usage:
-   ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_calibration.nco ${DATA}/terraref/test_raw.nc ~/foo.nc
    ncap2 -v -O -S ~/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_calibration.nco ${DATA}/terraref/whiteReference_raw.nc ~/foo.nc */
 
 // Declare flags as RAM variables or they will clutter output file
@@ -16,17 +19,95 @@
 // Defaults for values not provided on command-line
 if(!exists(clb_nbr)) *clb_nbr=73; // [nbr] Calibration number
 
-/* Calibration documentation https://github.com/terraref/computing-pipeline/issues/88
-   Maximum exposure (counts) recordable when imaging white reference sheet
-   Camera exposed to natural light reflecting from white reference for standard exposure time accumulates maximum_exposure counts in each channel
-   Optimal calibration would have this equal 2^16-1 in each channel */
-*maximum_exposure=ushort(2^16-1); // [cnt]
-// A perfect detector exposed to darkness for same (standard) exposure time accumulates minimum_exposure counts in each channel
-*minimum_exposure=ushort(0); // [cnt]
+// Add georeferenced coordinates
+// Store x and y in double-precision in case we use lat/lon
+// If stored as meters from image or gantry corner, then single-precision would be sufficient
+x=array(0.0,0.001,$x);
+x@long_name="North-south offset from start position";
+x@units="meter";
+x@algorithm="CSZ implemented these fake data to be replaced by real formula once available.";
 
-// Assume white reference sheet reflects all wavelengths with 97% efficiency
-*fake_factory_calibrated_reflectance=0.97f; // [frc]
+y=array(0.0,0.00098526434004512529576754637665,$y);
+y@long_name="East-west offset from start position";
+y@units="meter";
+y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144. y is defined as 0.9853 mm per pixel. Exact number is 0.98526434004512529576754637665 mm.";
+  
+// Change Hyperspectral Imager wavelengths from nm to m (SI)
+wavelength*=1.0e-9; // [m]
+wavelength@standard_name="radiation_wavelength";  
+wavelength@units="meter";  
 
+// [W m-2 m-1] Downwelling spectral irradiance
+// 20160908 This is a placeholder for irradiance on the hyperspectral grid 
+// Currently no instrument measures this
+// The only irradiance measured in by the Environmental Logger, which has a different (and non-overlapping) spectral grid
+//flx_dwn[wavelength]=2.0e9f;
+//flx_dwn@long_name="Downwelling spectral irradiance";
+//flx_dwn@standard_name="surface_downwelling_radiative_flux_per_unit_wavelength_in_air";
+//flx_dwn@units="watt meter-2 meter-1"; 
+
+/* Calibrate hyperspectral image from raw counts to reflectance
+   Optimal calibration would have this equal 2^16-1 in each channel for a perfectly white reflector
+   This parameter depends solely on the bit-resolution of the camera (currently 16 bits) */
+*exposure_theoretical_maximum=ushort(2^16-1); // [cnt]
+
+/* Assume spectral reference target employed is "white" reference sheet that reflects all wavelengths with 95% efficiency
+   (Some) Documentation for spectralon reference targets at
+   https://github.com/terraref/reference-data/issues/36
+
+   fxm: replace this with actual, wavelength-dependent calibrated reflectance */
+*factory_calibrated_reflectance_guesstimate=0.95f; // [frc]
+
+/* exposure_reference is exposure measured when pointing at spectralon reference target
+   Camera exposed to natural light reflecting from reference target for standard exposure time accumulates exposure_reference counts in each channel
+   Expected to be large fraction (assumed here to be fake_factory_calibrate_reflectance) of exposure_theoretical_maximum for white reflector 
+   However, grey reference reflector might be more optimal than white
+   Plants have maximum reflectance of ~0.4 so calibrating at white not as accurate as calibrating near 0.4 
+   We hope Lemnatec tunes exposure time to achieve the greatest dynamic range, and thus precision, under a wide range of circumstances
+   One tuning consideration is that maximum exposure for white reflector at noon is close to but does not exceed exposure_theoretical_maximum 
+   Other tuning considerations are possible... */
+// 20160908: actual values are not yet available so use this guesstimate
+*exposure_reference_guesstimate=ushort(factory_calibrated_reflectance_guesstimate*exposure_theoretical_maximum); // [cnt]
+
+// A perfect detector would measure no counts when aperture shut
+*exposure_theoretical_minimum=ushort(0); // [cnt]
+
+// A real detector exposed to darkness for standard exposure time accumulates exposure_dark counts in each channel
+// 20160908: actual values are not yet available so we use this guesstimate
+*exposure_dark_guesstimate=ushort(10); // [cnt]
+
+// [cnt] Exposure from spectralon reference target
+xps_rfr[wavelength,x]=exposure_reference_guesstimate;
+xps_rfr@long_name="Exposure from spectralon reference target";
+xps_rfr@units="Counts on scale from 0 to 2^16-1 = 65535";
+
+// [cnt] Exposure from dark current image
+xps_drk[wavelength,x]=exposure_dark_guesstimate;
+xps_drk@long_name="Exposure from dark current image";
+xps_drk@units="Counts on scale from 0 to 2^16-1 = 65535";
+
+// [frc] Reflectance of spectralon reference target (from factory calibration)
+rfl_rfr_fct[wavelength]=factory_calibrated_reflectance_guesstimate;
+rfl_rfr_fct@long_name="Reflectance of spectralon reference target (from factory calibration)";
+rfl_rfr_fct@units="1";
+
+// [cnt/cnt] Proportionality constant between factory-calibrated reflectance and current image and field calibration
+// 20160908: No real reason to use or archive this
+//rfl_img_prp=(xps_img-xps_drk)/(xps_rfr-xps_drk);
+
+// [frc] = Reflectance of image (plant reflectance)
+// 20160826: Pre-assigning to zero would create additional copy and increase required memory
+// Instead use implicit casting, and overwrite attributes propagated from rfl_rfr_fct
+//rfl_img[wavelength,y,x]=0.0f;
+rfl_img=rfl_rfr_fct*(xps_img-xps_drk)/(xps_rfr-xps_drk);
+rfl_img@long_name="Reflectance of image";
+rfl_img@standard_name="surface_albedo";
+rfl_img@units="1";
+  
+/* 20160908: 
+   Below this line is Environmental Logger information, now extraneous to hyperspectral calibration
+   New calibration algorithm does not depend on measured irradiance...yet 
+   We could move this Environmental Logger code to (ncap2 version of) EL extractor */
 // [nbr] Number of wavelengths in environmental sensor
 *wvl_nvr_nbr=1024;
 defdim("wvl_nvr",wvl_nvr_nbr);
@@ -269,61 +350,6 @@ flx_sns={ // [uJ cnt-1] 10 sensitivities per line, 1024 total
 // Change flux sensitivity from [uJ cnt-1] to [J cnt-1] (SI)
 flx_sns*=1.0e-6; // [J cnt-1]
 
-// Add georeferenced coordinates
-// Store x and y in double-precision in case we use lat/lon
-// If stored as meters from image or gantry corner, then single-precision would be sufficient
-x=array(0.0,0.001,$x);
-x@long_name="North-south offset from start position";
-x@units="meter";
-x@algorithm="CSZ implemented these fake data to be replaced by real formula once available.";
-
-y=array(0.0,0.00098526434004512529576754637665,$y);
-y@long_name="East-west offset from start position";
-y@units="meter";
-y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144. y is defined as 0.9853 mm per pixel. Exact number is 0.98526434004512529576754637665 mm.";
-  
-// Change Hyperspectral Imager wavelengths from nm to m (SI)
-wavelength*=1.0e-9; // [m]
-wavelength@standard_name="radiation_wavelength";  
-wavelength@units="meter";  
-
-// Calibrate image from raw counts to reflectance
-// Procedure documented 
-
-// [cnt] Exposure from white reference sheet/panel
-xps_wht[wavelength,x]=maximum_exposure;
-xps_wht@long_name="Exposure from white reference sheet/panel";
-xps_wht@units="Counts on scale from 0 to 2^16-1 = 65535";
-
-// [cnt] Exposure from dark reference sheet/panel
-xps_drk[wavelength,x]=minimum_exposure;
-xps_drk@long_name="Exposure from dark reference sheet/panel";
-xps_drk@units="Counts on scale from 0 to 2^16-1 = 65535";
-
-// [frc] Reflectance of white reference (factory calibration)
-rfl_wht[wavelength]=fake_factory_calibrated_reflectance;
-rfl_wht@long_name="Reflectance of white reference";
-rfl_wht@units="1";
-
-// [W m-2 m-1] Downwelling spectral irradiance (measured by environmental sensor)
-flx_dwn[wavelength]=2.0e9f;
-flx_dwn@long_name="Downwelling spectral irradiance";
-flx_dwn@standard_name="surface_downwelling_radiative_flux_per_unit_wavelength_in_air";
-flx_dwn@units="watt meter-2 meter-1"; 
-
-// Intermediate quantities (not archived)
-// [cnt/(W m-2 m-1)] Proportionality constant between reflected spectral flux and Exposure
-*cst_cnv=(xps_wht-xps_drk)/(flx_dwn*rfl_wht);
-
-// [frc] = Reflectance of image (plant reflectance)
-// 20160826: Pre-assigning to zero would create additional copy and increase required memory
-// Instead use implicit casting, and overwrite attributes propagated from xps_img
-//rfl_img[wavelength,y,x]=0.0f;
-rfl_img=xps_img/(flx_dwn*cst_cnv);
-rfl_img@long_name="Reflectance of image";
-rfl_img@standard_name="surface_albedo";
-rfl_img@units="1";
-  
 if(0){
   // Old ncap2 script that converted GDAL-prodoced rasters into a single 3D image cube
   if(!exists(wvl_nbr)) *wvl_nbr=926; // [nbr] SWIR camera has 926 bands
