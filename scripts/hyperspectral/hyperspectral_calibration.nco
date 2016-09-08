@@ -68,6 +68,7 @@ wavelength@units="meter";
    Other tuning considerations are possible... */
 // 20160908: actual values are not yet available so use this guesstimate
 *exposure_reference_guesstimate=ushort(factory_calibrated_reflectance_guesstimate*exposure_theoretical_maximum); // [cnt]
+*maximum_plant_reflectance_guesstimate=0.37; // [frc]
 
 // A perfect detector would measure no counts when aperture shut
 *exposure_theoretical_minimum=ushort(0); // [cnt]
@@ -76,17 +77,27 @@ wavelength@units="meter";
 // 20160908: actual values are not yet available so we use this guesstimate
 *exposure_dark_guesstimate=ushort(10); // [cnt]
 
+max_xps_img=xps_img.max($y,$x);
+max_xps_img@long_name="Maximum image exposure at each wavelength";
+max_xps_img@units="Counts on scale from 0 to 2^16-1 = 65535";
+
 // [cnt] Exposure from spectralon reference target
-xps_rfr[wavelength,x]=exposure_reference_guesstimate;
+//xps_rfr[wavelength,x]=exposure_reference_guesstimate; // Produces reflectances too small by ~10^5
+xps_rfr[wavelength,x]=ushort(max_xps_img*(factory_calibrated_reflectance_guesstimate/maximum_plant_reflectance_guesstimate));
 xps_rfr@long_name="Exposure from spectralon reference target";
 xps_rfr@units="Counts on scale from 0 to 2^16-1 = 65535";
 
+min_xps_img=xps_img.min($y,$x);
+min_xps_img@long_name="Minimum image exposure at each wavelength";
+min_xps_img@units="Counts on scale from 0 to 2^16-1 = 65535";
+
 // [cnt] Exposure from dark current image
-xps_drk[wavelength,x]=exposure_dark_guesstimate;
+xps_drk[wavelength,x]=min_xps_img*0.01;
 xps_drk@long_name="Exposure from dark current image";
 xps_drk@units="Counts on scale from 0 to 2^16-1 = 65535";
 
 // [frc] Reflectance of spectralon reference target (from factory calibration)
+// 20160908: must track this down, possibly add angular dependence
 rfl_rfr_fct[wavelength]=factory_calibrated_reflectance_guesstimate;
 rfl_rfr_fct@long_name="Reflectance of spectralon reference target (from factory calibration)";
 rfl_rfr_fct@units="1";
