@@ -1,6 +1,42 @@
+import numpy as np
 import sys
 import json
-import numpy
+
+__all__ = [pixel2Geographic,]
+
+# from Dr. LeBauer, Github thread: terraref/referece-data #32
+CAMERA_POSITION = np.array([1.9, 0.855, 0.635])
+
+# from Dr. LeBauer, Github thread: terraref/referece-data #32
+CAMERA_FOCAL_LENGTH = 24e-3 # the focal length for SWIR camera. unit:[m]
+
+# from Dr. LeBauer, Github thread: terraref/referece-data #32
+PIXEL_PITCH = 25e-6 #[m]
+
+# from Dr. LeBauer, Github thread: terraref/referece-data #32
+# Originally in 33, 04.470' N / -111, 58.485' W
+REFERENCE_POINT_LATLONG = np.deg2rad(33 + 4.470 / 60), np.deg2rad(-111 - 58.485 / 60) +np.pi # Temporarily
+#print REFERENCE_POINT_LATLONG
+
+# from Dr. LeBauer, Github thread: terraref/referece-data #32
+GAMMA = 0 #TODO: waiting for the correct value
+
+# from Dr. LeBauer, Github thread: terraref/referece-data #32
+# This matrix looks like this:
+#
+#     | alphaX, gamma, u0 |
+#     |			  |
+# A = |   0 ,  alphaY, v0 |
+#     |			  |
+#     |   0 ,    0,     1 |
+#
+# where alphaX = alphaY = CAMERA_FOCAL_LENGTH / PIXEL_PITCH,
+#       GAMMA is calibration constant
+#       u0 and v0 are the center coordinate of the image (waiting to be found)
+#
+# will be used in calculating the lat long of the image
+
+ORIENTATION_MATRIX = np.array([[CAMERA_FOCAL_LENGTH / PIXEL_PITCH, GAMMA, 0], [0, CAMERA_FOCAL_LENGTH / PIXEL_PITCH, 0 ], [0, 0, 1]])
 
 def pixel2Geographic(jsonFileLocation, headerFileLocation):
 
@@ -41,7 +77,3 @@ def pixel2Geographic(jsonFileLocation, headerFileLocation):
         bounding_box = x_final_result[-1] - x_final_result[0], y_final_result[-1] - y_final_result[0] 
 
         return x_final_result, y_final_result, bounding_box
-
-
-if __name__ == "__main__":
-    pixel2Geographic(sys.argv[1], sys.argv[2])

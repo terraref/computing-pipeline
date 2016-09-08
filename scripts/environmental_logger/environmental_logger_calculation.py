@@ -1,67 +1,6 @@
-'''
-A supporting module for environmental_logger_json2netcdf.py and hyperspectral_metadata.py.
-This module is in charge of all the calculation works needed in the
-environmental_logger_json2netcdf.py (converting the data made by environmental logger)
-and hyperspectral_metadata.py (group up the supporting files for data_raw).
-
-The main block is only used for testing. Most of the contents will be imported by
-hyperspectral_metadata and environmental_logger_json2netcdf
-----------------------------------------------------------------------------------------
-
-Prerequisite:
-1. Python (2.7+ recommended)
-2. numpy (For array calculations, make sure the numpy has the same Python verison as other modules)
-
-----------------------------------------------------------------------------------------
-
-Important Note:
-Please place this module together with hyperspectral_metadata.py and environmental_logger_json2netcdf.py
-----------------------------------------------------------------------------------------
-Referece:
-Many algorithms and data are based the discussion threads in Github discussion thread:
-https://github.com/terraref/reference-data/issues/32#issuecomment-221893430
-
-and hyperspectral_calibration.nco file (calibration)
-and Professor Zender.
-----------------------------------------------------------------------------------------
-'''
 import numpy as np
 
-__all__ = ["FLX_SNS", "AREA", "calculateDownwellingSpectralFlux", "transferCoordinate"]
-
-# from Dr. LeBauer, Github thread: terraref/referece-data #32
-CAMERA_POSITION = np.array([1.9, 0.855, 0.635])
-
-# from Dr. LeBauer, Github thread: terraref/referece-data #32
-CAMERA_FOCAL_LENGTH = 24e-3 # the focal length for SWIR camera. unit:[m]
-
-# from Dr. LeBauer, Github thread: terraref/referece-data #32
-PIXEL_PITCH = 25e-6 #[m]
-
-# from Dr. LeBauer, Github thread: terraref/referece-data #32
-# Originally in 33, 04.470' N / -111, 58.485' W
-REFERENCE_POINT_LATLONG = np.deg2rad(33 + 4.470 / 60), np.deg2rad(-111 - 58.485 / 60) +np.pi # Temporarily
-#print REFERENCE_POINT_LATLONG
-
-# from Dr. LeBauer, Github thread: terraref/referece-data #32
-GAMMA = 0 #TODO: waiting for the correct value
-
-# from Dr. LeBauer, Github thread: terraref/referece-data #32
-# This matrix looks like this:
-#
-#     | alphaX, gamma, u0 |
-#     |			  |
-# A = |   0 ,  alphaY, v0 |
-#     |			  |
-#     |   0 ,    0,     1 |
-#
-# where alphaX = alphaY = CAMERA_FOCAL_LENGTH / PIXEL_PITCH,
-#       GAMMA is calibration constant
-#       u0 and v0 are the center coordinate of the image (waiting to be found)
-#
-# will be used in calculating the lat long of the image
-
-ORIENTATION_MATRIX = np.array([[CAMERA_FOCAL_LENGTH / PIXEL_PITCH, GAMMA, 0], [0, CAMERA_FOCAL_LENGTH / PIXEL_PITCH, 0 ], [0, 0, 1]])
+__all__ = [AREA, FLX_SNS, calculateDownwellingSpectralFlux]
 
 #Fibre optic collection surface area is pi * (fiber diameter squared) / 4
 AREA = np.pi * (3900.0 * 1.0e-6) ** 2 / 4.0  # [m2]
@@ -173,72 +112,27 @@ FLX_SNS = \
      2.62283407e-4, 2.63904910e-4, 2.65792030e-4, 2.67956880e-4, 2.70494493e-4, 2.73225853e-4, 2.76170072e-4, 2.79055057e-4, 2.81984548e-4, 2.88500954e-4,
      2.89109910e-4, 2.93129400e-4, 2.92536512e-4, 2.92536512e-4]  # [uJ cnt-1] 10 sensitivities per line, 1024 total
 
-
-def calculateDownwellingSpectralFlux(wvl_lgr, spectrum):
-	'''
-	This function will calculate the downwelling spectral flux.
-	A desired type for wvl_lgr would be a single 1D list, and spectrum
-	should be a nested 2D list. The area for spectrometer and integration
-	time are default.
-	'''
-	Spectrometer_Integration_Time_In_Microseconds = 5000.0 # [us]
-   	Spectrometer_Integration_Time                 = Spectrometer_Integration_Time_In_Microseconds * 1.0e-6 # [s]
-
-
-   	wvl_ntf  = [np.average([wvl_lgr[i], wvl_lgr[i+1]]) for i in range(len(wvl_lgr)-1)]
-   	delta    = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
-   	delta.insert(0, 2*(wvl_ntf[0] - wvl_lgr[0]))
-   	delta.insert(-1, 2*(wvl_lgr[-1] - wvl_ntf[-1]))
-
-   	# General formula used in calculating downwelling spectral flux:
-   	# Downwelling Spectral Flux = (spectrum [cnt] - dark [cnt]) * flx_sns [J cnt-1]  / bandwidth [m] / area [m2] / time [s]
-   	downwellingSpectralFlux = np.array(FLX_SNS) * 1.0e-6 * np.array(spectrum) / np.array(delta) / AREA / Spectrometer_Integration_Time # [J m-2 m-1 s-1] = [W m-2 m-1]
-
-   	# downwellingFlux is the summation (integration) of downwelling flux
-	downwellingFlux = np.sum(downwellingSpectralFlux)
-
-	return downwellingSpectralFlux, downwellingFlux   
+     def calculateDownwellingSpectralFlux(wvl_lgr, spectrum):
+        '''
+        This function will calculate the downwelling spectral flux.
+        A desired type for wvl_lgr would be a single 1D list, and spectrum
+        should be a nested 2D list. The area for spectrometer and integration
+        time are default.
+        '''
+        Spectrometer_Integration_Time_In_Microseconds = 5000.0 # [us]
+        Spectrometer_Integration_Time                 = Spectrometer_Integration_Time_In_Microseconds * 1.0e-6 # [s]
 
 
-def transferCoordinate(currentPosition, gantryVelocity=0, movingTime=0):
-	'''
-	This function is based on the algorithm provided by Dr. LeBauer on referece-data issue 32.
-	It will convert the coordinate from lemnatec scanner metadata to absolute value.
-	It contains two parts: extrinsic and instrinsic calibration.
+        wvl_ntf  = [np.average([wvl_lgr[i], wvl_lgr[i+1]]) for i in range(len(wvl_lgr)-1)]
+        delta    = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
+        delta.insert(0, 2*(wvl_ntf[0] - wvl_lgr[0]))
+        delta.insert(-1, 2*(wvl_lgr[-1] - wvl_ntf[-1]))
 
-	gantryVelocity and movingTime are expected to be int or float, and currentPosition should be
-	a 3-tuple (or list)
+        # General formula used in calculating downwelling spectral flux:
+        # Downwelling Spectral Flux = (spectrum [cnt] - dark [cnt]) * flx_sns [J cnt-1]  / bandwidth [m] / area [m2] / time [s]
+        downwellingSpectralFlux = np.array(FLX_SNS) * 1.0e-6 * np.array(spectrum) / np.array(delta) / AREA / Spectrometer_Integration_Time # [J m-2 m-1 s-1] = [W m-2 m-1]
 
-	The very end of the gantry rail (SE) is defined as (0,0,0)
-	'''
-	#Extrinsic:
-	#[Xc Yc Zc]'= Ro [Xf Yf Zf]'+ to, and no rotation engaged.
-	transitionVector = CAMERA_POSITION + [gantryVelocity*movingTime, 0, 0]
+        # downwellingFlux is the summation (integration) of downwelling flux
+        downwellingFlux = np.sum(downwellingSpectralFlux)
 
-	#Intrinsic:
-	#return transitionVector * ORIENTATION_MATRIX
-
-	x, y, z =\
-    transitionVector * ORIENTATION_MATRIX[0], transitionVector * ORIENTATION_MATRIX[1], transitionVector * ORIENTATION_MATRIX[2]
-	referenceX, referenceY = REFERENCE_POINT_LATLONG
-
-	rawLat = np.arcsin(referenceX) + x / (6371.0*1000)
-	rawLon = np.arcsin(referenceY) + y / (6371.0*1000)
-
-	return np.rad2deg(rawLat), np.rad2deg(rawLon)
-
-
-
-
-if __name__ == '__main__':
-	print transferCoordinate((195,21,0), 10, 10)
-	#pass
-
-
-
-
-
-
-
-
-
+        return downwellingSpectralFlux, downwellingFlux  
