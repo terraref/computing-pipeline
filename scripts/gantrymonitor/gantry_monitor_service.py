@@ -660,6 +660,9 @@ def getNewFilesFromFTPLogs():
                     currLog = os.path.join(logDir, "xferlog")
                     foundResumePoint = True
                     backLog = 0
+
+                    logger.error("LAST READ LINE NOT FOUND! Will search again next cycle.")
+                    handledBackLog = True
                 else:
                     currLog = os.path.join(logDir, lognames[-backLog])
 
