@@ -8,9 +8,9 @@
     "ftp_log_path": "/var/log",
     "file_age_monitor_paths": [],
     "min_file_age_for_transfer_mins": 15,
-    "file_check_frequency_secs": 60,
+    "file_check_frequency_secs": 20,
     "max_pending_files": 40000,
-    "globus_transfer_frequency_secs": 90,
+    "globus_transfer_frequency_secs": 10,
     "directory_whitelist": []
   },
 

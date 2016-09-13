@@ -219,13 +219,14 @@ def writeCompletedTaskToDisk(task):
 
     # Write to json file with task ID as filename
     dest = os.path.join(logPath, taskID+".json")
+    f = open(dest, 'w')
+    lockFile(f)
+    f.write(json.dumps(task))
+    f.close()
     logger.info("%s complete: %s" % (taskID, dest), extra={
         "globus_id": taskID,
         "action": "WRITING TO COMPLETED (ROGER)"
     })
-    f = open(dest, 'w')
-    f.write(json.dumps(task))
-    f.close()
 
 """Find dataset id if dataset exists, creating if necessary"""
 def fetchDatasetByName(datasetName, requestsSession, spaceOverride=None):
