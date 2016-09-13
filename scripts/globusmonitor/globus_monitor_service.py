@@ -223,10 +223,7 @@ def writeCompletedTaskToDisk(task):
     lockFile(f)
     f.write(json.dumps(task))
     f.close()
-    logger.info("%s complete: %s" % (taskID, dest), extra={
-        "globus_id": taskID,
-        "action": "WRITING TO COMPLETED (ROGER)"
-    })
+
 
 """Find dataset id if dataset exists, creating if necessary"""
 def fetchDatasetByName(datasetName, requestsSession, spaceOverrideId=None):
