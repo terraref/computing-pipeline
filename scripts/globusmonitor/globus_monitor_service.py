@@ -243,7 +243,7 @@ def fetchDatasetByName(datasetName, requestsSession, spaceOverride=None):
                 "dataset_name": datasetName,
                 "action": "DATASET CREATED"
             })
-            writeDataToDisk(config['dataset_map_path'], datasetMap)
+            #writeDataToDisk(config['dataset_map_path'], datasetMap)
             addDatasetToSpacesCollections(datasetName, dsid, requestsSession, spaceOverride)
             return dsid
         else:
@@ -762,6 +762,8 @@ def clowderSubmissionLoop():
                             "action": "PROCESSING COMPLETE"
                         })
                         unprocessedTasks.remove(globusID)
+                        # Write out new datasets to disk
+                        writeDataToDisk(config['dataset_map_path'], datasetMap)
                         writeDataToDisk(config['unprocessed_tasks_path'], unprocessedTasks)
                     else:
                         logger.error("%s not successfully sent" % globusID)
