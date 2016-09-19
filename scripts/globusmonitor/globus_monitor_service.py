@@ -596,7 +596,7 @@ def notifyClowderOfCompletedTask(task):
             if 'files' in task['contents'][ds]:
                 for f in task['contents'][ds]['files']:
                     fobj = task['contents'][ds]['files'][f]
-                    if 'clowder_id' not in fobj or fobj['clowder_id'] == "":
+                    if 'clowder_id' not in fobj or fobj['clowder_id'] == "" or fobj['clowder_id'] == "FILE NOT FOUND":
                         if os.path.exists(fobj['path']):
                             if f.find("metadata.json") == -1:
                                 fileFormData.append(
