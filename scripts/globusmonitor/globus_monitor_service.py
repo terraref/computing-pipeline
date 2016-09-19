@@ -718,7 +718,7 @@ def globusMonitorLoop():
                         if 'files' in task['contents'][ds]:
                             for f in task['contents'][ds]['files']:
                                 fobj = task['contents'][ds]['files'][f]
-                                fobj['path'] = os.path.join(config['globus']['incoming_files_path'], fobj['path'], fobj["name"])
+                                fobj['path'] = os.path.join(config['globus']['incoming_files_path'], fobj['path'])
 
                     # Notify Clowder to process file if transfer successful
                     if globusStatus == "SUCCEEDED":
