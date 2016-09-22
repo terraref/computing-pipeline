@@ -75,6 +75,7 @@ import platform
 import struct
 from datetime import date, datetime
 from netCDF4 import Dataset
+from hyperspectral_calculation import pixel2Geographic
 
 _UNIT_DICTIONARY = {'m': 'meter',
                     's': 'second', 'm/s': 'meter second-1', '': ''}
@@ -171,6 +172,15 @@ class DataContainer(object):
         frameTime[:] = tempFrameTime
         setattr(frameTime, "units",     "days since 1970-01-01 00:00:00")
         setattr(frameTime, "calender", "gregorian")
+
+        xPixelsLocation, yPixelsLocation, boundingBox = pixel2Geographic(inputFilePath, inputFilePath + '.hdr')
+        netCDFHandler.createDimension("graph_width", len(xPixelsLocation))
+        x = netCDFHandler.createVariable("x_pixel_geographic", "f8", ("graph_width",))
+        x[:] = xPixelsLocation
+
+        netCDFHandler.createDimension("graph_height", len(yPixelsLocation))
+        y = netCDFHandler.createVariable("y_pixel_geographic", "f8", ("graph_height",))
+        y[:] = yPixelsLocation
 
 
         ##### Write the history to netCDF #####
