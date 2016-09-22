@@ -2,8 +2,6 @@ import numpy as np
 import sys
 import json
 
-__all__ = [pixel2Geographic,]
-
 # from Dr. LeBauer, Github thread: terraref/referece-data #32
 CAMERA_POSITION = np.array([1.9, 0.855, 0.635])
 
@@ -69,8 +67,8 @@ def pixel2Geographic(jsonFileLocation, headerFileLocation):
         x_absolute_pos = x_gantry_pos + x_camera_pos
         y_absolute_pos = y_gantry_pos + y_camera_pos
 
-        x_final_result = numpy.array([x * x_pixel_size for x in range(x_pixel_num)]) + x_absolute_pos
-        y_final_result = numpy.array([y * y_pixel_size for y in range(y_pixel_num)]) + y_absolute_pos
+        x_final_result = np.array([x * x_pixel_size for x in range(x_pixel_num)]) + x_absolute_pos
+        y_final_result = np.array([y * y_pixel_size for y in range(y_pixel_num)]) + y_absolute_pos
 
         ########### Sample result: x -> 0.377 [m], y -> 0.267 [m] ###########
 

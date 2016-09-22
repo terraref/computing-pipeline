@@ -173,13 +173,13 @@ class DataContainer(object):
         setattr(frameTime, "units",     "days since 1970-01-01 00:00:00")
         setattr(frameTime, "calender", "gregorian")
 
-        xPixelsLocation, yPixelsLocation, boundingBox = pixel2Geographic(inputFilePath, inputFilePath + '.hdr')
+        xPixelsLocation, yPixelsLocation, boundingBox = pixel2Geographic(inputFilePath[:-4]+"_metadata.json", inputFilePath + '.hdr')
         netCDFHandler.createDimension("graph_width", len(xPixelsLocation))
-        x = netCDFHandler.createVariable("x_pixel_geographic", "f8", ("graph_width",))
+        x    = netCDFHandler.createVariable("x_pixels_geographic_position", "f8", ("graph_width",))
         x[:] = xPixelsLocation
 
         netCDFHandler.createDimension("graph_height", len(yPixelsLocation))
-        y = netCDFHandler.createVariable("y_pixel_geographic", "f8", ("graph_height",))
+        y    = netCDFHandler.createVariable("y_pixels_geographic_position", "f8", ("graph_height",))
         y[:] = yPixelsLocation
 
 
