@@ -173,6 +173,8 @@ class DataContainer(object):
         setattr(frameTime, "units",     "days since 1970-01-01 00:00:00")
         setattr(frameTime, "calender", "gregorian")
 
+        ########################### Adding geographic positions ###########################
+
         xPixelsLocation, yPixelsLocation, boundingBox = pixel2Geographic(inputFilePath[:-4]+"_metadata.json", inputFilePath + '.hdr')
         netCDFHandler.createDimension("graph_width", len(xPixelsLocation))
         x    = netCDFHandler.createVariable("x_pixels_geographic_position", "f8", ("graph_width",))
