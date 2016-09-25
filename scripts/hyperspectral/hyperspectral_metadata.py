@@ -175,14 +175,18 @@ class DataContainer(object):
 
         ########################### Adding geographic positions ###########################
 
-        xPixelsLocation, yPixelsLocation, boundingBox = pixel2Geographic(inputFilePath[:-4]+"_metadata.json", inputFilePath + '.hdr')
-        netCDFHandler.createDimension("graph_width", len(xPixelsLocation))
-        x    = netCDFHandler.createVariable("x_pixels_geographic_position", "f8", ("graph_width",))
+        xPixelsLocation, yPixelsLocation, boundingBox = pixel2Geographic("".join((inputFilePath[:-4],"_metadata.json")), "".join((inputFilePath,'.hdr')))
+        netCDFHandler.createDimension("x_dimension", len(xPixelsLocation))
+        x    = netCDFHandler.createVariable("x", "f8", ("x_dimension",))
         x[:] = xPixelsLocation
+        setattr(netCDFHandler.variables["x"], "units", "meters")
+        setattr(netCDFHandler.variables['x'], 'reference_point', 'South East corner of the field')
 
-        netCDFHandler.createDimension("graph_height", len(yPixelsLocation))
-        y    = netCDFHandler.createVariable("y_pixels_geographic_position", "f8", ("graph_height",))
+        netCDFHandler.createDimension("y_dimension", len(yPixelsLocation))
+        y    = netCDFHandler.createVariable("y", "f8", ("y_dimension",))
         y[:] = yPixelsLocation
+        setattr(netCDFHandler.variables["y"], "units", "meters")
+        setattr(netCDFHandler.variables['y'], 'reference_point', 'South East corner of the field')
 
 
         ##### Write the history to netCDF #####
@@ -217,7 +221,7 @@ def getWavelength(fileName):
     '''
     Acquire wavelength(s) from related HDR file
     '''
-    with open(fileName + '.hdr') as fileHandler:
+    with open("".join((fileName, '.hdr'))) as fileHandler:
         wavelengthGroup = [float(x.strip('\r').strip('\n').strip(',')) for x in fileHandler.readlines()
                            if isDigit(x.strip('\r').strip('\n').strip(','))]
     return wavelengthGroup
@@ -227,7 +231,7 @@ def getHeaderInfo(fileName):
     '''
     Acquire Other Information from related HDR file
     '''
-    with open(fileName + '.hdr') as fileHandler:
+    with open("".join((fileName, '.hdr'))) as fileHandler:
         infoDictionary = {members[0:members.find("=") - 1].strip(";"): members[members.find("=") + 2:].strip('\n').strip('\r')
                           for members in fileHandler.readlines() if '=' in members and 'wavelength' not in members}
 
@@ -291,9 +295,9 @@ def _replaceIllegalChar(string):
     if "current setting" in string:
         string = string.split(' ')[-1]
     elif "Velocity" in string:
-        string = 'Gantry Speed in ' + string[-1].upper() + ' Direction'
+        string = "".join(('Gantry Speed in ', string[-1].upper(), ' Direction'))
     elif "Position" in string:
-        string = 'Position in ' + string[-1].upper() + ' Direction'
+        string = "".join(('Position in ', string[-1].upper(), ' Direction'))
 
     string = string.replace('/', '_per_')
     string = string.replace(' ', '_')
@@ -352,7 +356,7 @@ def jsonHandler(jsonFile):
     '''
     pass the json object to built-in json module
     '''
-    with open(jsonFile[:-4] + '_metadata.json') as fileHandler:
+    with open("".join((jsonFile[:-4],'_metadata.json'))) as fileHandler:
         jsonCheck(fileHandler)
         return json.loads(fileHandler.read(), object_hook=_filteringTheHeadings)
 
@@ -399,7 +403,7 @@ def fileDependencyCheck(filePath):
         for file in files:
             if re.match(_FILENAME_PATTERN, file):
                 key = illegalFileRegex.match(file).group(1)
-                return {key+"_frameIndex.txt", key+"_metadata.json", key+"_raw.hdr"} -\
+                return {"".join((key,"_frameIndex.txt")), "".join((key,"_metadata.json")), "".join((key,"_raw.hdr"))} -\
                         set([matchFile for matchFile in files if matchFile.startswith(illegalFileRegex.match(file).group(1))])
 
 def jsonCheck(fileHandler):
@@ -476,9 +480,9 @@ if __name__ == '__main__':
         printOnVersion("\033[0;31mOne or more important file(s) is(are) missing. Program terminated:\033[0m")
 
         for missingFile in missingFiles:
-            printOnVersion("\033[0;31m" + missingFile + " is missing\033[0m")
+            printOnVersion("".join(("\033[0;31m",missingFile," is missing\033[0m")))
         exit()
 
     testCase = jsonHandler(fileInput)
-    testCase.writeToNetCDF(fileInput, fileOutput, fileInput + ' ' + fileOutput)
+    testCase.writeToNetCDF(fileInput, fileOutput, " ".join((fileInput, fileOutput)))
     printOnVersion('\033[0;31mDone.\033[0m')
