@@ -122,7 +122,7 @@ def lockFile(f):
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return
-        except {BlockingIOError, IOError} as e:
+        except (BlockingIOError, IOError) as e:
             # Try again in 1/10th of a second
             time.sleep(0.1)
 
@@ -219,21 +219,29 @@ def writeCompletedTaskToDisk(task):
 
     # Write to json file with task ID as filename
     dest = os.path.join(logPath, taskID+".json")
-    logger.info("%s complete: %s" % (taskID, dest), extra={
-        "globus_id": taskID,
-        "action": "WRITING TO COMPLETED (ROGER)"
-    })
     f = open(dest, 'w')
+    lockFile(f)
     f.write(json.dumps(task))
     f.close()
 
+
 """Find dataset id if dataset exists, creating if necessary"""
-def fetchDatasetByName(datasetName, requestsSession, spaceOverride=None):
+def fetchDatasetByName(datasetName, requestsSession, spaceOverrideId=None):
     if datasetName not in datasetMap:
+        # Fetch collection & space IDs (creating collections if necessary) to post with the new dataset
+        if datasetName.find(" - ") > -1:
+            sensorName = datasetName.split(" - ")[0]
+            timestamp = datasetName.split(" - ")[1].split("__")[0]
+            sensCollId = fetchCollectionByName(sensorName, requestsSession)
+            timeCollId = fetchCollectionByName(timestamp, requestsSession)
+        if not spaceOverrideId and config['clowder']['primary_space'] != "":
+            spaceOverrideId = config['clowder']['primary_space']
+        spaceId = ', "space": ["%s"]' % spaceOverrideId if spaceOverrideId else ''
+
+        dataObj = '{"name": "%s", "collection": ["%s","%s"]%s}' % (datasetName, sensCollId, timeCollId, spaceId)
         ds = requestsSession.post(config['clowder']['host']+"/api/datasets/createempty",
                                   headers={"Content-Type": "application/json"},
-                                  data='{"name": "%s"}' % datasetName)
-        time.sleep(1)
+                                  data=dataObj)
 
         if ds.status_code == 200:
             dsid = ds.json()['id']
@@ -243,8 +251,7 @@ def fetchDatasetByName(datasetName, requestsSession, spaceOverride=None):
                 "dataset_name": datasetName,
                 "action": "DATASET CREATED"
             })
-            writeDataToDisk(config['dataset_map_path'], datasetMap)
-            addDatasetToSpacesCollections(datasetName, dsid, requestsSession, spaceOverride)
+            #writeDataToDisk(config['dataset_map_path'], datasetMap)
             return dsid
         else:
             logger.error("- cannot create dataset (%s: %s)" % (ds.status_code, ds.text))
@@ -332,7 +339,7 @@ def fetchCollectionByName(collectionName, requestsSession):
                 del collectionMap[collectionName]
                 return fetchCollectionByName(collectionName, requestsSession)
 
-"""Add dataset to Space and Sensor, Date Collections"""
+"""Add dataset to Space and Sensor, Date Collections DEPRECATED"""
 def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession, spaceId=None):
     logger.info("- adding ds %s to collections/spaces for %s" % (datasetID, datasetName), extra={
         "dataset_id": datasetID,
@@ -368,7 +375,7 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession, space
         if sp.status_code != 200:
             logger.error("- could not add ds "+datasetID+" to space "+spaceId+" ("+str(sp.status_code)+" - "+sp.text+")")
         else:
-            logger.debug("- adding to space %s OK" % spid)
+            logger.debug("- adding to space %s OK" % spaceId)
 
 # ----------------------------------------------------------
 # API COMPONENTS
@@ -589,7 +596,7 @@ def notifyClowderOfCompletedTask(task):
             if 'files' in task['contents'][ds]:
                 for f in task['contents'][ds]['files']:
                     fobj = task['contents'][ds]['files'][f]
-                    if 'clowder_id' not in fobj or fobj['clowder_id'] == "":
+                    if 'clowder_id' not in fobj or fobj['clowder_id'] == "" or fobj['clowder_id'] == "FILE NOT FOUND":
                         if os.path.exists(fobj['path']):
                             if f.find("metadata.json") == -1:
                                 fileFormData.append(
@@ -711,7 +718,7 @@ def globusMonitorLoop():
                         if 'files' in task['contents'][ds]:
                             for f in task['contents'][ds]['files']:
                                 fobj = task['contents'][ds]['files'][f]
-                                fobj['path'] = os.path.join(config['globus']['incoming_files_path'], fobj['path'], fobj["name"])
+                                fobj['path'] = os.path.join(config['globus']['incoming_files_path'], fobj['path'])
 
                     # Notify Clowder to process file if transfer successful
                     if globusStatus == "SUCCEEDED":
@@ -762,6 +769,8 @@ def clowderSubmissionLoop():
                             "action": "PROCESSING COMPLETE"
                         })
                         unprocessedTasks.remove(globusID)
+                        # Write out new datasets to disk
+                        writeDataToDisk(config['dataset_map_path'], datasetMap)
                         writeDataToDisk(config['unprocessed_tasks_path'], unprocessedTasks)
                     else:
                         logger.error("%s not successfully sent" % globusID)
