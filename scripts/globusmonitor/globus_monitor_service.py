@@ -11,6 +11,7 @@
 import os, shutil, json, time, datetime, thread, copy, atexit, collections, fcntl
 import logging, logging.config, logstash
 import requests
+import psycopg2
 from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
 from functools import wraps
@@ -168,63 +169,6 @@ def loadJsonFile(filename):
         logger.error("- unable to open %s" % filename)
         return {}
 
-"""Load object into memory from a log file, checking for .backup if main file does not exist"""
-def loadDataFromDisk(logPath, emptyValue="{}"):
-    # Prefer to load from primary file, try to use backup if primary is missing
-    if not os.path.exists(logPath):
-        if os.path.exists(logPath+".backup"):
-            logger.info("- loading data from %s.backup" % logPath)
-            shutil.copyfile(logPath+".backup", logPath)
-        else:
-            # Create an empty file if primary+backup don't exist
-            f = open(logPath, 'w')
-            f.write(emptyValue)
-            f.close()
-    else:
-        logger.info("- loading data from "+logPath)
-
-    d = loadJsonFile(logPath)
-    return d
-
-"""Save object into a log file from memory, moving existing file to .backup if it exists"""
-def writeDataToDisk(logPath, logData):
-    logger.debug("- writing %s" % os.path.basename(logPath))
-
-    # Create directories if necessary
-    dirs = logPath.replace(os.path.basename(logPath), "")
-    if not os.path.exists(dirs):
-        os.makedirs(dirs)
-
-    # Move existing copy to .backup if it exists
-    if os.path.exists(logPath):
-        shutil.move(logPath, logPath+".backup")
-
-    f = open(logPath, 'w')
-    lockFile(f)
-    f.write(json.dumps(logData))
-    f.close()
-
-"""Write a completed task onto disk in appropriate folder hierarchy"""
-def writeCompletedTaskToDisk(task):
-    completedPath = config['completed_tasks_path']
-    taskID = task['globus_id']
-
-    # e.g. TaskID "eaca1f1a-d400-11e5-975b-22000b9da45e"
-    #   = <completedPath>/ea/ca/1f/1a/eaca1f1a-d400-11e5-975b-22000b9da45e.json
-
-    # Create path if necessary
-    logPath = os.path.join(completedPath, taskID[:2], taskID[2:4], taskID[4:6], taskID[6:8])
-    if not os.path.exists(logPath):
-        os.makedirs(logPath)
-
-    # Write to json file with task ID as filename
-    dest = os.path.join(logPath, taskID+".json")
-    f = open(dest, 'w')
-    lockFile(f)
-    f.write(json.dumps(task))
-    f.close()
-
-
 """Find dataset id if dataset exists, creating if necessary"""
 def fetchDatasetByName(datasetName, requestsSession, spaceOverrideId=None):
     if datasetName not in datasetMap:
@@ -246,12 +190,12 @@ def fetchDatasetByName(datasetName, requestsSession, spaceOverrideId=None):
         if ds.status_code == 200:
             dsid = ds.json()['id']
             datasetMap[datasetName] = dsid
+            writeDatasetRecordToDatabase(datasetName, dsid)
             logger.info("++ created dataset %s (%s)" % (datasetName, dsid), extra={
                 "dataset_id": dsid,
                 "dataset_name": datasetName,
                 "action": "DATASET CREATED"
             })
-            #writeDataToDisk(config['dataset_map_path'], datasetMap)
             return dsid
         else:
             logger.error("- cannot create dataset (%s: %s)" % (ds.status_code, ds.text))
@@ -289,19 +233,19 @@ def fetchDatasetByName(datasetName, requestsSession, spaceOverrideId=None):
 def fetchCollectionByName(collectionName, requestsSession):
     if collectionName not in collectionMap:
         coll = requestsSession.post(config['clowder']['host']+"/api/collections",
-                                  headers={"Content-Type": "application/json"},
-                                  data='{"name": "%s", "description": ""}' % collectionName)
+                                    headers={"Content-Type": "application/json"},
+                                    data='{"name": "%s", "description": ""}' % collectionName)
         time.sleep(1)
 
         if coll.status_code == 200:
             collid = coll.json()['id']
             collectionMap[collectionName] = collid
+            writeCollectionRecordToDatabase(collectionName, collid)
             logger.info("++ created collection %s (%s)" % (collectionName, collid), extra={
                 "collection_id": collid,
                 "collection_name": collectionName,
                 "action": "CREATED COLLECTION"
             })
-            writeDataToDisk(config['collection_map_path'], collectionMap)
             # Add new collection to primary space if defined
             if config['clowder']['primary_space'] != "":
                 requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addCollectionToSpace/%s" %
@@ -376,6 +320,168 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession, space
             logger.error("- could not add ds "+datasetID+" to space "+spaceId+" ("+str(sp.status_code)+" - "+sp.text+")")
         else:
             logger.debug("- adding to space %s OK" % spaceId)
+
+# ----------------------------------------------------------
+# POSTGRES LOGGING COMPONENTS
+# ----------------------------------------------------------
+"""Return a connection to the PostgreSQL database"""
+def connectToPostgres():
+    return psycopg2.connect("dbname=globusmonitor")
+
+"""Create PostgreSQL database tables"""
+def initializeDatabase(conn):
+    # Table creation queries
+    ct_tasks = "CREATE TABLE globus_tasks (globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL, received TEXT NOT NULL, completed TEXT, globus_user TEXT, contents JSON);"
+    ct_dsets = "CREATE TABLE datasets (name TEXT PRIMARY KEY NOT NULL, clowder_id TEXT NOT NULL);"
+    ct_colls = "CREATE TABLE collections (name TEXT PRIMARY KEY NOT NULL, clowder_id TEXT NOT NULL);"
+
+    # Index creation queries
+    ix_tasks = "CREATE UNIQUE INDEX globus_idx ON globus_tasks (globus_id);"
+    ix_dsets = "CREATE UNIQUE INDEX dset_idx ON datasets (name, clowder_id)"
+    ix_colls = "CREATE UNIQUE INDEX coll_idx ON collections (name, clowder_id)"
+
+    # Execute each query
+    curs = conn.cursor()
+    logger.info("Creating PostgreSQL tables...")
+    cur.execute(ct_tasks)
+    cur.execute(ct_dsets)
+    cur.execute(ct_colls)
+    logger.info("Creating PostgreSQL indexes...")
+    cur.execute(ix_tasks)
+    cur.execute(ix_dsets)
+    cur.execute(ix_colls)
+    curs.close()
+
+    logger.info("PostgreSQL initialization complete.")
+
+"""Load object into memory from a log file, checking for .backup if main file does not exist"""
+def loadDataFromDisk(logPath, emptyValue="{}"):
+    # Prefer to load from primary file, try to use backup if primary is missing
+    if not os.path.exists(logPath):
+        if os.path.exists(logPath+".backup"):
+            logger.info("- loading data from %s.backup" % logPath)
+            shutil.copyfile(logPath+".backup", logPath)
+        else:
+            # Create an empty file if primary+backup don't exist
+            f = open(logPath, 'w')
+            f.write(emptyValue)
+            f.close()
+    else:
+        logger.info("- loading data from "+logPath)
+
+    d = loadJsonFile(logPath)
+    return d
+
+"""Save object into a log file from memory, moving existing file to .backup if it exists"""
+def writeDataToDisk(logPath, logData):
+    logger.debug("- writing %s" % os.path.basename(logPath))
+
+    # Create directories if necessary
+    dirs = logPath.replace(os.path.basename(logPath), "")
+    if not os.path.exists(dirs):
+        os.makedirs(dirs)
+
+    # Move existing copy to .backup if it exists
+    if os.path.exists(logPath):
+        shutil.move(logPath, logPath+".backup")
+
+    f = open(logPath, 'w')
+    lockFile(f)
+    f.write(json.dumps(logData))
+    f.close()
+
+
+
+"""Fetch a Globus task from PostgreSQL"""
+def readTaskFromDatabase(globus_id):
+   q_fetch = "SELECT * FROM globus_tasks WHERE globus_id = '%s'" % globus_id
+
+   curs = psql_conn.cursor()
+   logger.debug("Fetching task %s from PostgreSQL..." % globus_id)
+   curs.execute(q_fetch)
+   result = curs.fetchone()
+   curs.close()
+
+   if result:
+       return {
+           "globus_id": result[0],
+           "status": result[1],
+           "received": result[2],
+           "completed": result[3],
+           "user": result[4],
+           "contents": result[5]
+       }
+   else:
+       logger.debug("Task %s not found in PostgreSQL" % globus_id)
+       return None
+
+"""Write a Globus task into PostgreSQL, insert/update as needed"""
+def writeTaskToDatabase(task):
+    gid = task['globus_id']
+    stat = task['status']
+    recv = task['received']
+    comp = task['completed']
+    guser = task['user']
+    jbody = task['contents']
+
+    # Attempt to insert, update if globus ID already exists
+    q_insert = "INSERT INTO globus_tasks (globus_id, status, received, completed, globus_user, contents) " \
+               "VALUES (%s, %s, %s, %s, %s, %s) " \
+               "ON CONFLICT (gid) DO UPDATE " \
+               "SET status=%s, received=%s, completed=%s, user=%s, contents=%s;" % (
+        gid, stat, recv, comp, guser, jbody,         stat, recv, comp, guser, jbody)
+
+    curs = psql_conn.cursor()
+    logger.debug("Writing task %s to PostgreSQL..." % gid)
+    curs.execute(q_insert)
+    psql_conn.commit()
+    curs.close()
+
+def readRecordsFromDatabase():
+    q_fetch_datas = "SELECT * FROM datasets;"
+    q_detch_colls = "SELECT * FROM collections;"
+
+    curs = psql_conn.cursor()
+    logger.debug("Fetching dataset mappings from PostgreSQL...")
+    curs.execute(q_fetch_datas)
+    currds = curs.fetchone()
+    while currds:
+        datasetMap[currds[0]] = currds[1]
+        currds = curs.fetchone()
+
+    logger.debug("Fetching collection mappings from PostgreSQL...")
+    curs.execute(q_detch_colls)
+    currco = curs.fetchone()
+    while currco:
+        datasetMap[currco[0]] = currco[1]
+        currco = curs.fetchone()
+
+"""Write dataset (name -> clowder_id) mapping to PostgreSQL database"""
+def writeDatasetRecordToDatabase(dataset_name, dataset_id):
+
+    q_insert = "INSERT INTO datasets (name, clowder_id) VALUES (%s, %s) " \
+               "ON CONFLICT (name) DO UPDATE SET clowder_id=%s;" % (
+        dataset_name, dataset_id, dataset_id)
+
+    curs = psql_conn.cursor()
+    logger.debug("Writing dataset %s to PostgreSQL..." % dataset_name)
+    curs.execute(q_insert)
+    psql_conn.commit()
+    curs.close()
+
+"""Write collection (name -> clowder_id) mapping to PostgreSQL database"""
+def writeCollectionRecordToDatabase(collection_name, collection_id):
+
+    q_insert = "INSERT INTO collections (name, clowder_id) VALUES (%s, %s) " \
+               "ON CONFLICT (name) DO UPDATE SET clowder_id=%s;" % (
+        collection_name, collection_id, collection_id)
+
+    curs = psql_conn.cursor()
+    logger.debug("Writing collection %s to PostgreSQL..." % collection_name)
+    curs.execute(q_insert)
+    psql_conn.commit()
+    curs.close()
+
 
 # ----------------------------------------------------------
 # API COMPONENTS
@@ -470,7 +576,7 @@ class GlobusTask(restful.Resource):
             task.completed = datetime.datetime.now()
             task.path = ""
 
-            writeCompletedTaskToDisk(task)
+            writeTaskToDatabase(task)
             del activeTasks[task['globus_id']]
             writeDataToDisk(config['active_tasks_path'], activeTasks)
             return 204
@@ -611,7 +717,7 @@ def notifyClowderOfCompletedTask(task):
                         else:
                             logger.info("%s dataset %s lists nonexistent file: %s" % (task['globus_id'], ds, fobj['path']))
                             updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = "FILE NOT FOUND"
-                            writeCompletedTaskToDisk(updatedTask)
+                            writeTaskToDatabase(updatedTask)
 
             if len(fileFormData)>0 or datasetMD:
                 dsid = fetchDatasetByName(ds, sess, spaceoverride)
@@ -635,7 +741,7 @@ def notifyClowderOfCompletedTask(task):
                                 })
                                 updatedTask['contents'][ds]['files'][datasetMDFile]['metadata_loaded'] = True
                                 updatedTask['contents'][ds]['files'][datasetMDFile]['clowder_id'] = "attached to dataset"
-                                writeCompletedTaskToDisk(updatedTask)
+                                writeTaskToDatabase(updatedTask)
                             else:
                                 # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
                                 logger.info("++ added metadata to dataset %s" % ds, extra={
@@ -645,7 +751,7 @@ def notifyClowderOfCompletedTask(task):
                                     "metadata": datasetMD
                                 })
                                 del updatedTask['contents'][ds]['md']
-                                writeCompletedTaskToDisk(updatedTask)
+                                writeTaskToDatabase(updatedTask)
 
                     if len(fileFormData)>0:
                         # Upload collected files for this dataset
@@ -671,11 +777,11 @@ def notifyClowderOfCompletedTask(task):
                                 for fobj in loaded['ids']:
                                     logger.info("++ added file %s" % fobj['name'])
                                     updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
-                                    writeCompletedTaskToDisk(updatedTask)
+                                    writeTaskToDatabase(updatedTask)
                             else:
                                 logger.info("++ added file %s" % lastFile)
                                 updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
-                                writeCompletedTaskToDisk(updatedTask)
+                                writeTaskToDatabase(updatedTask)
                 else:
                     logger.error("- dataset id for %s could not be found/created" % ds)
                     allDone = False
@@ -726,13 +832,13 @@ def globusMonitorLoop():
                         writeDataToDisk(config['unprocessed_tasks_path'], unprocessedTasks)
 
                         # Write out results file, then delete from active list and write log file
-                        writeCompletedTaskToDisk(task)
+                        writeTaskToDatabase(task)
                         del activeTasks[globusID]
                         writeDataToDisk(config['active_tasks_path'], activeTasks)
 
                     # Write failed transfers out to completed folder without Clowder
                     elif globusStatus == "FAILED":
-                        writeCompletedTaskToDisk(task)
+                        writeTaskToDatabase(task)
                         del activeTasks[globusID]
                         writeDataToDisk(config['active_tasks_path'], activeTasks)
             logger.debug("- done checking for Globus updates")
@@ -770,7 +876,6 @@ def clowderSubmissionLoop():
                         })
                         unprocessedTasks.remove(globusID)
                         # Write out new datasets to disk
-                        writeDataToDisk(config['dataset_map_path'], datasetMap)
                         writeDataToDisk(config['unprocessed_tasks_path'], unprocessedTasks)
                     else:
                         logger.error("%s not successfully sent" % globusID)
@@ -795,8 +900,8 @@ if __name__ == '__main__':
         logging.config.dictConfig(log_config)
     logger = logging.getLogger('gantry')
 
-    datasetMap = loadDataFromDisk(config['dataset_map_path'])
-    collectionMap = loadDataFromDisk(config['collection_map_path'])
+    psql_conn = connectToPostgres()
+    readRecordsFromDatabase()
     activeTasks = loadDataFromDisk(config['active_tasks_path'])
     unprocessedTasks = loadDataFromDisk(config['unprocessed_tasks_path'], '[]')
     generateAuthTokens()
