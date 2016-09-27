@@ -326,10 +326,16 @@ def addDatasetToSpacesCollections(datasetName, datasetID, requestsSession, space
 # ----------------------------------------------------------
 """Return a connection to the PostgreSQL database"""
 def connectToPostgres():
+    """
+    If globusmonitor database does not exist yet:
+        $ initdb /home/globusmonitor/postgres/data
+        $ pg_ctl -D /home/globusmonitor/postgres/data -l /home/globusmonitor/postgres/log
+        $   createdb globusmonitor
+    """
     return psycopg2.connect("dbname=globusmonitor")
 
 """Create PostgreSQL database tables"""
-def initializeDatabase(conn):
+def initializeDatabase():
     # Table creation queries
     ct_tasks = "CREATE TABLE globus_tasks (globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL, received TEXT NOT NULL, completed TEXT, globus_user TEXT, contents JSON);"
     ct_dsets = "CREATE TABLE datasets (name TEXT PRIMARY KEY NOT NULL, clowder_id TEXT NOT NULL);"
@@ -341,7 +347,7 @@ def initializeDatabase(conn):
     ix_colls = "CREATE UNIQUE INDEX coll_idx ON collections (name, clowder_id)"
 
     # Execute each query
-    curs = conn.cursor()
+    curs = psql_conn.cursor()
     logger.info("Creating PostgreSQL tables...")
     cur.execute(ct_tasks)
     cur.execute(ct_dsets)
