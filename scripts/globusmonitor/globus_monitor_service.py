@@ -611,7 +611,7 @@ def notifyClowderOfCompletedTask(task):
                     if 'clowder_id' not in fobj or fobj['clowder_id'] == "" or fobj['clowder_id'] == "FILE NOT FOUND":
                         if os.path.exists(fobj['path']):
                             if f.find("metadata.json") == -1:
-                                filesQueued.append(fobj['path'], ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else "")
+                                filesQueued.append((fobj['path'], ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else ""))
                                 lastFile = f
                             else:
                                 datasetMD = clean_json_keys(loadJsonFile(fobj['path']))
