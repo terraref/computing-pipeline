@@ -285,6 +285,17 @@ def fetchDatasetByName(datasetName, requestsSession, spaceOverrideId=None):
                 del datasetMap[datasetName]
                 return fetchDatasetByName(datasetName, requestsSession, spaceOverride)
 
+"""Find list of file objects in a given dataset"""
+def fetchDatasetFileList(datasetId, requestsSession):
+    filelist = requestsSession.get(config['clowder']['host']+"/api/datasets/%s/listFiles" % datasetId,
+                              headers={"Content-Type": "application/json"})
+
+    if filelist.status_code == 200:
+        return filelist.json()
+    else:
+        logger.error("- cannot find file list for dataset %s" % datasetId)
+        return []
+
 """Find dataset id if dataset exists, creating if necessary"""
 def fetchCollectionByName(collectionName, requestsSession):
     if collectionName not in collectionMap:
@@ -583,6 +594,7 @@ def notifyClowderOfCompletedTask(task):
 
         spaceoverride = task['contents']['space_id'] if 'space_id' in task['contents'] else None
         for ds in task['contents']:
+            filesQueued = []
             fileFormData = []
             datasetMD = None
             datasetMDFile = False
@@ -599,11 +611,7 @@ def notifyClowderOfCompletedTask(task):
                     if 'clowder_id' not in fobj or fobj['clowder_id'] == "" or fobj['clowder_id'] == "FILE NOT FOUND":
                         if os.path.exists(fobj['path']):
                             if f.find("metadata.json") == -1:
-                                fileFormData.append(
-                                        ("file",'{"path":"%s"%s}' % (fobj['path'],
-                                            ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else ""
-                                    ))
-                                )
+                                filesQueued.append(fobj['path'], ', "md":'+json.dumps(fobj['md']) if 'md' in fobj else "")
                                 lastFile = f
                             else:
                                 datasetMD = clean_json_keys(loadJsonFile(fobj['path']))
@@ -613,9 +621,20 @@ def notifyClowderOfCompletedTask(task):
                             updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = "FILE NOT FOUND"
                             writeCompletedTaskToDisk(updatedTask)
 
-            if len(fileFormData)>0 or datasetMD:
+            if len(filesQueued)>0 or datasetMD:
                 dsid = fetchDatasetByName(ds, sess, spaceoverride)
+                dsFileList = fetchDatasetFileList(dsid, sess)
                 if dsid:
+                    # Only send files not already present in dataset by path
+                    for queued in filesQueued:
+                        alreadyStored = False
+                        for storedFile in dsFileList:
+                            if queued[0] == storedFile['filepath']:
+                                logger.info("- skipping file %s (already uploaded)" % queued[0])
+                                alreadyStored = True
+                        if not alreadyStored:
+                            fileFormData.append(("file",'{"path":"%s"%s}' % (queued[0], queued[1])))
+
                     if datasetMD:
                         # Upload metadata
                         dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
