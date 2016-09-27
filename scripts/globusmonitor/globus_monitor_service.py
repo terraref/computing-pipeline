@@ -633,6 +633,7 @@ def notifyClowderOfCompletedTask(task):
                             if queued[0] == storedFile['filepath']:
                                 logger.info("- skipping file %s (already uploaded)" % queued[0])
                                 alreadyStored = True
+                                break
                         if not alreadyStored:
                             fileFormData.append(("file",'{"path":"%s"%s}' % (queued[0], queued[1])))
 
