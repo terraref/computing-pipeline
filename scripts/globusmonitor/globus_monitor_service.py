@@ -287,7 +287,8 @@ def fetchDatasetByName(datasetName, requestsSession, spaceOverrideId=None):
 
 """Find list of file objects in a given dataset"""
 def fetchDatasetFileList(datasetId, requestsSession):
-    filelist = requestsSession.get(config['clowder']['host']+"/api/datasets/%s/listFiles" % datasetId,
+    clowkey = config['clowder']['secret_key']
+    filelist = requests.get(config['clowder']['host']+"/api/datasets/%s/listFiles?key=%s" % (datasetId, clowkey),
                               headers={"Content-Type": "application/json"})
 
     if filelist.status_code == 200:
