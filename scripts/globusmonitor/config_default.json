@@ -21,6 +21,7 @@
 
   "clowder": {
     "host": "http://localhost:9000",
+    "secret_key": "r1ek3rs",
     "user_map": {},
     "primary_space": "",
     "globus_processing_frequency": 30
