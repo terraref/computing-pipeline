@@ -167,8 +167,8 @@ class DataContainer(object):
 
         ##### Write the data from frameIndex files to netCDF #####
         tempFrameTime = frameIndexParser(''.join((inputFilePath.strip("raw"), "frameIndex.txt")), yearMonthDate)
-        netCDFHandler.createDimension("y", len(tempFrameTime))
-        frameTime    = netCDFHandler.createVariable("frametime", "f8", ("y",))
+        netCDFHandler.createDimension("time", len(tempFrameTime))
+        frameTime    = netCDFHandler.createVariable("frametime", "f8", ("time",))
         frameTime[:] = tempFrameTime
         setattr(frameTime, "units",     "days since 1970-01-01 00:00:00")
         setattr(frameTime, "calender", "gregorian")
@@ -176,14 +176,14 @@ class DataContainer(object):
         ########################### Adding geographic positions ###########################
 
         xPixelsLocation, yPixelsLocation, boundingBox = pixel2Geographic("".join((inputFilePath[:-4],"_metadata.json")), "".join((inputFilePath,'.hdr')))
-        netCDFHandler.createDimension("x_dimension", len(xPixelsLocation))
-        x    = netCDFHandler.createVariable("x", "f8", ("x_dimension",))
+        netCDFHandler.createDimension("x", len(xPixelsLocation))
+        x    = netCDFHandler.createVariable("x", "f8", ("x",))
         x[:] = xPixelsLocation
         setattr(netCDFHandler.variables["x"], "units", "meters")
         setattr(netCDFHandler.variables['x'], 'reference_point', 'South East corner of the field')
 
-        netCDFHandler.createDimension("y_dimension", len(yPixelsLocation))
-        y    = netCDFHandler.createVariable("y", "f8", ("y_dimension",))
+        netCDFHandler.createDimension("y", len(yPixelsLocation))
+        y    = netCDFHandler.createVariable("y", "f8", ("y",))
         y[:] = yPixelsLocation
         setattr(netCDFHandler.variables["y"], "units", "meters")
         setattr(netCDFHandler.variables['y'], 'reference_point', 'South East corner of the field')

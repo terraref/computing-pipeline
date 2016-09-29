@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import numpy as np
 import sys
 import json
@@ -13,11 +15,18 @@ PIXEL_PITCH = 25e-6 #[m]
 
 # from Dr. LeBauer, Github thread: terraref/referece-data #32
 # Originally in 33, 04.470' N / -111, 58.485' W
-REFERENCE_POINT_LATLONG = np.deg2rad(33 + 4.470 / 60), np.deg2rad(-111 - 58.485 / 60) +np.pi # Temporarily
 #print REFERENCE_POINT_LATLONG
 
 # from Dr. LeBauer, Github thread: terraref/referece-data #32
 GAMMA = 0 #TODO: waiting for the correct value
+
+
+REFERENCE_POINT = 4.47, 58.485
+
+LONGITUDE_TO_METER = 1420
+LATITUDE_TO_METER  = 1850
+
+LATLONG_TEMPLATE   = "33°{LONG:}' N / -111°{LAT:}' W"
 
 # from Dr. LeBauer, Github thread: terraref/referece-data #32
 # This matrix looks like this:
@@ -72,6 +81,15 @@ def pixel2Geographic(jsonFileLocation, headerFileLocation):
 
         ########### Sample result: x -> 0.377 [m], y -> 0.267 [m] ###########
 
-        bounding_box = x_final_result[-1] - x_final_result[0], y_final_result[-1] - y_final_result[0] 
+        SE = x_final_result[-1] * LONGITUDE_TO_METER + 4.47, y_final_result[-1] * LATITUDE_TO_METER + 58.485
+        SW = x_final_result[0] * LONGITUDE_TO_METER + 4.47 , y_final_result[-1] * LATITUDE_TO_METER + 58.485
+        NE = x_final_result[-1] * LONGITUDE_TO_METER + 4.47, y_final_result[0] * LATITUDE_TO_METER + 58.485
+        NW = x_final_result[0] * LONGITUDE_TO_METER + 4.47 , y_final_result[0] * LATITUDE_TO_METER + 58.485
+
+        bounding_box = []
+        bounding_box.append(LATLONG_TEMPLATE.format(LONG=SE[0],LAT=SE[-1]))
+        bounding_box.append(LATLONG_TEMPLATE.format(LONG=SW[0],LAT=SW[-1])) 
+        bounding_box.append(LATLONG_TEMPLATE.format(LONG=NE[0],LAT=NE[-1])) 
+        bounding_box.append(LATLONG_TEMPLATE.format(LONG=NW[0],LAT=NW[-1])) 
 
         return x_final_result, y_final_result, bounding_box
