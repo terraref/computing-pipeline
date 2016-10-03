@@ -274,6 +274,7 @@ def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=
     # /LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
     # /MAC/lightning/2016-01-01/weather_2016_06_29.dat
     # /LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
+    # /Users/mburnette/globus/sorghum_pilot_dataset/snapshot123456/file.png
     pathParts = gantryDirPath.split("/")
 
     # Filename is always last
@@ -746,7 +747,7 @@ def initializeGlobusTransfer():
                         dest_path = dest_path.replace("MovingSensor/", "")
                         dest_path = dest_path.replace("MAC/", "")
                         dest_path = dest_path.replace("3DScannerRawDataTmp/", "")
-                        # /ua-mac/raw_data/LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
+                        # ua-mac/raw_data/LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
                         if dest_path.find("MovingSensor.reproc") > -1:
                             new_dest_path = ""
                             dirs = dest_path.split("/")
@@ -754,6 +755,7 @@ def initializeGlobusTransfer():
                                 if dir_part.find("MovingSensor.reproc") == -1:
                                     new_dest_path = os.path.join(new_dest_path, dir_part)
                             dest_path = new_dest_path
+                        # danforth/raw_data/sorghum_pilot_dataset/snapshot123456/file.png
 
                         transferObj.add_item(src_path, dest_path)
 

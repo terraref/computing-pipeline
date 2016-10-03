@@ -90,7 +90,7 @@ def main():
 
             # Prepare our transfer object that will initiate Globus job
             globus_transfer_object = {
-                "space_id": "571fbfefe4b032ce83d96006", # TODO: production = 571fbfefe4b032ce83d96006
+                "space_id": "571fbfefe4b032ce83d96006",
                 "paths": [],
                 "file_metadata": {}
             }
