@@ -1,16 +1,16 @@
 {
-  "log_path": "/home/danforth/data/log",
-  "completed_tasks_path": "/home/danforth/data/completed",
+  "log_path": "/home/gantry/data/log",
+  "completed_tasks_path": "/home/gantry/data/completed",
 
   "gantry": {
-    "incoming_files_path": "/home/danforth/snapshots",
+    "incoming_files_path": "/home/gantry/snapshots",
     "deletion_queue": "",
     "ftp_log_path": "",
     "directory_whitelist": ["/Users/mburnette/globus/"]
   },
 
   "globus": {
-    "source_path": "/Users/mburnette/globus/sorghum_pilot_dataset",
+    "source_path": "/Users/mburnette/globus",
     "delete_path": "",
     "destination_path": "danforth/raw_data",
   },

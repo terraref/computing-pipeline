@@ -1,25 +1,20 @@
 FROM ubuntu
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
-RUN groupadd -g 1006 cache_access \
-    && useradd -u 1003 -g 1006 data-mover \
-    && apt-get -y update \
+RUN apt-get -y update \
     && apt-get -y install curl python python-dev python-pip \
     && pip install flask-restful \
     && pip install requests \
     && pip install python-logstash \
     && pip install globusonline-transfer-api-client \
-    && mkdir /home/gantry \
-    && chown -R data-mover /home/gantry \
-    && chown -R data-mover /var/log
+    && mkdir /home/gantry
 
 COPY gantry_monitor_service.py /home/gantry/gantry_monitor_service.py
 COPY config_default.json /home/gantry/config_default.json
 COPY config_logging.json /home/gantry/config_logging.json
 
 ENV MONITOR_API_PORT 5455
-USER data-mover
-CMD ["python", "/home/gantry/gantry_monitor_service.py"]
+CMD ["python","/home/gantry/gantry_monitor_service.py"]
 
 # BUILD
 # docker build -f Dockerfile -t maxzilla2/terra-gantry-monitor .

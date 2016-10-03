@@ -12,15 +12,15 @@ import requests
 
     1 Run Docker container including API endpoint for submission & Globus transfer components
 
-        docker run -p 5455:5455
-            -v /DATA_PATH:/home/danforth/data
-            -v /DANFORTH_DIRS:/home/danforth/snapshots
-            -v /var/log:/var/log
+        docker run -p 5455:5455 \
+            -v /Users/mburnette/globus/monitor:/home/danforth/data \
+            -v /Users/mburnette/globus/sorghum_pilot_dataset:/home/danforth/snapshots \
+            -v /var/log:/var/log \
             maxzilla2/terra-gantry-monitor
 
     2 Execute this script on desired data to send
 
-        python PlantcvClowderUploader.py -d "/DANFORTH_DIRS" -m "/home/danforth/data/sorghum_pilot_ddpsc_metadata.json"
+        python PlantcvClowderUploader.py -d "/Users/mburnette/globus/sorghum_pilot_dataset" -m "/Users/mburnette/globus/sorghum_pilot_dataset/sorghum_pilot_ddpsc_metadata.json"
 
 """
 
