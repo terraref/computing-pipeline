@@ -75,7 +75,7 @@ wvl_pxl[wvl_pxl]=0.0f; // [m]
 wvl_pxl@standard_name="sensor_band_central_radiation_wavelength";
 wvl_pxl@units="meter";
 wvl_pxl@provenance="Tino Dornbusch posted spreadsheet with wavelengths that correspond to each pixel in VNIR, SWIR calibration images to https://github.com/terraref/reference-data/issues/53 on 20160927.
-   Note says \"Attached the spectral response of VNIR (G4-384) and SWIR (G4-383) we have got from headwall which corresponds to the certificate.\"";
+   Accompanying note says: Attached the spectral response of VNIR (G4-384) and SWIR (G4-383) we have got from headwall which corresponds to the certificate.";
 
 if(flg_vnir){
   wvl_pxl@long_name="Wavelength corresponding to each pixel in VNIR calibration";
