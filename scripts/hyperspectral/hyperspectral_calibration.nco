@@ -61,9 +61,7 @@ wavelength@units="meter";
    20160927: fxm replace guesstimate with actual, wavelength-dependent calibrated reflectance below */
 *factory_calibrated_reflectance_guesstimate=0.95f; // [frc]
 
-/* 20161005: 
-   Tino Dornbusch posted spreadsheet with wavelengths that correspond to each pixel in VNIR, SWIR calibration images. 
-   Note says "Attached the spectral response of VNIR (G4-384) and SWIR (G4-383) we have got from headwall which corresponds to the certificate." */
+/* 20161005 */
 if(min(wavelength < 0.5e-6)){
   flg_vnir=1s;
   *wvl_pxl_nbr=2160;
@@ -73,14 +71,14 @@ if(min(wavelength < 0.5e-6)){
  } // !wavelength
 // [nbr] Number of pixels in factory calibration of Spectralon reference
 defdim("wvl_pxl",wvl_pxl_nbr);
-wvl_pxl[wvl_pxl]=0.0; // [m]
+wvl_pxl[wvl_pxl]=0.0f; // [m]
 wvl_pxl@standard_name="sensor_band_central_radiation_wavelength";
 wvl_pxl@units="meter";
+wvl_pxl@provenance="Tino Dornbusch posted spreadsheet with wavelengths that correspond to each pixel in VNIR, SWIR calibration images to https://github.com/terraref/reference-data/issues/53 on 20160927.
+   Note says \"Attached the spectral response of VNIR (G4-384) and SWIR (G4-383) we have got from headwall which corresponds to the certificate.\"";
 
 if(flg_vnir){
   wvl_pxl@long_name="Wavelength corresponding to each pixel in VNIR calibration";
-  wvl_pxl@provenance="";
-
   /* Data are 2160 wavelengths (for pixels 0-2159) between 3--1385 nm
      More information at https://github.com/terraref/reference-data/issues/53 */
   wvl_pxl[wvl_pxl]={ // [nm] 10 wavelengths per line, 2160 total
@@ -303,10 +301,8 @@ if(flg_vnir){
 } // !flg_vnir
 
 if(flg_swir){
-  wvl_pxl_swir@long_name="Wavelength corresponding to each pixel in SWIR calibration";
-  wvl_pxl_swir@provenance="";
-
-  wvl_pxl_swir[wvl_pxl]={ // [nm] 10 wavelengths per line, 288 total
+  wvl_pxl@long_name="Wavelength corresponding to each pixel in SWIR calibration";
+  wvl_pxl[wvl_pxl]={ // [nm] 10 wavelengths per line, 288 total
     856.416960259833,862.331294648684,868.245629037536,874.159963426387,880.074297815239,885.988632204090,891.902966592942,897.817300981793,903.731635370644,909.645969759496,
     915.560304148347,921.474638537199,927.388972926050,933.303307314902,939.217641703753,945.131976092604,951.046310481456,956.960644870307,962.874979259159,968.789313648010,
     974.703648036862,980.617982425713,986.532316814564,992.446651203416,998.360985592267,1004.27531998112,1010.18965436997,1016.10398875882,1022.01832314767,1027.93265753652,
@@ -345,21 +341,22 @@ wvl_pxl*=1.0e-9; // [m]
 *wvl_clb_nbr=2201;
 defdim("wvl_clb",wvl_clb_nbr);
 wvl_clb[wvl_clb]=0.0f; // [m]
-wvl_clb@long_name="Wavelength of factory calibration";
+wvl_clb@long_name="Wavelength of factory calibration of Spectralon reference";
 wvl_clb@standard_name="sensor_band_central_radiation_wavelength";
 wvl_clb@units="meter";
-wvl_clb@provenance="Factory calibration ";
+wvl_clb@provenance="Factory calibration";
 wvl_clb=array(250.0,1.0,$wvl_clb);
 // Change calibration wavelengths from nm to m (SI)
 wvl_clb*=1.0e-9; // [m]
 
 /* 20161005: 
-   About 20160927 Tino Dornbusch posted PDF of SphereOptics Calibration Certificate. Certificate says
+   About 20160927 Tino Dornbusch posted PDF of SphereOptics calibration certificate, which reads
    "Sample: Zenith Polymer Diffuse Reflectance Standard - 99%R
    Report-No: 16042606
    PO-NO.: 600982
    Customer: LemnaTec GmbH
    The 8 degree/hemispherical spectral reflectance was measured for the sample listed above. The calibration was performed with a standard from SphereOptics GmbH, part number SG3051, traceable to the PTB (Physikalisch Technische Bundesanstalt), calibration certificate: PTB 44052/15. The reflectance was determined by using a Perkin-Elmer Lambda 950 UV-VIS-NIR spectrometer (serial number 950L1211082) equipped with a 150 mm PTFE sphere (certified by PTB Braunschweig, Germany)."
+
    A few days later, maybe 20161001, David LeBauer (or TinoDornbusch) posted a reflectance file here: https://github.com/terraref/reference-data/blob/master/Zenith%20LiteT%20Diffuse%20Reflectance%20Target%20-%2095%25R.csv
    Presumably these reflectances are for the SphereOptics part in the certification.
    The file header reads "Factory calibration of Zenith Lite Diffuse Reflectance Target - 95%R.csv;Reflectivity: 95% (UV-VIS-NIR);DETECTOR-PC\admin;10.04.2014 15:35:46;Lambda 950;950L1211082;1.61.00 Lambda 900".
@@ -876,9 +873,9 @@ xps_drk@long_name="Exposure from dark current image";
 xps_drk@units="Counts on scale from 0 to 2^16-1 = 65535";
 
 // [frc] Reflectance of spectralon reference target (from factory calibration)
-// 20160908: must track this down, possibly add angular dependence
+// 20160908: fxm track this down, possibly add angular dependence...
 rfl_rfr_fct[wavelength]=factory_calibrated_reflectance_guesstimate;
-rfl_rfr_fct@long_name="Reflectance of spectralon reference target (from factory calibration)";
+rfl_rfr_fct@long_name="Reflectance of Spectralon reference target (from factory calibration)";
 rfl_rfr_fct@units="1";
 
 // [cnt/cnt] Proportionality constant between factory-calibrated reflectance and current image and field calibration
