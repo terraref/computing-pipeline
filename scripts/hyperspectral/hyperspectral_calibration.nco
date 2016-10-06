@@ -586,7 +586,7 @@ wvl_clb*=1.0e-9; // [m]
 0.887398,0.886760,0.885634,0.885678,0.884955,0.884698,0.884464,0.883651,0.884251,0.883859,
 0.883695,0.884502,0.885360,0.885706,0.885301,0.886630,0.887173,0.887959,0.888513,0.888462,
 0.889262,0.890599,0.889916,0.889301,0.890386,0.888856,0.889094,0.888942,0.888969,0.887626,
-0.887455} // [frc] 10 reflectances per line, 2201 total
+0.887455}; // [frc] 10 reflectances per line, 2201 total
   
 /* [nbr] Number of wavelengths in factory calibration of spectralon reference
    NB: *_srb variables are from Shawn Serbin and refer to his SphereOptics standard which
