@@ -393,7 +393,7 @@ class TransferQueue(restful.Resource):
                 p = os.path.join(srcpath, p)
             filemetadata = {} if 'md' not in req else req['md']
 
-            newTransfer = prepFileForPendingTransfers(p, sensorname, timestamp, datasetname, spaceid, filemetadata, True)
+            newTransfer = prepFileForPendingTransfers(p, sensorname, timestamp, datasetname, filemetadata, True)
             if spaceid:
                 newTransfer['space_id'] = spaceid
             pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), newTransfer)
@@ -412,7 +412,9 @@ class TransferQueue(restful.Resource):
                 else:
                     filemetadata = {}
 
-                newTransfer = prepFileForPendingTransfers(p, sensorname, timestamp, datasetname, spaceid, filemetadata, True)
+                newTransfer = prepFileForPendingTransfers(p, sensorname, timestamp, datasetname, filemetadata, True)
+                if spaceid:
+                    newTransfer['space_id'] = spaceid
                 allNewTransfers = updateNestedDict(allNewTransfers, newTransfer)
                 logger.info("- file queued via API: %s" % p)
 
