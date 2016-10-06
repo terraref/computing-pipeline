@@ -223,7 +223,7 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
                 targetGroup = netCDFHandler.groups["co2_sensor"]
             sensorValue, sensorUnit, sensorRaw = sensorVariables(loggerReadings, data)
             sensorValueVariable                = targetGroup.createVariable(renameTheValue(data), "f4", ("time", ))
-            sensorRawValueVariable             = targetGroup.createVariable("raw_" + renameTheValue(data), "f4", ("time", ))
+            sensorRawValueVariable             = targetGroup.createVariable("".join(("raw_", renameTheValue(data))), "f4", ("time", ))
 
             sensorValueVariable[:]    = sensorValue
             sensorRawValueVariable[:] = sensorRaw
@@ -284,18 +284,18 @@ def mainProgramTrigger(fileInputLocation, fileOutputLocation):
         print "Processing", fileInputLocation + '....'
         tempJSONMasterList = JSONHandler(fileInputLocation)
         if not os.path.isdir(fileOutputLocation):
-            main(tempJSONMasterList, fileOutputLocation, recordTime=_timeStamp(), commandLine=sys.argv[1] + ' ' + sys.argv[2])
+            main(tempJSONMasterList, fileOutputLocation, recordTime=_timeStamp(), commandLine="".join((commandLine=sys.argv[1], ' ', sys.argv[2])))
         else:
             outputFileName = os.path.split(fileInputLocation)[-1]
-            main(tempJSONMasterList, os.path.join(fileOutputLocation,  outputFileName.strip('.json') + '.nc'), recordTime=_timeStamp(), commandLine=sys.argv[1] + ' ' + sys.argv[2])
+            main(tempJSONMasterList, os.path.join(fileOutputLocation,  "".join((outputFileName.strip('.json'), '.nc'))), recordTime=_timeStamp(), "".join((commandLine=sys.argv[1], ' ', sys.argv[2])))
     else:    
         for filePath, fileDirectory, fileName in os.walk(fileInputLocation):
             for members in fileName:
                 if os.path.join(filePath, members).endswith('.json'):
                     print "Processing", members + '....'
-                    outputFileName = members.strip('.json') + '.nc'
+                    outputFileName = "".join((members.strip('.json'), '.nc'))
                     tempJSONMasterList = JSONHandler(os.path.join(filePath, members))
-                    main(tempJSONMasterList, os.path.join(fileOutputLocation, outputFileName), recordTime=_timeStamp(), commandLine=sys.argv[1] + ' ' + sys.argv[2])
+                    main(tempJSONMasterList, os.path.join(fileOutputLocation, outputFileName), recordTime=_timeStamp(), "".join((commandLine=sys.argv[1], ' ', sys.argv[2])))
 
 
 

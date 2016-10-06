@@ -175,19 +175,38 @@ class DataContainer(object):
 
         ########################### Adding geographic positions ###########################
 
-        xPixelsLocation, yPixelsLocation, boundingBox = pixel2Geographic("".join((inputFilePath[:-4],"_metadata.json")), "".join((inputFilePath,'.hdr')))
+        xPixelsLocation, yPixelsLocation, boundingBox, googleMapAddress\
+         = pixel2Geographic("".join((inputFilePath[:-4],"_metadata.json")), "".join((inputFilePath,'.hdr')))
+
         netCDFHandler.createDimension("x", len(xPixelsLocation))
         x    = netCDFHandler.createVariable("x", "f8", ("x",))
         x[:] = xPixelsLocation
         setattr(netCDFHandler.variables["x"], "units", "meters")
         setattr(netCDFHandler.variables['x'], 'reference_point', 'South East corner of the field')
+        setattr(netCDFHandler.variables['x'], "long_name", "real world X coordinates for each pixel")
 
         netCDFHandler.createDimension("y", len(yPixelsLocation))
         y    = netCDFHandler.createVariable("y", "f8", ("y",))
         y[:] = yPixelsLocation
         setattr(netCDFHandler.variables["y"], "units", "meters")
         setattr(netCDFHandler.variables['y'], 'reference_point', 'South East corner of the field')
+        setattr(netCDFHandler.variables['x'], "long_name", "real world Y coordinates for each pixel")
 
+        SE, SW, NE, NW = boundingBox[0], boundingBox[1], boundingBox[2], boundingBox[3]
+
+        southEast = netCDFHandler.createVariable("south_east_corner", str)
+        southEast[...] = SE
+        southWest = netCDFHandler.createVariable("south_west_corner", str)
+        southWest[...] = SW
+        northEast = netCDFHandler.createVariable("north_east_corner", str)
+        northEast[...] = NE
+        northWest = netCDFHandler.createVariable("north_west_corner", str)
+        northWest[...] = NW
+
+        googleMapView = netCDFHandler.createVariable("Google_Map_View", str)
+        googleMapView[...] = googleMapAddress
+        setattr(netCDFHandler.variables["Google_Map_View"], "usage", "copy and paste to your web browser")
+        setattr(netCDFHandler.variables["Google_Map_View"], 'reference_point', 'South East corner of the field')
 
         ##### Write the history to netCDF #####
         netCDFHandler.history = ''.join((_timeStamp(), ': python ', commandLine))

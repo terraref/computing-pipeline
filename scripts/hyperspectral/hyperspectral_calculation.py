@@ -21,12 +21,12 @@ PIXEL_PITCH = 25e-6 #[m]
 GAMMA = 0 #TODO: waiting for the correct value
 
 
-REFERENCE_POINT = 4.47, 58.485
+REFERENCE_POINT = 33 + 4.47 / 60, -111 - 58.485 / 60 # from https://github.com/terraref/reference-data/issues/32
 
-LONGITUDE_TO_METER = 1420
-LATITUDE_TO_METER  = 1850
+LONGITUDE_TO_METER = 1 / (30.87 * 3600)
+LATITUDE_TO_METER  = 1/ (25.906 * 3600) #varies, but has been corrected based on the actural location of the field
 
-LATLONG_TEMPLATE   = "33°{LONG:}' N / -111°{LAT:}' W"
+GOOGLE_MAP_TEMPLATE = "https://maps.googleapis.com/maps/api/staticmap?size=1280x720&zoom=17&path=color:0x0000005|weight:5|fillcolor:0xFFFF0033|{pointA}|{pointB}|{pointC}|{pointD}"
 
 # from Dr. LeBauer, Github thread: terraref/referece-data #32
 # This matrix looks like this:
@@ -81,15 +81,15 @@ def pixel2Geographic(jsonFileLocation, headerFileLocation):
 
         ########### Sample result: x -> 0.377 [m], y -> 0.267 [m] ###########
 
-        SE = x_final_result[-1] * LONGITUDE_TO_METER + 4.47, y_final_result[-1] * LATITUDE_TO_METER + 58.485
-        SW = x_final_result[0] * LONGITUDE_TO_METER + 4.47 , y_final_result[-1] * LATITUDE_TO_METER + 58.485
-        NE = x_final_result[-1] * LONGITUDE_TO_METER + 4.47, y_final_result[0] * LATITUDE_TO_METER + 58.485
-        NW = x_final_result[0] * LONGITUDE_TO_METER + 4.47 , y_final_result[0] * LATITUDE_TO_METER + 58.485
+        SE = x_final_result[-1] * LONGITUDE_TO_METER + REFERENCE_POINT[0], y_final_result[-1] * LATITUDE_TO_METER + REFERENCE_POINT[1]
+        SW = x_final_result[0] * LONGITUDE_TO_METER + + REFERENCE_POINT[0] , y_final_result[-1] * LATITUDE_TO_METER + REFERENCE_POINT[1]
+        NE = x_final_result[-1] * LONGITUDE_TO_METER + REFERENCE_POINT[0], y_final_result[0] * LATITUDE_TO_METER + REFERENCE_POINT[1]
+        NW = x_final_result[0] * LONGITUDE_TO_METER + REFERENCE_POINT[0] , y_final_result[0] * LATITUDE_TO_METER + REFERENCE_POINT[1]
 
-        bounding_box = []
-        bounding_box.append(LATLONG_TEMPLATE.format(LONG=SE[0],LAT=SE[-1]))
-        bounding_box.append(LATLONG_TEMPLATE.format(LONG=SW[0],LAT=SW[-1])) 
-        bounding_box.append(LATLONG_TEMPLATE.format(LONG=NE[0],LAT=NE[-1])) 
-        bounding_box.append(LATLONG_TEMPLATE.format(LONG=NW[0],LAT=NW[-1])) 
+        bounding_box = [str(SE).strip("()"), str(SW).strip("()"), str(NE).strip("()"), str(NW).strip("()")]
+        bounding_box_mapview = GOOGLE_MAP_TEMPLATE.format(pointA=bounding_box[0],
+                                                          pointB=bounding_box[1],
+                                                          pointC=bounding_box[2],
+                                                          pointD=bounding_box[3])
 
-        return x_final_result, y_final_result, bounding_box
+        return x_final_result, y_final_result, bounding_box, bounding_box_mapview
