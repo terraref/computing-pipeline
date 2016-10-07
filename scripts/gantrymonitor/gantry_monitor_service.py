@@ -207,7 +207,7 @@ def createLocalSymlink(srcPath, destPath):
         # Change original file to make it immutable
         srcPath = srcPath.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])
         #logger.debug("- chattr for %s" % srcPath)
-        subprocess.call(["chattr", "-i", srcPath])
+        #subprocess.call(["chattr", "-i", srcPath])
     except OSError as e:
         if e.errno != 17:
             logger.error("- error on symlink to %s (%s - %s)" % (destPath, e.errno, e.strerror))
