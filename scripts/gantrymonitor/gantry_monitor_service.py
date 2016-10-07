@@ -273,6 +273,7 @@ def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=
     # /LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
     # /LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
     # /MAC/lightning/2016-01-01/weather_2016_06_29.dat
+    # /LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.png
     # /LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
     pathParts = gantryDirPath.split("/")
 
@@ -748,13 +749,16 @@ def initializeGlobusTransfer():
                         dest_path = dest_path.replace("MovingSensor/", "")
                         dest_path = dest_path.replace("MAC/", "")
                         dest_path = dest_path.replace("3DScannerRawDataTmp/", "")
-                        # /ua-mac/raw_data/LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
+                        # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.png
+                        # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
                         if dest_path.find("MovingSensor.reproc") > -1:
                             new_dest_path = ""
                             dirs = dest_path.split("/")
                             for dir_part in dirs:
                                 if dir_part.find("MovingSensor.reproc") == -1:
                                     new_dest_path = os.path.join(new_dest_path, dir_part)
+                            if new_dest_path.endswith(".ply"):
+                                new_dest_path = new_dest_path.replace("raw_data", "Level_1")
                             dest_path = new_dest_path
 
                         transferObj.add_item(src_path, dest_path)
