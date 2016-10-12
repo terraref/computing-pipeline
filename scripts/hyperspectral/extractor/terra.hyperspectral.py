@@ -90,6 +90,19 @@ def process_dataset(parameters):
 			print 'uploading output file...'
 			extractors.upload_file_to_dataset(filepath=outFilePath, parameters=parameters)
 			print 'done uploading'
+			print 'extracting metadata in cdl format'
+			metaFilePath = outFilePath + '.cdl'
+			with open(metaFilePath, 'w') as fmeta:
+				subprocess.call('nkcs', '--cdl', '-m', '-M', outFilePath], stdout=fmeta)
+			if os.path.exists(metaFilePath):
+				extractors.upload_file_to_dataset(filepath=metaFilePath, parameters=parameters)
+
+			print 'extracting metadata in xml format'
+			metaFilePath = outFilePath + '.xml'
+			with open(metaFilePath, 'w') as fmeta:
+				subprocess.call('nkcs', '--xml', '-m', '-M', outFilePath], stdout=fmeta)
+			if os.path.exists(metaFilePath):
+				extractors.upload_file_to_dataset(filepath=metaFilePath, parameters=parameters)
 		# Clean up the output file.
 		os.remove(outFilePath)
 	else:
