@@ -79,13 +79,22 @@ from hyperspectral_calculation import pixel2Geographic
 
 _UNIT_DICTIONARY = {'m': 'meter',
                     's': 'second', 'm/s': 'meter second-1', '': ''}
+
 _VELOCITY_DICTIONARY = {'x': 'u', 'y': 'v', 'z': 'w'}
+
 DATATYPE = {'1': ('H', 2), '2': ('i', 4), '3': ('l', 4), '4': ('f', 4), '5': (
     'd', 8), '12': ('H', 4), '13': ('L', 4), '14': ('q', 8), '15': ('Q', 8)}
+
 _RAW_VERSION      = platform.python_version()[0]
+
 _UNIX_BASETIME    = date(year=1970, month=1, day=1)
+
 _FILENAME_PATTERN = r'^(\S+)_(\w{3,10})[.](\w{3,4})$'
-_TIME_PATTERN     = re.compile(r'(\d{4})-(\d{2})-(\d{2})'), re.compile(r'(\d{2})/(\d{2})/(\d{4})\s(\d{2}):(\d{2}):(\d{2})'), re.compile(r'(\d{2}):(\d{2}):(\d{2})')
+
+_TIME_PATTERN     = re.compile(r'(\d{4})-(\d{2})-(\d{2})'),\
+                    re.compile(r'(\d{2})/(\d{2})/(\d{4})\s(\d{2}):(\d{2}):(\d{2})'),\
+                    re.compile(r'(\d{2}):(\d{2}):(\d{2})')
+
 _CAMERA_POSITION  = np.array([1.9, 0.855, 0.635])
 
 
@@ -125,9 +134,9 @@ class DataContainer(object):
             tempGroup = netCDFHandler.createGroup(members)
             for submembers in self.__dict__[members]:
                 if not isDigit(self.__dict__[members][submembers]): #Case for letter variables
-                    if 'date' in submembers:
+                    if 'date' in submembers and submembers != "date of installation" and submembers != "date of handover":
                         tempVariable = tempGroup.createVariable(_replaceIllegalChar(submembers), 'f8')
-                        tempVariable.assignValue(translateTime(self.__dict__[members][submembers]))
+                        tempVariable[...] = translateTime(self.__dict__[members][submembers])
                         setattr(tempVariable, "units",     "days since 1970-01-01 00:00:00")
                         setattr(tempVariable, "calender", "gregorian")
                     setattr(tempGroup, _replaceIllegalChar(submembers),
@@ -152,8 +161,7 @@ class DataContainer(object):
                             nameSet[0], 'f8')
                         setattr(tempVariable, 'long_name', nameSet[0])
 
-                    tempVariable.assignValue(
-                        float(self.__dict__[members][submembers]))
+                    tempVariable[...] = float(self.__dict__[members][submembers])
 
         ##### Write the data from header files to netCDF #####
         wavelength = getWavelength(inputFilePath)
@@ -241,8 +249,7 @@ def getWavelength(fileName):
     Acquire wavelength(s) from related HDR file
     '''
     with open("".join((fileName, '.hdr'))) as fileHandler:
-        wavelengthGroup = [float(x.strip('\r').strip('\n').strip(',')) for x in fileHandler.readlines()
-                           if isDigit(x.strip('\r').strip('\n').strip(','))]
+        wavelengthGroup = [float(x.strip('\r').strip('\n').strip(',')) for x in fileHandler.readlines() if isDigit(x.strip('\r').strip('\n').strip(','))]
     return wavelengthGroup
 
 
@@ -251,8 +258,7 @@ def getHeaderInfo(fileName):
     Acquire Other Information from related HDR file
     '''
     with open("".join((fileName, '.hdr'))) as fileHandler:
-        infoDictionary = {members[0:members.find("=") - 1].strip(";"): members[members.find("=") + 2:].strip('\n').strip('\r')
-                          for members in fileHandler.readlines() if '=' in members and 'wavelength' not in members}
+        infoDictionary = {members[0:members.find("=") - 1].strip(";") : members[members.find("=") + 2:].strip('\n').strip('\r') for members in fileHandler.readlines() if '=' in members and 'wavelength' not in members}
 
     return infoDictionary
 
@@ -281,7 +287,7 @@ def _fileExistingCheck(filePath, dataContainer):
 
                 if userChoice is 'S':
                     return 0
-                elif userChoice is 'O' or 'A':
+                elif userChoice in ('O', 'A'):
                     os.remove(filePath)
                     return Dataset(filePath, 'w', format='NETCDF4')
         else:
@@ -475,11 +481,11 @@ def writeHeaderFile(fileName, netCDFHandler):
 
     try:
         headerInfo.createVariable(
-            'red_band_index', 'f8').assignValue(threeColorBands[0])
+            'red_band_index', 'f8')[...] = threeColorBands[0]
         headerInfo.createVariable(
-            'green_band_index', 'f8').assignValue(threeColorBands[1])
+            'green_band_index', 'f8')[...] = threeColorBands[1]
         headerInfo.createVariable(
-            'blue_band_index', 'f8').assignValue(threeColorBands[2])
+            'blue_band_index', 'f8')[...] = threeColorBands[2]
 
         setattr(netCDFHandler.groups['sensor_variable_metadata'].variables[
                 'exposure'], 'red_band_index',   threeColorBands[0])

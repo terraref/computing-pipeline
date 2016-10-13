@@ -1,6 +1,6 @@
 import numpy as np
 
-__all__ = [AREA, FLX_SNS, calculateDownwellingSpectralFlux]
+__all__ = ["AREA", "FLX_SNS", "calculateDownwellingSpectralFlux"]
 
 #Fibre optic collection surface area is pi * (fiber diameter squared) / 4
 AREA = np.pi * (3900.0 * 1.0e-6) ** 2 / 4.0  # [m2]
@@ -112,27 +112,27 @@ FLX_SNS = \
      2.62283407e-4, 2.63904910e-4, 2.65792030e-4, 2.67956880e-4, 2.70494493e-4, 2.73225853e-4, 2.76170072e-4, 2.79055057e-4, 2.81984548e-4, 2.88500954e-4,
      2.89109910e-4, 2.93129400e-4, 2.92536512e-4, 2.92536512e-4]  # [uJ cnt-1] 10 sensitivities per line, 1024 total
 
-     def calculateDownwellingSpectralFlux(wvl_lgr, spectrum):
-        '''
-        This function will calculate the downwelling spectral flux.
-        A desired type for wvl_lgr would be a single 1D list, and spectrum
-        should be a nested 2D list. The area for spectrometer and integration
-        time are default.
-        '''
-        Spectrometer_Integration_Time_In_Microseconds = 5000.0 # [us]
-        Spectrometer_Integration_Time                 = Spectrometer_Integration_Time_In_Microseconds * 1.0e-6 # [s]
+def calculateDownwellingSpectralFlux(wvl_lgr, spectrum):
+    '''
+    This function will calculate the downwelling spectral flux.
+    A desired type for wvl_lgr would be a single 1D list, and spectrum
+    should be a nested 2D list. The area for spectrometer and integration
+    time are default.
+    '''
+    Spectrometer_Integration_Time_In_Microseconds = 5000.0 # [us]
+    Spectrometer_Integration_Time                 = Spectrometer_Integration_Time_In_Microseconds * 1.0e-6 # [s]
 
 
-        wvl_ntf  = [np.average([wvl_lgr[i], wvl_lgr[i+1]]) for i in range(len(wvl_lgr)-1)]
-        delta    = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
-        delta.insert(0, 2*(wvl_ntf[0] - wvl_lgr[0]))
-        delta.insert(-1, 2*(wvl_lgr[-1] - wvl_ntf[-1]))
+    wvl_ntf  = [np.average([wvl_lgr[i], wvl_lgr[i+1]]) for i in range(len(wvl_lgr)-1)]
+    delta    = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
+    delta.insert(0,  2*(wvl_ntf[0]  - wvl_lgr[0]))
+    delta.insert(-1, 2*(wvl_lgr[-1] - wvl_ntf[-1]))
 
-        # General formula used in calculating downwelling spectral flux:
-        # Downwelling Spectral Flux = (spectrum [cnt] - dark [cnt]) * flx_sns [J cnt-1]  / bandwidth [m] / area [m2] / time [s]
-        downwellingSpectralFlux = np.array(FLX_SNS) * 1.0e-6 * np.array(spectrum) / np.array(delta) / AREA / Spectrometer_Integration_Time # [J m-2 m-1 s-1] = [W m-2 m-1]
+    # General formula used in calculating downwelling spectral flux:
+    # Downwelling Spectral Flux = (spectrum [cnt] - dark [cnt]) * flx_sns [J cnt-1]  / bandwidth [m] / area [m2] / time [s]
+    downwellingSpectralFlux = np.array(FLX_SNS) * 1.0e-6 * np.array(spectrum) / np.array(delta) / AREA / Spectrometer_Integration_Time # [J m-2 m-1 s-1] = [W m-2 m-1]
 
-        # downwellingFlux is the summation (integration) of downwelling flux
-        downwellingFlux = np.sum(downwellingSpectralFlux)
+    # downwellingFlux is the summation (integration) of downwelling flux
+    downwellingFlux = np.sum(downwellingSpectralFlux)
 
-        return downwellingSpectralFlux, downwellingFlux  
+    return downwellingSpectralFlux, downwellingFlux  

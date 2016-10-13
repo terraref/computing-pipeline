@@ -73,7 +73,7 @@ import sys
 import os
 from datetime import date, datetime
 from netCDF4 import Dataset
-from CalculationWorks import *
+from environmental_logger_calculation import *
 
 
 _UNIT_DICTIONARY = {u'm': {"original":"meter", "SI":"meter", "power":1}, 
@@ -120,8 +120,10 @@ def getSpectrometerInformation(arrayOfJSON):
     '''
     Collect information from spectrometer with special care
     '''
-    maxFixedIntensity = [int(intensityMembers["spectrometer"]["maxFixedIntensity"]) for intensityMembers in arrayOfJSON]
-    integrationTime = [int(integrateMembers["spectrometer"]["integration time in ?s"]) for integrateMembers in arrayOfJSON]
+    maxFixedIntensity = [int(intensityMembers["spectrometer"]["maxFixedIntensity"])\
+                         for intensityMembers in arrayOfJSON]
+    integrationTime   = [int(integrateMembers["spectrometer"]["integration time in ?s"])\
+                         for integrateMembers in arrayOfJSON]
 
     return maxFixedIntensity, integrationTime
 
@@ -130,9 +132,12 @@ def getListOfWeatherStationValue(arrayOfJSON, dataName):
     '''
     Collect data from JSON objects which have "value" member
     '''
-    return [float(valueMembers["weather_station"][dataName]['value'].encode('ascii', 'ignore')) for valueMembers in arrayOfJSON],\
-           [_UNIT_DICTIONARY[valueMembers["weather_station"][dataName]['unit'].encode('ascii', 'ignore')]["SI"] for valueMembers in arrayOfJSON],\
-           [float(valueMembers["weather_station"][dataName]['rawValue'].encode('ascii', 'ignore')) for valueMembers in arrayOfJSON]
+    return [float(valueMembers["weather_station"][dataName]['value'].encode('ascii', 'ignore'))\
+            for valueMembers in arrayOfJSON],\
+           [_UNIT_DICTIONARY[valueMembers["weather_station"][dataName]['unit'].encode('ascii', 'ignore')]["SI"]\
+            for valueMembers in arrayOfJSON],\
+           [float(valueMembers["weather_station"][dataName]['rawValue'].encode('ascii', 'ignore'))\
+            for valueMembers in arrayOfJSON]
 
 
 def handleSpectrometer(JSONArray):
@@ -141,8 +146,10 @@ def handleSpectrometer(JSONArray):
     '''
 
     wvl_lgr           = JSONArray[0]["spectrometer"]["wavelength"]
-    spectrum          = [valueMembers["spectrometer"]["spectrum"] for valueMembers in JSONArray]
-    maxFixedIntensity = [float(valueMembers["spectrometer"]["maxFixedIntensity"].encode('ascii', 'ignore')) for valueMembers in JSONArray]
+    spectrum          = [valueMembers["spectrometer"]["spectrum"]\
+                         for valueMembers in JSONArray]
+    maxFixedIntensity = [float(valueMembers["spectrometer"]["maxFixedIntensity"].encode('ascii', 'ignore'))\
+                         for valueMembers in JSONArray]
 
     return wvl_lgr, spectrum, maxFixedIntensity
 
@@ -169,7 +176,7 @@ def translateTime(timeString):
     Translate the time the metadata included as the days offset to the basetime.
     '''
     timeUnpack = datetime.strptime(timeString, "%Y.%m.%d-%H:%M:%S").timetuple()
-    timeSplit = date(year=timeUnpack.tm_year, month=timeUnpack.tm_mon, day=timeUnpack.tm_mday) - _UNIX_BASETIME
+    timeSplit  = date(year=timeUnpack.tm_year, month=timeUnpack.tm_mon, day=timeUnpack.tm_mday) - _UNIX_BASETIME
 
     return (timeSplit.total_seconds() + timeUnpack.tm_hour * 3600.0 + timeUnpack.tm_min * 60.0 + timeUnpack.tm_sec) / (3600.0 * 24.0)
 
@@ -269,7 +276,7 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     setattr(netCDFHandler.variables["area_sensor"], "units", "meter2")
     setattr(netCDFHandler.variables['area_sensor'], 'long_name', 'Spectrometer Area')
 
-    netCDFHandler.history = recordTime + ': python ' + commandLine
+    netCDFHandler.history = "".join((recordTime, ': python ', commandLine))
     netCDFHandler.close()
 
 
@@ -284,10 +291,10 @@ def mainProgramTrigger(fileInputLocation, fileOutputLocation):
         print "Processing", fileInputLocation + '....'
         tempJSONMasterList = JSONHandler(fileInputLocation)
         if not os.path.isdir(fileOutputLocation):
-            main(tempJSONMasterList, fileOutputLocation, recordTime=_timeStamp(), commandLine="".join((commandLine=sys.argv[1], ' ', sys.argv[2])))
+            main(tempJSONMasterList, fileOutputLocation, recordTime=_timeStamp(), commandLine="".join((sys.argv[1], ' ', sys.argv[2])))
         else:
             outputFileName = os.path.split(fileInputLocation)[-1]
-            main(tempJSONMasterList, os.path.join(fileOutputLocation,  "".join((outputFileName.strip('.json'), '.nc'))), recordTime=_timeStamp(), "".join((commandLine=sys.argv[1], ' ', sys.argv[2])))
+            main(tempJSONMasterList, os.path.join(fileOutputLocation,  "".join((outputFileName.strip('.json'), '.nc'))), recordTime=_timeStamp(), commandLine="".join((sys.argv[1], ' ', sys.argv[2])))
     else:    
         for filePath, fileDirectory, fileName in os.walk(fileInputLocation):
             for members in fileName:
@@ -295,7 +302,7 @@ def mainProgramTrigger(fileInputLocation, fileOutputLocation):
                     print "Processing", members + '....'
                     outputFileName = "".join((members.strip('.json'), '.nc'))
                     tempJSONMasterList = JSONHandler(os.path.join(filePath, members))
-                    main(tempJSONMasterList, os.path.join(fileOutputLocation, outputFileName), recordTime=_timeStamp(), "".join((commandLine=sys.argv[1], ' ', sys.argv[2])))
+                    main(tempJSONMasterList, os.path.join(fileOutputLocation, outputFileName), recordTime=_timeStamp(), commandLine="".join((sys.argv[1], ' ', sys.argv[2])))
 
 
 
