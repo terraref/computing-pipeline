@@ -137,8 +137,6 @@ def calculateDownwellingSpectralFlux(wvl_lgr, spectrum):
     FLX_SNS                       -> the calibration (Cp above)  
     '''
 
-    print len(DARK_REF)
-
     Spectrometer_Integration_Time_In_Microseconds = 5000.0 # [us]
     Spectrometer_Integration_Time                 = Spectrometer_Integration_Time_In_Microseconds * 1.0e-6 # [s]
 
