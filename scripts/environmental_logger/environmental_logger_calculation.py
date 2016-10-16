@@ -280,7 +280,6 @@ def calculateDownwellingSpectralFlux(wvl_lgr, spectrum):
     FLX_SNS                       -> the calibration (Cp above)  
     '''
 
-    print(len(DARK_MEASUREMENTS))
 
     Spectrometer_Integration_Time_In_Microseconds = 5000.0 # [us]
     Spectrometer_Integration_Time                 = Spectrometer_Integration_Time_In_Microseconds * 1.0e-6 # [s]
@@ -294,7 +293,7 @@ def calculateDownwellingSpectralFlux(wvl_lgr, spectrum):
 
     # General formula used in calculating downwelling spectral flux:
     # Downwelling Spectral Flux = (spectrum [cnt] - dark [cnt]) * flx_sns [J cnt-1]  / bandwidth [m] / area [m2] / time [s]
-    downwellingSpectralFlux = np.array(FLX_SNS) * 1.0e-6 * np.array(spectrum) / np.array(delta) / AREA / Spectrometer_Integration_Time # [J m-2 m-1 s-1] = [W m-2 m-1]
+    downwellingSpectralFlux = np.array(FLX_SNS) * 1.0e-6 * (np.array(spectrum) - np.array(DARK_MEASUREMENTS[:-1])) / np.array(delta) / AREA / Spectrometer_Integration_Time # [J m-2 m-1 s-1] = [W m-2 m-1]
 
     # downwellingFlux is the summation (integration) of downwelling flux
     downwellingFlux = np.sum(downwellingSpectralFlux)
