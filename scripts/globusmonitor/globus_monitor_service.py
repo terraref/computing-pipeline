@@ -613,8 +613,9 @@ def notifyClowderOfCompletedTask(task):
                         if os.path.exists(fobj['path']):
                             if f.find("metadata.json") == -1:
                                 if 'md' in fobj:
-                                    # Use [1,-1] to avoid json.dumps wrapping quotes that break Clowder endpoint
-                                    mdstr = ', "md":' + json.dumps(fobj['md'])[1:-1]
+                                    # Use [1,-1] to avoid json.dumps wrapping quotes
+                                    # Replace \" with " to avoid json.dumps escaping quotes
+                                    mdstr = ', "md":' + json.dumps(fobj['md'])[1:-1].replace('\\"', '"')
                                 else:
                                     mdstr = ""
                                 filesQueued.append((fobj['path'], mdstr))
