@@ -192,15 +192,15 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     for infos in loggerFixedInfos:
         infosGroup = netCDFHandler.createGroup(infos)
         for subInfos in loggerFixedInfos[infos]:
-            setattr(infosGroup, renameTheValue(infos + subInfos), loggerFixedInfos[infos][subInfos])
+            setattr(infosGroup, renameTheValue("".join((infos, subInfos))), loggerFixedInfos[infos][subInfos])
 
     netCDFHandler.createDimension("time", None)
 
     weatherStationGroup = netCDFHandler.groups["weather_station"]
     spectrometerGroup   = netCDFHandler.groups["spectrometer"]
-    for data in loggerReadings[0]["weather_station"].keys(): #writing the data from weather station
+    for data in loggerReadings[0]["weather_station"]: #writing the data from weather station
         value, unit, rawValue           = getListOfWeatherStationValue(loggerReadings, data)
-        valueVariable, rawValueVariable = weatherStationGroup.createVariable(data, "f4", ("time", )), weatherStationGroup.createVariable("raw_" + data, "f4", ("time", ))
+        valueVariable, rawValueVariable = weatherStationGroup.createVariable(data, "f4", ("time", )), weatherStationGroup.createVariable("".join(("raw_",data)), "f4", ("time", ))
             
         valueVariable[:]    = value
         rawValueVariable[:] = rawValue
@@ -243,7 +243,7 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
 
     # Downwelling Flux = summation of (delta lambda(_wvl_dlt) * downwellingSpectralFlux)
     # Details in CalculationWorks.py
-    downwellingSpectralFlux, downwellingFlux = calculateDownwellingSpectralFlux(wvl_lgr, spectrum)
+    downwellingSpectralFlux, downwellingFlux = calculateDownwellingSpectralFlux(wvl_lgr, spectrum, delta)
 
     # Add data from hyperspectral_calibration.nco
     netCDFHandler.createVariable("wvl_dlt", 'f8', ("wvl_lgr",))[:] = delta
@@ -261,18 +261,18 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     setattr(netCDFHandler.variables['flx_spc_dwn'], 'long_name', 'Downwelling Spectral Irradiance')
 
     # Downwelling Flux = summation of (delta lambda(_wvl_dlt) * downwellingSpectralFlux)
-    netCDFHandler.createVariable("flx_dwn", 'f4').assignValue(downwellingFlux)
+    netCDFHandler.createVariable("flx_dwn", 'f4')[...] = downwellingFlux
     setattr(netCDFHandler.variables["flx_dwn"], "units", "watt meter-2")
     setattr(netCDFHandler.variables['flx_dwn'], 'long_name', 'Downwelling Irradiance')
 
     # #Other Constants used in calculation
     # #Integration Time
-    netCDFHandler.createVariable("time_integration", 'f4').assignValue(float(loggerReadings[0]["spectrometer"]["integration time in us"])/1.0e-6)
+    netCDFHandler.createVariable("time_integration", 'f4')[...] = float(loggerReadings[0]["spectrometer"]["integration time in us"]) / 1.0e-6
     setattr(netCDFHandler.variables["time_integration"], "units", "second")
     setattr(netCDFHandler.variables['time_integration'], 'long_name', 'Spectrometer integration time')
 
     # #Spectrometer area
-    netCDFHandler.createVariable("area_sensor", "f4").assignValue(AREA)
+    netCDFHandler.createVariable("area_sensor", "f4")[...] = AREA
     setattr(netCDFHandler.variables["area_sensor"], "units", "meter2")
     setattr(netCDFHandler.variables['area_sensor'], 'long_name', 'Spectrometer Area')
 
@@ -288,7 +288,7 @@ def mainProgramTrigger(fileInputLocation, fileOutputLocation):
         os.mkdir(fileOutputLocation)  # Create folder
 
     if not os.path.isdir(fileInputLocation) or fileOutputLocation.endswith('.nc'):
-        print "Processing", fileInputLocation + '....'
+        print "Processing", "".join((fileInputLocation, '....'))
         tempJSONMasterList = JSONHandler(fileInputLocation)
         if not os.path.isdir(fileOutputLocation):
             main(tempJSONMasterList, fileOutputLocation, recordTime=_timeStamp(), commandLine="".join((sys.argv[1], ' ', sys.argv[2])))
@@ -299,7 +299,7 @@ def mainProgramTrigger(fileInputLocation, fileOutputLocation):
         for filePath, fileDirectory, fileName in os.walk(fileInputLocation):
             for members in fileName:
                 if os.path.join(filePath, members).endswith('.json'):
-                    print "Processing", members + '....'
+                    print "Processing", "".join((members, '....'))
                     outputFileName = "".join((members.strip('.json'), '.nc'))
                     tempJSONMasterList = JSONHandler(os.path.join(filePath, members))
                     main(tempJSONMasterList, os.path.join(fileOutputLocation, outputFileName), recordTime=_timeStamp(), commandLine="".join((sys.argv[1], ' ', sys.argv[2])))

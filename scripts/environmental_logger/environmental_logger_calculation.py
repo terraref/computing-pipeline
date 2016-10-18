@@ -193,7 +193,7 @@ WAVELENGTHS =\
       7.000746E+02, 7.005599E+02, 7.010452E+02, 7.015305E+02, 7.020159E+02, 7.025013E+02, 7.029868E+02, 7.034723E+02, 7.039578E+02, 7.044433E+02, 
       7.049289E+02, 7.054146E+02, 7.059002E+02, 7.063859E+02, 7.068717E+02, 7.073574E+02, 7.078432E+02, 7.083291E+02, 7.088150E+02, 7.093009E+02, 
       7.097868E+02, 7.102728E+02, 7.107589E+02, 7.112449E+02, 7.117310E+02, 7.122172E+02, 7.127033E+02, 7.131895E+02, 7.136758E+02, 7.141621E+02, 
-      7.146484E+02, 7.151347E+02, 7.156211E+02, 7.161075E+02, 7.16594E+02, 7.1708050E+02, 7.175670E+02, 7.180536E+02, 7.185402E+02, 7.190268E+02, 
+      7.146484E+02, 7.151347E+02, 7.156211E+02, 7.161075E+02, 7.165940E+02, 7.170805E+02, 7.175670E+02, 7.180536E+02, 7.185402E+02, 7.190268E+02, 
       7.195135E+02, 7.200002E+02, 7.204870E+02, 7.209738E+02, 7.214606E+02, 7.219474E+02, 7.224343E+02, 7.229212E+02, 7.234082E+02, 7.238952E+02, 
       7.243822E+02, 7.248693E+02, 7.253564E+02, 7.258436E+02, 7.263307E+02, 7.268180E+02, 7.273052E+02, 7.277925E+02, 7.282798E+02, 7.287672E+02, 
       7.292546E+02, 7.297420E+02, 7.302295E+02, 7.307170E+02, 7.312045E+02, 7.316921E+02, 7.321797E+02, 7.326673E+02, 7.331550E+02, 7.336427E+02, 
@@ -253,9 +253,9 @@ DARK_MEASUREMENTS = \
      1502, 1500, 1499, 1500, 1498, 1500, 1499, 1499, 1499, 1503, 1500, 1500, 1499, 1500, 1500, 1500, 1500, 1498, 1499, 1501, 1498, 1500, 1500, 1501, 
      1500, 1500, 1500, 1501, 1500, 1499, 1499, 1501, 1502, 1499, 1502, 1500, 1501, 1500, 1500, 1500, 1500, 1500, 1499, 1501, 1501, 1499, 1499, 1500, 
      1500, 1501, 1499, 1500, 1501, 1500, 1500, 1500, 1499, 1502, 1500, 1499, 1502, 1502, 1500, 1498, 1500, 1501, 1500, 1499, 1500, 1500, 1502, 1499, 
-     1499, 1500, 1502, 1499, 1497, 1501, 1501, 1501, 1497, 1499, 1502, 1501, 1497, 1499, 1500, 824,  1500]
+     1499, 1500, 1502, 1499, 1497, 1501, 1501, 1501, 1497, 1499, 1502, 1501, 1497, 1499, 1500, 1500]
 
-def calculateDownwellingSpectralFlux(wvl_lgr, spectrum):
+def calculateDownwellingSpectralFlux(wvl_lgr, spectrum, delta):
     '''
     This function will calculate the downwelling spectral flux.
     A desired type for wvl_lgr would be a single 1D list, and spectrum
@@ -284,16 +284,16 @@ def calculateDownwellingSpectralFlux(wvl_lgr, spectrum):
     Spectrometer_Integration_Time_In_Microseconds = 5000.0 # [us]
     Spectrometer_Integration_Time                 = Spectrometer_Integration_Time_In_Microseconds * 1.0e-6 # [s]
 
-    wvl_ntf  = [np.average([wvl_lgr[i], wvl_lgr[i+1]]) for i in range(len(wvl_lgr)-1)]
-    delta    = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
-    delta.insert(0,  2*(wvl_ntf[0]  - wvl_lgr[0]))
-    delta.insert(-1, 2*(wvl_lgr[-1] - wvl_ntf[-1]))
+    # wvl_ntf  = [np.average([wvl_lgr[i], wvl_lgr[i+1]]) for i in range(len(wvl_lgr)-1)]
+    # delta    = [wvl_ntf[i+1] - wvl_ntf[i] for i in range(len(wvl_ntf) - 1)]
+    # delta.insert(0,  2*(wvl_ntf[0]  - wvl_lgr[0]))
+    # delta.insert(-1, 2*(wvl_lgr[-1] - wvl_ntf[-1]))
 
     # Using dark reference to calibrate the original sperctrum value
 
     # General formula used in calculating downwelling spectral flux:
     # Downwelling Spectral Flux = (spectrum [cnt] - dark [cnt]) * flx_sns [J cnt-1]  / bandwidth [m] / area [m2] / time [s]
-    downwellingSpectralFlux = np.array(FLX_SNS) * 1.0e-6 * (np.array(spectrum) - np.array(DARK_MEASUREMENTS[:-1])) / np.array(delta) / AREA / Spectrometer_Integration_Time # [J m-2 m-1 s-1] = [W m-2 m-1]
+    downwellingSpectralFlux = np.array(FLX_SNS) * 1.0e-6 * (np.array(spectrum) - np.array(DARK_MEASUREMENTS)) / np.array(delta) / AREA / Spectrometer_Integration_Time # [J m-2 m-1 s-1] = [W m-2 m-1]
 
     # downwellingFlux is the summation (integration) of downwelling flux
     downwellingFlux = np.sum(downwellingSpectralFlux)
