@@ -8,6 +8,22 @@ import posixpath
 import json
 import requests
 
+"""
+
+    1 Run Docker container including API endpoint for submission & Globus transfer components
+
+        docker run -p 5455:5455 \
+            -v /Users/mburnette/globus/monitor:/home/danforth/data \
+            -v /Users/mburnette/globus/sorghum_pilot_dataset:/home/danforth/snapshots \
+            -v /var/log:/var/log \
+            maxzilla2/terra-gantry-monitor
+
+    2 Execute this script on desired data to send
+
+        python PlantcvClowderUploader.py -d "/Users/mburnette/globus/sorghum_pilot_dataset" -m "/Users/mburnette/globus/sorghum_pilot_dataset/sorghum_pilot_ddpsc_metadata.json"
+
+"""
+
 # Parse command-line arguments
 def options():
     """Parse command line options.
@@ -69,35 +85,48 @@ def main():
 
         # Does this snapshot contain images?
         if len(img_list) > 0:
-            dataset_name = 'snapshot' + data[colnames['id']]
+            snapshot_id = 'snapshot%s' % data[colnames['id']]
             imgs = img_list.split(';')
 
             # Prepare our transfer object that will initiate Globus job
             globus_transfer_object = {
-                "space_id": args.collection_name,
-                "dataset_name": dataset_name,
+                "space_id": "571fbfefe4b032ce83d96006",
                 "paths": [],
                 "file_metadata": {}
             }
 
             # Send a metadata.json file for dataset metadata
-            with open("metadata.json", 'w') as dataset_metadata_file:
-                dataset_metadata_file.write(exp_metadata['experiment'])
-            globus_transfer_object['paths'].append(dataset_metadata_file)
+            ds_md_file_path = os.path.join(args.dir, snapshot_id, "metadata.json")
+            exp_metadata['experiment']['snapshot_id'] =  data[colnames['id']]
+            with open(ds_md_file_path, 'w') as dataset_metadata_file:
+                dataset_metadata_file.write(json.dumps(exp_metadata['experiment']))
+            globus_transfer_object['paths'].append(ds_md_file_path)
 
             # Add each image file to the Clowder dataset
+            dataset_name = None
             for img in imgs:
                 image_name = img + '.png'
                 img_metadata = metadata_to_json(img, exp_metadata, data, colnames)
-                image_path = posixpath.join(args.dir, 'snapshot' + data[colnames['id']], image_name)
+                dataset_name = img_metadata['imagedate']
+                image_path = posixpath.join(args.dir, snapshot_id, image_name)
 
                 globus_transfer_object['paths'].append(image_path)
                 globus_transfer_object['file_metadata'][image_name] = json.dumps(img_metadata)
 
+            # Use YYYY-MM-DD in ds name if we found imagedate, otherwise use snapshot ID as before
+            if not dataset_name:
+                dataset_name = 'ddpscIndoorSuite - %s' % snapshot_id
+            else:
+                # e.g. ddpscIndoorSuite - 2014-06-05__15-47-05-342
+                dataset_name = dataset_name.replace(' ', '__').replace(':', '-').replace('.','-')
+                dataset_name = 'ddpscIndoorSuite - %s' % dataset_name
+
+            globus_transfer_object['dataset_name'] = dataset_name
+
             if args.verbose:
                 print("sending transfer to API: "+str(globus_transfer_object), file=sys.stderr)
                 
-            send_files_to_globus_api(globus_transfer_object)
+            send_files_to_globus_api(json.dumps(globus_transfer_object))
 
             dataset_count += 1
             if args.verbose:
@@ -242,7 +271,7 @@ def send_files_to_globus_api(transferobject):
         To associate metadata with the given dataset, include a "metadata.json" file.
     """
 
-    api_url = "0.0.0.0:5545/files"
+    api_url = "http://192.168.99.100:5455/files"
     requests.post(api_url, data=transferobject)
 
 
