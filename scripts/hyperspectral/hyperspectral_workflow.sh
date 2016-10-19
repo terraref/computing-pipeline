@@ -45,7 +45,7 @@ if [ -z "${HOSTNAME}" ]; then
 fi # HOSTNAME
 # Ensure batch jobs access correct executables and libraries for python, mpirun, netCDF, and NCO:
 case "${HOSTNAME}" in 
-    cg-gpu* )
+    cg-gpu* | cg-cmp* ) # Roger login nodes named "cg-gpu*", compute nodes named "cg-cmp*"
 	module add gdal-stack-2.7.10 # 20160422: /usr/bin/python is version 2.6.6. Must load Python 2.7+
 	module add netcdf nco # hyperspectral_workflow.sh requires NCO version 4.6.0 (dated 20160401) or later
 	# Following two lines guarantee use of latest NCO executables Zender's directories:
@@ -54,8 +54,9 @@ case "${HOSTNAME}" in
 esac # !HOSTNAME
 
 # Production
-# UIUC: ls -R /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-04-07/*/*_raw | hyperspectral_workflow.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/terraref.out 2>&1 &
+# UIUC: ls -R /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-04-07/*/*_raw | hyperspectral_workflow.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/terraref.out 2>&1 & # Process all images from one day
 # UIUC: hyperspectral_workflow.sh -d 1 -i /projects/arpae/terraref/sites/ua-mac/raw_data/SWIR/2016-06-28/2016-06-28__09-10-16-386/a33641c2-8a1e-4a63-9d33-ab66717d6b8a_raw
+# UIUC: hyperspectral_workflow.sh -d 1 -i /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-10-07/2016-10-07__12-12-09-294/755e5eca-55b7-4412-a145-e8d1d4833b3f_raw # Process full-scan (~62 GB raw image)
 # UCI:  ls -R ${DATA}/terraref/MovingSensor/VNIR/2016-04-07/*/*_raw | hyperspectral_workflow.sh -d 1 -O ~/rgr > ~/terraref.out 2>&1 &
 
 # Test cases (for Charlie's machines)
