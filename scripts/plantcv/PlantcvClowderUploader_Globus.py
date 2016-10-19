@@ -126,7 +126,7 @@ def main():
             if args.verbose:
                 print("sending transfer to API: "+str(globus_transfer_object), file=sys.stderr)
                 
-            send_files_to_globus_api(globus_transfer_object)
+            send_files_to_globus_api(json.dumps(globus_transfer_object))
 
             dataset_count += 1
             if args.verbose:
@@ -271,7 +271,7 @@ def send_files_to_globus_api(transferobject):
         To associate metadata with the given dataset, include a "metadata.json" file.
     """
 
-    api_url = "0.0.0.0:5545/files"
+    api_url = "http://192.168.99.100:5455/files"
     requests.post(api_url, data=transferobject)
 
 
