@@ -65,17 +65,16 @@ hyperspectral_metadata widely uses regular expressions to match string; although
 with Java, PHP, Perl, etc., some of the regular expressions are only supported by the Python standard.
 ----------------------------------------------------------------------------------------
 '''
+import sys
 try:
     import numpy as np
 except ImportError as AFatalError:
-    print(AFatalError)
+    print >> sys.stderr, AFatalError
     exit()
 import json
 import time
-import sys
 import os
 import re
-import platform
 import struct
 from datetime import date, datetime
 from netCDF4 import Dataset

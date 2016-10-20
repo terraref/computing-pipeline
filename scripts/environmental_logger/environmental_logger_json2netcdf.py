@@ -75,7 +75,6 @@ from datetime import date, datetime
 from netCDF4 import Dataset
 from environmental_logger_calculation import *
 
-
 _UNIT_DICTIONARY = {u'm': {"original":"meter", "SI":"meter", "power":1}, 
                     u"hPa": {"original":"hectopascal", "SI":"pascal", "power":1e2},
                     u"DegCelsius": {"original":"celsius", "SI":"celsius", "power":1},
@@ -92,7 +91,9 @@ _UNIT_DICTIONARY = {u'm': {"original":"meter", "SI":"meter", "power":1},
                     u'ppm': {"original":"pascal meter-2", "SI":"pascal meter-2", "power":1}, 
                     '': ''}
 _NAMES = {'sensor par': 'Sensor Photosynthetically Active Radiation'}
+
 _UNIX_BASETIME = date(year=1970, month=1, day=1)
+
 _TIMESTAMP = lambda: time.strftime("%a %b %d %H:%M:%S %Y",  time.localtime(int(time.time())))
 
 def JSONHandler(fileLocation):
