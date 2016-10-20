@@ -323,7 +323,7 @@ def getDimension(fileName):
     '''
     Acquire dimensions from related HDR file
     '''
-    fileHandler = open("".join((fileName '.hdr')))
+    fileHandler = open("".join((fileName, '.hdr')))
 
     for members in fileHandler.readlines():
         if "samples" == members[:7]:
@@ -379,6 +379,7 @@ def _fileExistingCheck(filePath, dataContainer):
                 userChoice = str(raw_input(userPrompt))
 
                 if userChoice is 'S':
+                    print "Exit due to the skipping"
                     exit()
                 elif userChoice in ('O', 'A'):
                     os.remove(filePath)
@@ -506,7 +507,7 @@ def writeHeaderFile(fileName, netCDFHandler):
     The main function, reading the data and exporting netCDF file
     '''
     if not getDimension(fileName):
-        print >> sys.stderr, "\033[0;31mError: Cannot get dimension infos from", "".join((fileName '.hdr')), "\033[0m"
+        print >> sys.stderr, "\033[0;31mError: Cannot get dimension infos from", "".join((fileName, '.hdr')), "\033[0m"
         return
     dimensionWavelength, dimensionX, dimensionY = getDimension(fileName)
     hdrInfo = getHeaderInfo(fileName)
