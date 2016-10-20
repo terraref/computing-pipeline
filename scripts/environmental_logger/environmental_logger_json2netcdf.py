@@ -93,6 +93,7 @@ _UNIT_DICTIONARY = {u'm': {"original":"meter", "SI":"meter", "power":1},
                     '': ''}
 _NAMES = {'sensor par': 'Sensor Photosynthetically Active Radiation'}
 _UNIX_BASETIME = date(year=1970, month=1, day=1)
+_TIMESTAMP = lambda: time.strftime("%a %b %d %H:%M:%S %Y",  time.localtime(int(time.time())))
 
 def JSONHandler(fileLocation):
     '''
@@ -162,13 +163,6 @@ def sensorVariables(JSONArray, sensors):
     return [float(valueMembers[sensors]['value'].encode('ascii', 'ignore')) for valueMembers in JSONArray],\
            [_UNIT_DICTIONARY[valueMembers[sensors]['unit'].encode('ascii', 'ignore')]["SI"] for valueMembers in JSONArray],\
            [float(valueMembers[sensors]['rawValue'].encode('ascii', 'ignore')) for valueMembers in JSONArray]
-
-
-def _timeStamp():
-    '''
-    Record the time the script is triggered
-    '''
-    return time.strftime("%a %b %d %H:%M:%S %Y",  time.localtime(int(time.time())))
 
 
 def translateTime(timeString):
@@ -294,11 +288,11 @@ def mainProgramTrigger(fileInputLocation, fileOutputLocation):
         print "\nProcessing", "".join((fileInputLocation, '....')),"\n", "-" * (len(fileInputLocation) + 15)
         tempJSONMasterList = JSONHandler(fileInputLocation)
         if not os.path.isdir(fileOutputLocation):
-            main(tempJSONMasterList, fileOutputLocation, recordTime=_timeStamp(), commandLine="".join((sys.argv[1], ' ', sys.argv[2])))
+            main(tempJSONMasterList, fileOutputLocation, recordTime=_TIMESTAMP(), commandLine="".join((sys.argv[1], ' ', sys.argv[2])))
         else:
             outputFileName = os.path.split(fileInputLocation)[-1]
             print "Exported to", fileOutputLocation, "\n", "-" * (len(fileInputLocation) + 15)
-            main(tempJSONMasterList, os.path.join(fileOutputLocation,  "".join((outputFileName.strip('.json'), '.nc'))), recordTime=_timeStamp(), commandLine="".join((sys.argv[1], ' ', sys.argv[2])))
+            main(tempJSONMasterList, os.path.join(fileOutputLocation,  "".join((outputFileName.strip('.json'), '.nc'))), recordTime=_TIMESTAMP(), commandLine="".join((sys.argv[1], ' ', sys.argv[2])))
     else:    
         for filePath, fileDirectory, fileName in os.walk(fileInputLocation):
             for members in fileName:
@@ -307,10 +301,10 @@ def mainProgramTrigger(fileInputLocation, fileOutputLocation):
                     outputFileName = "".join((members.strip('.json'), '.nc'))
                     tempJSONMasterList = JSONHandler(os.path.join(filePath, members))
                     print "Exported to", str(os.path.join(fileOutputLocation, outputFileName)), "\n", "-" * (len(fileInputLocation) + 15)
-                    main(tempJSONMasterList, os.path.join(fileOutputLocation, outputFileName), recordTime=_timeStamp(), commandLine="".join((sys.argv[1], ' ', sys.argv[2])))
+                    main(tempJSONMasterList, os.path.join(fileOutputLocation, outputFileName), recordTime=_TIMESTAMP(), commandLine="".join((sys.argv[1], ' ', sys.argv[2])))
     
     endPoint = time.clock()
-    print "Done. Finished in {:5.3f} seconds\n".format(endPoint-startPoint)
+    print "Done. Execution time: {:.3f} seconds\n".format(endPoint-startPoint)
 
 if __name__ == '__main__':
     mainProgramTrigger(sys.argv[1], sys.argv[2])
