@@ -1,0 +1,22 @@
+{
+  "log_path": "/home/gantry/data/log",
+  "completed_tasks_path": "/home/gantry/data/completed",
+
+  "gantry": {
+    "incoming_files_path": "/home/gantry/snapshots",
+    "deletion_queue": "",
+    "ftp_log_path": "",
+    "directory_whitelist": ["/Users/mburnette/globus/"]
+  },
+
+  "globus": {
+    "source_path": "/Users/mburnette/globus",
+    "delete_path": "",
+    "destination_path": "danforth/raw_data",
+  },
+
+  "ncsa_api": {
+    "host": "http://141.142.170.137:5454",
+    "api_check_frequency_secs": 30
+  }
+}

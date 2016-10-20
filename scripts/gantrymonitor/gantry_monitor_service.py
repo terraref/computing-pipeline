@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 """ GANTRY MONITOR SERVICE
     This will load parameters from the configFile defined below,
@@ -18,7 +18,7 @@
     queued for deletion.
 """
 
-import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip
+import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip, pwd
 import logging, logging.config, logstash
 import requests
 from io import BlockingIOError
@@ -275,6 +275,7 @@ def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=
     # /MAC/lightning/2016-01-01/weather_2016_06_29.dat
     # /LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.png
     # /LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
+    # /Users/mburnette/globus/sorghum_pilot_dataset/snapshot123456/file.png
     pathParts = gantryDirPath.split("/")
 
     # Filename is always last
@@ -408,8 +409,13 @@ class TransferQueue(restful.Resource):
             for p in req['paths']:
                 if p.find(srcpath) == -1:
                     p = os.path.join(srcpath, p)
-                if 'file_metadata' in req and p in req['file_metadata']:
-                    filemetadata = req['file_metadata'][p]
+                if 'file_metadata' in req:
+                    if p in req['file_metadata']:
+                        filemetadata = req['file_metadata'][p]
+                    elif os.path.basename(p) in req['file_metadata']:
+                        filemetadata = req['file_metadata'][os.path.basename(p)]
+                    else:
+                        filemetadata = {}
                 else:
                     filemetadata = {}
 
@@ -497,12 +503,10 @@ def queueGantryFilesForTransfer():
     # Get list of files from FTP log, if log is specified
     if status_numPending < maxPending:
         foundFiles = getNewFilesFromFTPLogs()
-        logger.debug("- found %s files from logs" % len(foundFiles))
 
     # Get list of files from watched folders, if folders are specified  (and de-duplicate from FTP list)
     if status_numPending+len(foundFiles) < maxPending:
         fileList = getNewFilesFromWatchedFolders(len(foundFiles))
-        logger.debug("- found %s files from watched folders" % len(fileList))
         for found in fileList:
             if found not in foundFiles:
                 foundFiles.append(found)
@@ -693,6 +697,7 @@ def getNewFilesFromFTPLogs():
 
     status_lastFTPLogLine = current_lastFTPLogLine
     status_lastNasLogLine = current_lastNasLogLine
+    logger.debug("- found %s files from logs" % len(foundFiles))
     return foundFiles
 
 """Initiate Globus transfer with batch of files and add to activeTasks - recurse until max xfers reached or pending empty """
@@ -760,6 +765,7 @@ def initializeGlobusTransfer():
                                 if dir_part.find("MovingSensor.reproc") == -1:
                                     new_dest_path = os.path.join(new_dest_path, dir_part)
                             dest_path = new_dest_path
+                        # danforth/raw_data/sorghum_pilot_dataset/snapshot123456/file.png
 
                         transferObj.add_item(src_path, dest_path)
 
@@ -1039,13 +1045,10 @@ def gantryMonitorLoop():
             logger.debug("LOG SCAN THREAD: %s/%s files pending" % (status_numPending, config["gantry"]["max_pending_files"]))
             if status_numPending < config["gantry"]["max_pending_files"]:
                 queueGantryFilesForTransfer()
-                logger.debug("LOG SCAN THREAD: cleaning up pending transfers")
                 cleanPendingTransfers()
                 logger.debug("LOG SCAN THREAD: now %s pending transfers" % status_numPending)
                 if status_numPending > 0:
                     writeTasksToDisk(os.path.join(config['log_path'], "pending_transfers.json"), pendingTransfers)
-
-                logger.debug("LOG SCAN THREAD: finished queuing")
                 writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
 
             # Reset wait to check gantry incoming directory again
@@ -1065,8 +1068,9 @@ if __name__ == '__main__':
         log_config = json.load(f)
         main_log_file = os.path.join(config["log_path"], "log.txt")
         log_config['handlers']['file']['filename'] = main_log_file
-        if not os.path.exists(main_log_file):
+        if not os.path.exists(config["log_path"]):
             os.makedirs(config["log_path"])
+        if not os.path.isfile(main_log_file):
             open(main_log_file, 'a').close()
         logging.config.dictConfig(log_config)
     logger = logging.getLogger('gantry')

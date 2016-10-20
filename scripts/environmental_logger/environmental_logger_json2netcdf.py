@@ -213,6 +213,8 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     spectrumVariable   = spectrometerGroup.createVariable("spectrum", "f4", ("time", "wvl_lgr"))
     intensityVariable  = spectrometerGroup.createVariable("maxFixedIntensity", "f4", ("time",))
 
+    #TODO
+    #TODO add stanard names into the environmental loggers
     wavelengthVariable[:] = wvl_lgr
     spectrumVariable[:,:] = spectrum
     intensityVariable[:]  = maxFixedIntensity
