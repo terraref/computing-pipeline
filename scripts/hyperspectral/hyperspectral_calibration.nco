@@ -838,7 +838,7 @@ wvl_srb*=1.0e-9; // [m]
 
 /* exposure_reference is exposure measured when pointing at spectralon reference target
    Camera exposed to natural light reflecting from reference target for standard exposure time accumulates exposure_reference counts in each channel
-   Expected to be large fraction (assumed here to be fake_factory_calibrate_reflectance) of exposure_theoretical_maximum for white reflector 
+   Expected to be large fraction (assumed here to be factory_calibrated_reflectance_guesstimate) of exposure_theoretical_maximum for white reflector 
    However, grey reference reflector might be more optimal than white
    Plants have maximum reflectance of ~0.4 so calibrating at white not as accurate as calibrating near 0.4 
    We hope Lemnatec tunes exposure time to achieve the greatest dynamic range, and thus precision, under a wide range of circumstances
@@ -846,7 +846,7 @@ wvl_srb*=1.0e-9; // [m]
    Other tuning considerations are possible... */
 // 20160908: actual values are not yet available so use this guesstimate
 *exposure_reference_guesstimate=ushort(factory_calibrated_reflectance_guesstimate*exposure_theoretical_maximum); // [cnt]
-*maximum_plant_reflectance_guesstimate=0.37; // [frc]
+*maximum_plant_reflectance_guesstimate=0.37f; // [frc]
 
 // A perfect detector would measure no counts when aperture shut
 *exposure_theoretical_minimum=ushort(0); // [cnt]
