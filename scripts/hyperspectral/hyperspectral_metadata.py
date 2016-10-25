@@ -203,7 +203,7 @@ class DataContainer(object):
         y[:] = yPixelsLocation
         setattr(netCDFHandler.variables["y"], "units", "meters")
         setattr(netCDFHandler.variables['y'], 'reference_point', 'Southeast corner of the field')
-        setattr(netCDFHandler.variables['x'], "long_name", "Real world Y coordinates for each pixel")
+        setattr(netCDFHandler.variables['y'], "long_name", "Real world Y coordinates for each pixel")
 
         x_pt, y_pt = REFERENCE_POINT
 

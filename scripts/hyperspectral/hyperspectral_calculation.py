@@ -57,7 +57,8 @@ def pixel2Geographic(jsonFileLocation, headerFileLocation):
         x_camera_pos = 1.9 # From https://github.com/terraref/reference-data/issues/32
         y_camera_pos = 0.855
 
-        x_pixel_size = y_pixel_size = 0.98526434004512529576754637665e-3
+        x_pixel_size = 1.930615052e-3
+        y_pixel_size = 0.98526434004512529576754637665e-3
 
         x_pixel_num, y_pixel_num = 0, 0 #placeholder for x and y pixel numbers
 

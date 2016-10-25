@@ -24,10 +24,10 @@ if(!exists(clb_nbr)) *clb_nbr=73; // [nbr] Calibration number
 // Add georeferenced coordinates
 // Store x and y in double-precision in case we use lat/lon
 // If stored as meters from image or gantry corner, then single-precision would be sufficient
-x=array(0.0,0.001,$x);
+x=array(0.0,0.001930615052,$x);
 x@long_name="North-south offset from start position";
 x@units="meter";
-x@algorithm="CSZ implemented these fake data to be replaced by real formula once available.";
+x@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144, x is vary (depend on SWIR or VNIR), for SWIR x = 1.93mm, for VNIR x = 1.025mm";
 
 y=array(0.0,0.00098526434004512529576754637665,$y);
 y@long_name="East-west offset from start position";
