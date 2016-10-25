@@ -21,24 +21,35 @@
 // Defaults for values not provided on command-line
 if(!exists(clb_nbr)) *clb_nbr=73; // [nbr] Calibration number
 
+// Change hyperspectral camera wavelengths from nm to m (SI)
+wavelength*=1.0e-9; // [m]
+wavelength@standard_name="radiation_wavelength";  
+wavelength@units="meter";  
+
+/* 20161005 Set flags to separate blocks of VNIR from SWIR code when necessary */
+if(min(wavelength < 0.5e-6)){
+  flg_vnir=1s;
+  *wvl_pxl_nbr=2160;
+  *x_pxl_spc=0.001025; // [m]
+ }else{
+  flg_swir=1s;
+  *wvl_pxl_nbr=288;
+  *x_pxl_spc=0.001930615052; // [m]
+ } // !wavelength
+
 // Add georeferenced coordinates
 // Store x and y in double-precision in case we use lat/lon
-// If stored as meters from image or gantry corner, then single-precision would be sufficient
-x=array(0.0,0.001930615052,$x);
+// If stored as meters from image or gantry corner, then single-precision might be adequate
+x=array(0.0,x_pxl_spc,$x);
 x@long_name="North-south offset from start position";
 x@units="meter";
-x@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144, x is vary (depend on SWIR or VNIR), for SWIR x = 1.93mm, for VNIR x = 1.025mm";
+x@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144, x is derived from camera geometry including the Aperature Field-of-View (AFOV), the Horizontal Field-of-View (HFOV), and the height of the camera above the canopy (aka the Working Distance, or WD). We take WD = 2 m. Focal length (about 25 mm) is ignored in this estimate because it is much smaller than the WD. The camera geometry implies that AFOV[degrees]=2*atan(HFOV/WD). We use AFOV=21 and 44.6 degress for SWIR and VNIR, respectively. Then we solve for HFOV, and that distance is equally apportioned to 384 or 1600 pixels for SWIR or VNIR, respectively. For SWIR x = 1.93mm, for VNIR x = 1.025mm.";
 
 y=array(0.0,0.00098526434004512529576754637665,$y);
 y@long_name="East-west offset from start position";
 y@units="meter";
 y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144. y is defined as 0.9853 mm per pixel. Exact number is 0.98526434004512529576754637665 mm.";
   
-// Change Hyperspectral Imager wavelengths from nm to m (SI)
-wavelength*=1.0e-9; // [m]
-wavelength@standard_name="radiation_wavelength";  
-wavelength@units="meter";  
-
 // [W m-2 m-1] Downwelling spectral irradiance
 // 20160908 This is a placeholder for irradiance on the hyperspectral grid 
 // Currently no instrument measures this
@@ -61,14 +72,6 @@ wavelength@units="meter";
    20160927: fxm replace guesstimate with actual, wavelength-dependent calibrated reflectance below */
 *factory_calibrated_reflectance_guesstimate=0.95f; // [frc]
 
-/* 20161005 */
-if(min(wavelength < 0.5e-6)){
-  flg_vnir=1s;
-  *wvl_pxl_nbr=2160;
- }else{
-  flg_swir=1s;
-  *wvl_pxl_nbr=288;
- } // !wavelength
 // [nbr] Number of pixels in factory calibration of Spectralon reference
 defdim("wvl_pxl",wvl_pxl_nbr);
 wvl_pxl[wvl_pxl]=0.0f; // [m]
