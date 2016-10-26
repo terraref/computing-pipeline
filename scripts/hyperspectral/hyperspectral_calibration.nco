@@ -870,7 +870,7 @@ xps_img_min@long_name="Minimum image exposure at each wavelength";
 xps_img_min@units="Counts on scale from 0 to 2^16-1 = 65535";
 
 // [cnt] Exposure from dark current image
-xps_drk[wavelength,x]=xps_img_min*0.01;
+xps_drk[wavelength,x]=xps_img_min*0.01f;
 xps_drk@long_name="Exposure from dark current image";
 xps_drk@units="Counts on scale from 0 to 2^16-1 = 65535";
 
