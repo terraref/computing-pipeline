@@ -41,12 +41,12 @@ if(min(wavelength < 0.5e-6)){
 // Store x and y in double-precision in case we use lat/lon
 // If stored as meters from image or gantry corner, then single-precision might be adequate
 x=array(0.0,x_pxl_spc,$x);
-x@long_name="North-south offset from start position";
+x@long_name="North-south offset from southeast corner of field";
 x@units="meter";
 x@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144, x is derived from camera geometry including the Aperature Field-of-View (AFOV), the Horizontal Field-of-View (HFOV), and the height of the camera above the canopy (aka the Working Distance, or WD). We take WD = 2 m. Focal length (about 25 mm) is ignored in this estimate because it is much smaller than the WD. The camera geometry implies that AFOV[degrees]=2*atan(HFOV/WD). We use AFOV=21 and 44.6 degress for SWIR and VNIR, respectively. Then we solve for HFOV, and that distance is equally apportioned to 384 or 1600 pixels for SWIR or VNIR, respectively. For SWIR x = 1.93mm, for VNIR x = 1.025mm.";
 
 y=array(0.0,0.00098526434004512529576754637665,$y);
-y@long_name="East-west offset from start position";
+y@long_name="East-west offset from southeast corner of field";
 y@units="meter";
 y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144. y is defined as 0.9853 mm per pixel. Exact number is 0.98526434004512529576754637665 mm.";
   

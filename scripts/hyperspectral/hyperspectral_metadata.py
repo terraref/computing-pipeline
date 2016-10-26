@@ -14,8 +14,8 @@ python hyperspectral_metadata.py filePath1 filePath2
 
 where
 hyperspectral_metadata.py is where this script located
-filePath1      is source data file
-filePath2      is user's desired output file
+filePath1 is source data file
+filePath2 is user's desired output file
 
 Warning:
 Make sure the json metadata ended with <data_name>+_metadata.json and the hdr file ended with <data_name>+_raw.hdr
@@ -168,7 +168,7 @@ class DataContainer(object):
 
                     tempVariable[...] = float(self.__dict__[members][submembers])
 
-        ##### Write the data from header files to netCDF #####
+        ##### Write data from header files to netCDF #####
         wavelength = getWavelength(inputFilePath)
         netCDFHandler.createDimension("wavelength", len(wavelength))
         tempWavelength = netCDFHandler.createVariable(
@@ -195,129 +195,128 @@ class DataContainer(object):
         x    = netCDFHandler.createVariable("x", "f8", ("x",))
         x[:] = xPixelsLocation
         setattr(netCDFHandler.variables["x"], "units", "meters")
-        setattr(netCDFHandler.variables['x'], 'reference_point', 'Southeast corner of the field')
-        setattr(netCDFHandler.variables['x'], "long_name", "Real world X coordinates for each pixel")
+        setattr(netCDFHandler.variables['x'], 'reference_point', 'Southeast corner of field')
+        setattr(netCDFHandler.variables['x'], "long_name", "North-south offset from southeast corner of field")
 
         netCDFHandler.createDimension("y", len(yPixelsLocation))
         y    = netCDFHandler.createVariable("y", "f8", ("y",))
         y[:] = yPixelsLocation
         setattr(netCDFHandler.variables["y"], "units", "meters")
-        setattr(netCDFHandler.variables['y'], 'reference_point', 'Southeast corner of the field')
-        setattr(netCDFHandler.variables['y'], "long_name", "Real world Y coordinates for each pixel")
+        setattr(netCDFHandler.variables['y'], 'reference_point', 'Southeast corner of field')
+        setattr(netCDFHandler.variables['y'], "long_name", "East-west offset from southeast corner of field")
 
         x_pt, y_pt = REFERENCE_POINT
 
         x_ref_pt = netCDFHandler.createVariable("x_reference_point", "f8")
         x_ref_pt[...] = x_pt
         setattr(netCDFHandler.variables["x_reference_point"], "units", "degrees")
-        setattr(netCDFHandler.variables["x_reference_point"], "long_name", "The overall reference point in the field, at southeast corner")
+        setattr(netCDFHandler.variables["x_reference_point"], "long_name", "Master reference point at southeast corner of field")
         setattr(netCDFHandler.variables["x_reference_point"], "provenance", "https://github.com/terraref/reference-data/issues/32 by Dr. David LeBauer")
 
         y_ref_pt = netCDFHandler.createVariable("y_reference_point", "f8")
         y_ref_pt[...] = y_pt
         setattr(netCDFHandler.variables["y_reference_point"], "units", "degrees")
-        setattr(netCDFHandler.variables["y_reference_point"], "long_name", "The overall reference point in the field, at southeast corner")
+        setattr(netCDFHandler.variables["y_reference_point"], "long_name", "Master reference point at southeast corner of field")
         setattr(netCDFHandler.variables["y_reference_point"], "provenance", "https://github.com/terraref/reference-data/issues/32 by Dr. David LeBauer")
 
-        #write the latitude and longitude of the bounding box
+        # Write latitude and longitude of bounding box
         SE, SW, NE, NW = boundingBox[0], boundingBox[1], boundingBox[2], boundingBox[3]
         lat_se, lng_se = tuple(SE.split(", "))
         lat_sw, lng_sw = tuple(SW.split(", "))
         lat_ne, lng_ne = tuple(NE.split(", "))
         lat_nw, lng_nw = tuple(NW.split(", "))
 
-        latSe = netCDFHandler.createVariable("lat_img_southeast_corner", "f8")
+        latSe = netCDFHandler.createVariable("lat_img_se", "f8")
         latSe[...] = float(lat_se)
-        setattr(netCDFHandler.variables["lat_img_southeast_corner"], "units", "degrees")
-        setattr(netCDFHandler.variables["lat_img_southeast_corner"], "long_name", "Langtitude of the southeast corner of the picture")
+        setattr(netCDFHandler.variables["lat_img_se"], "units", "degrees")
+        setattr(netCDFHandler.variables["lat_img_se"], "long_name", "Longitude of southeast corner of image")
 
-        # have a "x_y_img_southeast_corner" in meters, double
-        lonSe = netCDFHandler.createVariable("lng_img_southeast_corner", "f8")
+        # have a "x_y_img_se" in meters, double
+        lonSe = netCDFHandler.createVariable("lng_img_se", "f8")
         lonSe[...] = float(lng_se)
-        setattr(netCDFHandler.variables["lng_img_southeast_corner"], "units", "degrees")
-        setattr(netCDFHandler.variables["lng_img_southeast_corner"], "long_name", "Longitude of the southeast corner of the picture")
+        setattr(netCDFHandler.variables["lng_img_se"], "units", "degrees")
+        setattr(netCDFHandler.variables["lng_img_se"], "long_name", "Longitude of southeast corner of image")
 
-        latSw = netCDFHandler.createVariable("lat_img_southwest_corner", "f8")
+        latSw = netCDFHandler.createVariable("lat_img_sw", "f8")
         latSw[...] = float(lat_sw)
-        setattr(netCDFHandler.variables["lat_img_southwest_corner"], "units", "degrees")
-        setattr(netCDFHandler.variables["lat_img_southwest_corner"], "long_name", "Langtitude of the southwest corner of the picture")
+        setattr(netCDFHandler.variables["lat_img_sw"], "units", "degrees")
+        setattr(netCDFHandler.variables["lat_img_sw"], "long_name", "Longitude of southwest corner of image")
 
-        lonSw = netCDFHandler.createVariable("lng_img_southwest_corner", "f8")
+        lonSw = netCDFHandler.createVariable("lng_img_sw", "f8")
         lonSw[...] = float(lng_sw)
-        setattr(netCDFHandler.variables["lng_img_southwest_corner"], "units", "degrees")
-        setattr(netCDFHandler.variables["lng_img_southwest_corner"], "long_name", "Longitude of the southwest corner of the picture")
+        setattr(netCDFHandler.variables["lng_img_sw"], "units", "degrees")
+        setattr(netCDFHandler.variables["lng_img_sw"], "long_name", "Longitude of southwest corner of image")
 
-        latNe = netCDFHandler.createVariable("lat_img_northeast_corner", "f8")
+        latNe = netCDFHandler.createVariable("lat_img_ne", "f8")
         latNe[...] = float(lat_ne)
-        setattr(netCDFHandler.variables["lat_img_northeast_corner"], "units", "degrees")
-        setattr(netCDFHandler.variables["lat_img_northeast_corner"], "long_name", "Langtitude of the northeast corner of the picture")
+        setattr(netCDFHandler.variables["lat_img_ne"], "units", "degrees")
+        setattr(netCDFHandler.variables["lat_img_ne"], "long_name", "Longitude of northeast corner of image")
 
-        lngNe = netCDFHandler.createVariable("lng_img_northeast_corner", "f8")
+        lngNe = netCDFHandler.createVariable("lng_img_ne", "f8")
         lngNe[...] = float(lng_ne)
-        setattr(netCDFHandler.variables["lng_img_northeast_corner"], "units", "degrees")
-        setattr(netCDFHandler.variables["lng_img_northeast_corner"], "long_name", "Longitude of the northeast corner of the picture")
+        setattr(netCDFHandler.variables["lng_img_ne"], "units", "degrees")
+        setattr(netCDFHandler.variables["lng_img_ne"], "long_name", "Longitude of northeast corner of image")
 
-        latNw = netCDFHandler.createVariable("lat_img_northwest_corner", "f8")
+        latNw = netCDFHandler.createVariable("lat_img_nw", "f8")
         latNw[...] = float(lat_nw)
-        setattr(netCDFHandler.variables["lat_img_northwest_corner"], "units", "degrees")
-        setattr(netCDFHandler.variables["lat_img_northwest_corner"], "long_name", "Langtitude of the northwest corner of the picture")
+        setattr(netCDFHandler.variables["lat_img_nw"], "units", "degrees")
+        setattr(netCDFHandler.variables["lat_img_nw"], "long_name", "Longitude of northwest corner of image")
 
-        lngNw = netCDFHandler.createVariable("lng_img_northwest_corner", "f8")
+        lngNw = netCDFHandler.createVariable("lng_img_nw", "f8")
         lngNw[...] = float(lng_nw)
-        setattr(netCDFHandler.variables["lng_img_northwest_corner"], "units", "degrees")
-        setattr(netCDFHandler.variables["lng_img_northwest_corner"], "long_name", "Longitude of the northwest corner of the picture")
+        setattr(netCDFHandler.variables["lng_img_nw"], "units", "degrees")
+        setattr(netCDFHandler.variables["lng_img_nw"], "long_name", "Longitude of northwest corner of image")
 
-        xSe = netCDFHandler.createVariable("x_img_southeast_corner", "f8")
+        xSe = netCDFHandler.createVariable("x_img_se", "f8")
         xSe[...] = float(x[-1] + REFERENCE_POINT[0])
-        setattr(netCDFHandler.variables["x_img_southeast_corner"], "units", "meters")
-        setattr(netCDFHandler.variables["x_img_southeast_corner"], "long_name", "meters of the southeast corner of the picture")
+        setattr(netCDFHandler.variables["x_img_se"], "units", "meters")
+        setattr(netCDFHandler.variables["x_img_se"], "long_name", "meters of southeast corner of image")
 
-        # have a "x_y_img_southeast_corner" in meters, double
-        ySe = netCDFHandler.createVariable("y_img_southeast_corner", "f8")
+        # have a "x_y_img_se" in meters, double
+        ySe = netCDFHandler.createVariable("y_img_se", "f8")
         ySe[...] = float(y[-1] + REFERENCE_POINT[1])
-        setattr(netCDFHandler.variables["y_img_southeast_corner"], "units", "meters")
-        setattr(netCDFHandler.variables["y_img_southeast_corner"], "long_name", "Longitude of the southeast corner of the picture")
+        setattr(netCDFHandler.variables["y_img_se"], "units", "meters")
+        setattr(netCDFHandler.variables["y_img_se"], "long_name", "Longitude of southeast corner of image")
 
-        xSw = netCDFHandler.createVariable("x_img_southwest_corner", "f8")
+        xSw = netCDFHandler.createVariable("x_img_sw", "f8")
         xSw[...] = float(x[0] + REFERENCE_POINT[0])
-        setattr(netCDFHandler.variables["x_img_southwest_corner"], "units", "meters")
-        setattr(netCDFHandler.variables["x_img_southwest_corner"], "long_name", "Langtitude of the southwest corner of the picture")
+        setattr(netCDFHandler.variables["x_img_sw"], "units", "meters")
+        setattr(netCDFHandler.variables["x_img_sw"], "long_name", "Longitude of southwest corner of image")
 
-        ySw = netCDFHandler.createVariable("y_img_southwest_corner", "f8")
+        ySw = netCDFHandler.createVariable("y_img_sw", "f8")
         ySw[...] = float(y[-1] + REFERENCE_POINT[1])
-        setattr(netCDFHandler.variables["y_img_southwest_corner"], "units", "meters")
-        setattr(netCDFHandler.variables["y_img_southwest_corner"], "long_name", "Longitude of the southwest corner of the picture")
+        setattr(netCDFHandler.variables["y_img_sw"], "units", "meters")
+        setattr(netCDFHandler.variables["y_img_sw"], "long_name", "Longitude of southwest corner of image")
 
-        xNe = netCDFHandler.createVariable("x_img_northeast_corner", "f8")
+        xNe = netCDFHandler.createVariable("x_img_ne", "f8")
         xNe[...] = float(x[-1] + REFERENCE_POINT[0])
-        setattr(netCDFHandler.variables["x_img_northeast_corner"], "units", "meters")
-        setattr(netCDFHandler.variables["x_img_northeast_corner"], "long_name", "Langtitude of the northeast corner of the picture")
+        setattr(netCDFHandler.variables["x_img_ne"], "units", "meters")
+        setattr(netCDFHandler.variables["x_img_ne"], "long_name", "Longitude of northeast corner of image")
 
-        yNe = netCDFHandler.createVariable("y_img_northeast_corner", "f8")
+        yNe = netCDFHandler.createVariable("y_img_ne", "f8")
         yNe[...] = float(y[0] + REFERENCE_POINT[1])
-        setattr(netCDFHandler.variables["y_img_northeast_corner"], "units", "meters")
-        setattr(netCDFHandler.variables["y_img_northeast_corner"], "long_name", "Longitude of the northeast corner of the picture")
+        setattr(netCDFHandler.variables["y_img_ne"], "units", "meters")
+        setattr(netCDFHandler.variables["y_img_ne"], "long_name", "Longitude of northeast corner of image")
 
-        xNw = netCDFHandler.createVariable("x_img_northwest_corner", "f8")
+        xNw = netCDFHandler.createVariable("x_img_nw", "f8")
         xNw[...] = float(x[0] + REFERENCE_POINT[0])
-        setattr(netCDFHandler.variables["x_img_northwest_corner"], "units", "meters")
-        setattr(netCDFHandler.variables["x_img_northwest_corner"], "long_name", "Langtitude of the northwest corner of the picture")
+        setattr(netCDFHandler.variables["x_img_nw"], "units", "meters")
+        setattr(netCDFHandler.variables["x_img_nw"], "long_name", "Longitude of northwest corner of image")
 
-        yNw = netCDFHandler.createVariable("y_img_northwest_corner", "f8")
+        yNw = netCDFHandler.createVariable("y_img_nw", "f8")
         yNw[...] = float(y[0] + REFERENCE_POINT[1])
-        setattr(netCDFHandler.variables["y_img_northwest_corner"], "units", "meters")
-        setattr(netCDFHandler.variables["y_img_northwest_corner"], "long_name", "Longitude of the northwest corner of the picture")
+        setattr(netCDFHandler.variables["y_img_nw"], "units", "meters")
+        setattr(netCDFHandler.variables["y_img_nw"], "long_name", "Longitude of northwest corner of image")
 
         googleMapView = netCDFHandler.createVariable("Google_Map_View", str)
         googleMapView[...] = googleMapAddress
         setattr(netCDFHandler.variables["Google_Map_View"], "usage", "copy and paste to your web browser")
-        setattr(netCDFHandler.variables["Google_Map_View"], 'reference_point', 'Southeast corner of the field')
+        setattr(netCDFHandler.variables["Google_Map_View"], 'reference_point', 'Southeast corner of field')
 
         ##### Write the history to netCDF #####
         netCDFHandler.history = ''.join((_TIMESTAMP(), ': python ', commandLine))
 
         netCDFHandler.close()
-
 
 def getDimension(fileName):
     '''
@@ -410,7 +409,6 @@ def _replaceIllegalChar(string):
 
     return string
 
-
 def _spliter(string):
     '''
     This method will parse the string to a group of long names, short names and values
@@ -434,7 +432,6 @@ def _spliter(string):
         return _replaceIllegalChar(long_name.strip(' '))\
             , _replaceIllegalChar(string)
 
-
 def jsonHandler(jsonFile):
     '''
     pass the json object to built-in json module
@@ -442,7 +439,6 @@ def jsonHandler(jsonFile):
     with open("".join((jsonFile[:-4],'_metadata.json'))) as fileHandler:
         jsonCheck(fileHandler)
         return json.loads(fileHandler.read(), object_hook=_filteringTheHeadings)
-
 
 def translateTime(yearMonthDate, frameTimeString=None):
     hourUnpack, timeUnpack = None, None
@@ -463,11 +459,9 @@ def translateTime(yearMonthDate, frameTimeString=None):
     else:
         return timeSplit.total_seconds() / (3600.0 * 24.0)
 
-
 def frameIndexParser(fileName, yearMonthDate):
     with open(fileName) as fileHandler:
         return [translateTime(yearMonthDate, dataMembers.split()[1]) for dataMembers in fileHandler.readlines()[1:]]
-
 
 def _filteringTheHeadings(target):
     '''
@@ -476,7 +470,6 @@ def _filteringTheHeadings(target):
     if u'lemnatec_measurement_metadata' in target:
         return DataContainer(target)
     return target
-
 
 def fileDependencyCheck(filePath):
     '''
