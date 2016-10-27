@@ -560,14 +560,12 @@ def writeHeaderFile(fileName, netCDFHandler):
             print >> sys.stderr, _WARN_MSG.format(msg='Warning: default_band variable in the header file is missing.')
 
 def main():
-    assert len(sys.argv) >= 4, "Please make sure you have enough arguments! (sourcefile, camera_option, [debug_option,] fileInput, fileoutput)"
+    assert len(sys.argv) >= 3, "Please make sure you have enough arguments! (sourcefile, camera_option, [debug_option,] fileInput, fileoutput)"
 
-    if len(sys.argv) >= 5:
+    if len(sys.argv) >= 4:
         debug_option = sys.argv[-3].split("=")[-1].split(",")
         for members in debug_option:
             _DEBUGOPT[members] = True
-
-    _CAMERA_OPT = sys.argv[-4].split("=")[-1]
 
     fileInput, fileOutput = sys.argv[-2], sys.argv[-1]
     missingFiles = fileDependencyCheck(fileInput)

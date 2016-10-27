@@ -108,7 +108,7 @@ def renameTheValue(name):
     '''
     Rename the value so it becomes legal in netCDF
     '''
-    if type(name) is unicode:
+    if isinstance(name, unicode):
         name = name.encode('ascii', 'ignore')
     if name in _UNIT_DICTIONARY:
         name = _UNIT_DICTIONARY[name]
@@ -139,7 +139,7 @@ def getListOfWeatherStationValue(arrayOfJSON, dataName):
            [_UNIT_DICTIONARY[valueMembers["weather_station"][dataName]['unit'].encode('ascii', 'ignore')]["SI"]\
             for valueMembers in arrayOfJSON],\
            [float(valueMembers["weather_station"][dataName]['rawValue'].encode('ascii', 'ignore'))\
-            for valueMembers in arrayOfJSON]
+            for valueMembers in arrayOfJSON] 
 
 
 def handleSpectrometer(JSONArray):
