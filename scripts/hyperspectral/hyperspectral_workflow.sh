@@ -54,23 +54,23 @@ case "${HOSTNAME}" in
 esac # !HOSTNAME
 
 # Production
-# UIUC: ls -R /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-04-07/*/*_raw | hyperspectral_workflow.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/hyperspectral.out 2>&1 & # Process all images from one day
-# UIUC: hyperspectral_workflow.sh -d 1 -i /projects/arpae/terraref/sites/ua-mac/raw_data/SWIR/2016-06-28/2016-06-28__09-10-16-386/a33641c2-8a1e-4a63-9d33-ab66717d6b8a_raw
-# UIUC: hyperspectral_workflow.sh -d 1 -i /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-10-06/2016-10-06__15-21-20-178/b73a4f00-4140-4576-8c70-8e1d26ae245e_raw # Process small-scan (~516 MB raw image)
+# UIUC: ls -R /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-04-07/*/*_raw | hyperspectral_workflow.sh -d 1 -C VNIR -O /gpfs_scratch/arpae/imaging_spectrometer > ~/hyperspectral.out 2>&1 & # Process all images from one day
+# UIUC: hyperspectral_workflow.sh -d 1 -C SWIR -i /projects/arpae/terraref/sites/ua-mac/raw_data/SWIR/2016-06-28/2016-06-28__09-10-16-386/a33641c2-8a1e-4a63-9d33-ab66717d6b8a_raw
+# UIUC: hyperspectral_workflow.sh -d 1 -C VNIR -i /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-10-06/2016-10-06__15-21-20-178/b73a4f00-4140-4576-8c70-8e1d26ae245e_raw # Process small-scan (~516 MB raw image)
 # UIUC: qsub -I -A arpae -l walltime=00:60:00 -N hyperspectral -q devel # Interactive dedicated compute node in devel queue (1 hr max, insufficient for raw >= 62 GB)
 #       qsub -I -A arpae -l walltime=03:00:00 -N hyperspectral -q batch # Interactive dedicated compute node in batch queue (48 hr max)
-#       echo "hyperspectral_workflow.sh -d 1 -i /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-10-07/2016-10-07__12-12-09-294/755e5eca-55b7-4412-a145-e8d1d4833b3f_raw" > ~/hyperspectral.pbs;chmod a+x ~/hyperspectral.pbs
+#       echo "hyperspectral_workflow.sh -d 1 -C VNIR -i /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-10-07/2016-10-07__12-12-09-294/755e5eca-55b7-4412-a145-e8d1d4833b3f_raw" > ~/hyperspectral.pbs;chmod a+x ~/hyperspectral.pbs
 #       qsub -I -A arpae -l walltime=03:00:00 -N hyperspectral -q batch -j oe -m e -o ~/hyperspectral.out ~/hyperspectral.pbs
 #       hyperspectral_workflow.sh -d 1 -i /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-10-07/2016-10-07__12-12-09-294/755e5eca-55b7-4412-a145-e8d1d4833b3f_raw > ~/foo 2>&1 & # Process full-scan (~62 GB raw image)
-# UCI:  ls -R ${DATA}/terraref/MovingSensor/VNIR/2016-04-07/*/*_raw | hyperspectral_workflow.sh -d 1 -O ~/rgr > ~/hyperspectral.out 2>&1 &
+# UCI:  ls -R ${DATA}/terraref/MovingSensor/VNIR/2016-04-07/*/*_raw | hyperspectral_workflow.sh -d 1 -C VNIR -O ~/rgr > ~/hyperspectral.out 2>&1 &
 
 # Test cases (for Charlie's machines)
 # hyperspectral_workflow.sh $fl > ~/hyperspectral.out 2>&1 &
 
 # Debugging and Benchmarking:
-# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/hyperspectral.out 2>&1 &
-# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/hyperspectral.out 2>&1 &
-# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/VNIR/2016-10-06/2016-10-06__15-21-20-178/b73a4f00-4140-4576-8c70-8e1d26ae245e_raw -o foo.nc -O ~/rgr > ~/hyperspectral.out 2>&1 &
+# hyperspectral_workflow.sh -d 1 -C SWIR -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/hyperspectral.out 2>&1 &
+# hyperspectral_workflow.sh -d 1 -C SWIR -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/hyperspectral.out 2>&1 &
+# hyperspectral_workflow.sh -d 1 -C VNIR -i ${DATA}/terraref/VNIR/2016-10-06/2016-10-06__15-21-20-178/b73a4f00-4140-4576-8c70-8e1d26ae245e_raw -o foo.nc -O ~/rgr > ~/hyperspectral.out 2>&1 &
 
 # dbg_lvl: 0 = Quiet, print basic status during evaluation
 #          1 = Print configuration, full commands, and status to output during evaluation
@@ -198,10 +198,11 @@ fi # !arg_nbr
 # http://stackoverflow.com/questions/402377/using-getopts-in-bash-shell-script-to-get-long-and-short-command-line-options
 # http://tuxtweaks.com/2014/05/bash-getopts
 cmd_ln="${spt_nm} ${@}"
-while getopts c:d:I:i:j:N:n:O:o:p:T:t:u:x OPT; do
+while getopts c:d:C:I:i:j:N:n:O:o:p:T:t:u:x OPT; do
     case ${OPT} in
 	c) dfl_lvl=${OPTARG} ;; # Compression deflate level
 	d) dbg_lvl=${OPTARG} ;; # Debugging level
+ 	C) cam_opt=${OPTARG} ;; # Camera option (SWIR or VNIR)
 	I) drc_in=${OPTARG} ;; # Input directory
 	i) in_fl=${OPTARG} ;; # Input file
 	j) job_usr=${OPTARG} ;; # Job simultaneity
@@ -401,6 +402,7 @@ fi # !mpi
 # Print initial state
 if [ ${dbg_lvl} -ge 2 ]; then
     printf "dbg: cln_flg  = ${cln_flg}\n"
+	printf "dbg: cam_opt  = ${cam_opt}\n"
     printf "dbg: dbg_lvl  = ${dbg_lvl}\n"
     printf "dbg: drc_in   = ${drc_in}\n"
     printf "dbg: drc_nco  = ${drc_nco}\n"
@@ -551,7 +553,12 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	jsn_out="${jsn_fl}.fl${idx_prn}.tmp"
 	printf "jsn(in)  : ${jsn_in}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
-	cmd_jsn[${fl_idx}]="python ${drc_spt}/hyperspectral_metadata.py ${jsn_in} ${jsn_out}"
+
+	dbg_cmd="dbg=json"
+	if [ ${dbg_lvl} = 3]; then
+		dbg_cmd=${dbg_cmd}",latlng,graph"
+	fi # !dbg setting for metadata
+	cmd_jsn[${fl_idx}]="python ${drc_spt}/hyperspectral_metadata.py camera=${cam_opt} ${dbg_cmd} ${jsn_in} ${jsn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_jsn[${fl_idx}]}
 	fi # !dbg
