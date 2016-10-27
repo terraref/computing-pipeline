@@ -106,10 +106,11 @@ def JSONHandler(fileLocation):
 
 def renameTheValue(name):
     '''
-    Rename the value so it becomes legal in netCDF
+    Rename the value so they are legal in netCDF
     '''
-    if isinstance(name, unicode):
-        name = name.encode('ascii', 'ignore')
+
+    name = name.encode('ascii', 'ignore') if isinstance(name, unicode) else name
+
     if name in _UNIT_DICTIONARY:
         name = _UNIT_DICTIONARY[name]
     elif name in _NAMES:
@@ -121,6 +122,9 @@ def renameTheValue(name):
 def getSpectrometerInformation(arrayOfJSON):
     '''
     Collect information from spectrometer with special care
+    these information contain:
+    1. max fixed intensity
+    2. integration time
     '''
     maxFixedIntensity = [int(intensityMembers["spectrometer"]["maxFixedIntensity"])\
                          for intensityMembers in arrayOfJSON]
@@ -132,7 +136,11 @@ def getSpectrometerInformation(arrayOfJSON):
 
 def getListOfWeatherStationValue(arrayOfJSON, dataName):
     '''
-    Collect data from JSON objects which have "value" member
+    Collect data from weather station objects which have "value" member
+    these data are:
+    1. values
+    2. units
+    3. raw values
     '''
     return [float(valueMembers["weather_station"][dataName]['value'].encode('ascii', 'ignore'))\
             for valueMembers in arrayOfJSON],\
@@ -159,11 +167,18 @@ def handleSpectrometer(JSONArray):
 def sensorVariables(JSONArray, sensors):
     '''
     return the variables start with "sensor"
+    these are:
+    1. values
+    2. units
+    3. raw values
     '''
 
-    return [float(valueMembers[sensors]['value'].encode('ascii', 'ignore')) for valueMembers in JSONArray],\
-           [_UNIT_DICTIONARY[valueMembers[sensors]['unit'].encode('ascii', 'ignore')]["SI"] for valueMembers in JSONArray],\
-           [float(valueMembers[sensors]['rawValue'].encode('ascii', 'ignore')) for valueMembers in JSONArray]
+    return [float(valueMembers[sensors]['value'].encode('ascii', 'ignore'))
+           for valueMembers in JSONArray],\
+           [_UNIT_DICTIONARY[valueMembers[sensors]['unit'].encode('ascii', 'ignore')]["SI"]
+           for valueMembers in JSONArray],\
+           [float(valueMembers[sensors]['rawValue'].encode('ascii', 'ignore'))
+           for valueMembers in JSONArray]
 
 
 def translateTime(timeString):
@@ -195,7 +210,8 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     spectrometerGroup   = netCDFHandler.groups["spectrometer"]
     for data in loggerReadings[0]["weather_station"]: #writing the data from weather station
         value, unit, rawValue           = getListOfWeatherStationValue(loggerReadings, data)
-        valueVariable, rawValueVariable = weatherStationGroup.createVariable(data, "f4", ("time", )), weatherStationGroup.createVariable("".join(("raw_",data)), "f4", ("time", ))
+        valueVariable, rawValueVariable = weatherStationGroup.createVariable(data,                   "f4", ("time", )), 
+                                          weatherStationGroup.createVariable("".join(("raw_",data)), "f4", ("time", ))
             
         valueVariable[:]    = value
         rawValueVariable[:] = rawValue
@@ -220,13 +236,11 @@ def main(JSONArray, outputFileName, wavelength=None, spectrum=None, downwellingS
     setattr(timeVariable, "calender", "gregorian")
 
     for data in loggerReadings[0]:
-        if data.startswith("sensor"):
-            if data.endswith("par"):
-                targetGroup = netCDFHandler.groups["par_sensor"]
-            else:
-                targetGroup = netCDFHandler.groups["co2_sensor"]
+        if data.startswith("sensor"): # par sensor or co2 sensor
+            targetGroup = netCDFHandler.groups["par_sensor"] if data.endswith("par") else netCDFHandler.groups["co2_sensor"]
+
             sensorValue, sensorUnit, sensorRaw = sensorVariables(loggerReadings, data)
-            sensorValueVariable                = targetGroup.createVariable(renameTheValue(data), "f4", ("time", ))
+            sensorValueVariable                = targetGroup.createVariable(renameTheValue(data),                    "f4", ("time", ))
             sensorRawValueVariable             = targetGroup.createVariable("".join(("raw_", renameTheValue(data))), "f4", ("time", ))
 
             sensorValueVariable[:]    = sensorValue
