@@ -554,7 +554,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	printf "jsn(out) : ${jsn_fl}\n"
 
 	dbg_cmd="dbg=json"
-	if [ ${dbg_lvl} = 3]; then
+	if [ ${dbg_lvl} = 3 ]; then
 		dbg_cmd=${dbg_cmd}",latlng,graph"
 	fi # !dbg setting for metadata
 	cmd_jsn[${fl_idx}]="python ${drc_spt}/hyperspectral_metadata.py ${dbg_cmd} ${jsn_in} ${jsn_out}"

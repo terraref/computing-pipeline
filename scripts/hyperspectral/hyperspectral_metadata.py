@@ -93,7 +93,7 @@ _UNIX_BASETIME    = date(year=1970, month=1, day=1)
 _IS_DIGIT         = lambda fakeNum: set([member.isdigit() for member in fakeNum.split(".")]) == {True}
 _TIMESTAMP        = lambda: time.strftime("%a %b %d %H:%M:%S %Y",  time.localtime(int(time.time())))
 
-_WARN_MSG         = "\033[0;31m{msg}\033[0m"
+_WARN_MSG         = "{msg}"
 
 _DEBUGOPT         = {"json"  : False, 
                      "graph" : False,
@@ -128,7 +128,6 @@ class DataContainer(object):
         setattr(self, "header_info", None)
         netCDFHandler = _fileExistingCheck(outputFilePath, self)
         delattr(self, "header_info")
-        print _WARN_MSG.format(msg="Processing ...")
 
         #### Replace the original isdigit function
 
@@ -335,7 +334,7 @@ def getDimension(fileName):
             return int(wavelength.strip('\n').strip('\r')), int(x.strip('\n').strip('\r')), int(y.strip('\n').strip('\r'))
         except:
             if _DEBUGOPT["json"]:
-                print >> sys.stderr, _WARN_MSG.format(msg='Fatal Warning: sample, lines and bands variables in header file are broken. Header information will not be written into the netCDF')
+                print >> sys.stderr, _WARN_MSG.format(msg='ERROR: sample, lines and bands variables in header file are broken. Header information will not be written into the netCDF')
             return 0, 0, 0
 
 def getWavelength(fileName):
@@ -496,8 +495,8 @@ def jsonCheck(fileHandler):
     for data in fileHandler.readlines():
         if ':' in data:
             if data.split(':')[0].strip() in cache:
-                print >> sys.stderr, _WARN_MSG.format(msg='--> Warning: Multiple keys are mapped to a single value; such illegal mapping may cause the loss of important data.')
-                print >> sys.stderr, ''.join(('\033[0;31m--> The file path is ', fileHandler.name, ', and the key is ', data.split(':')[0].strip(), '\033[0m'))
+                print >> sys.stderr, _WARN_MSG.format(msg='WARNING: Duplicate keys mapped to different values; such illegal mapping may cause data loss')
+                print >> sys.stderr, ''.join(('Duplicated key is ', data.split(':')[0].strip(), ' in file ', fileHandler.name))
             cache.append(data.split(':')[0].strip())
 
     fileHandler.seek(0) #Reset the file read ptr
@@ -508,7 +507,7 @@ def writeHeaderFile(fileName, netCDFHandler):
     The main function, reading the data and exporting netCDF file
     '''
     if not getDimension(fileName):
-        print >> sys.stderr, "\033[0;31mError: Cannot get dimension infos from", "".join((fileName, '.hdr')), "\033[0m"
+        print >> sys.stderr, "ERROR: Cannot get dimension infos from", "".join((fileName, '.hdr'))
         return
     dimensionWavelength, dimensionX, dimensionY = getDimension(fileName)
     hdrInfo = getHeaderInfo(fileName)
@@ -557,7 +556,7 @@ def writeHeaderFile(fileName, netCDFHandler):
                 'exposure'], 'blue_band_index',  threeColorBands[2])
     except:
         if _DEBUGOPT["json"]:
-            print >> sys.stderr, _WARN_MSG.format(msg='Warning: default_band variable in the header file is missing.')
+            print >> sys.stderr, _WARN_MSG.format(msg='WARNING: default_band variable in the header file is missing.')
 
 def main():
     assert len(sys.argv) >= 3, "Please make sure you have enough arguments! (sourcefile, camera_option, [debug_option,] fileInput, fileoutput)"
@@ -573,12 +572,11 @@ def main():
         print >> sys.stderr, _WARN_MSG.format(msg="One or more important file(s) is(are) missing. Program terminated")
 
         for missingFile in missingFiles:
-            print >> sys.stderr, "".join(("\033[0;31m", missingFile," is missing\033[0m"))
+            print >> sys.stderr, "".join((missingFile," is missing"))
         exit()
 
     testCase = jsonHandler(fileInput)
     testCase.writeToNetCDF(fileInput, fileOutput, " ".join((fileInput, fileOutput)))
-    print _WARN_MSG.format(msg='Done.')
 
 
 if __name__ == '__main__':
