@@ -318,9 +318,12 @@ wvl_clb*=1.0e-9; // [m]
 0.887398,0.886760,0.885634,0.885678,0.884955,0.884698,0.884464,0.883651,0.884251,0.883859,
 0.883695,0.884502,0.885360,0.885706,0.885301,0.886630,0.887173,0.887959,0.888513,0.888462,
 0.889262,0.890599,0.889916,0.889301,0.890386,0.888856,0.889094,0.888942,0.888969,0.887626,
-0.887455}; // [frc] 10 reflectances per line, 2201 total
+0.887455}; // end factory_calibrated_reflectance[wvl_clb], 10 reflectances per line, 2201 total
   
-/* fxm: Interpolate factory calibration of spectralon target to wavelength grid of current instrument (VNIR, SWIR) */
+/* Interpolate factory calibration of spectralon target to wavelength grid of current instrument (VNIR, SWIR) */
+gsl_interp_cspline(&ram_ntp_spl,wvl_clb,factory_calibrated_reflectance);
+factory_calibrated_reflectance_interpolated=gsl_spline_eval(ram_ntp_spl,wavelength);
+ram_delete(ram_ntp_spl);
 
 /* exposure_reference is exposure measured when pointing at spectralon reference target
    Camera exposed to natural light reflecting from reference target for standard exposure time accumulates exposure_reference counts in each channel
