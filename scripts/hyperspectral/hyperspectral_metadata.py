@@ -167,6 +167,10 @@ class DataContainer(object):
         ##### Write data from header files to netCDF #####
         wavelength = getWavelength(inputFilePath)
         netCDFHandler.createDimension("wavelength", len(wavelength))
+
+        # Check if the wavelength is correctly collected
+        assert len(wavelength) in (955, 272), "ERROR: Failed to get wavlength informations. Please check if you modified the *.hdr files"
+
         tempWavelength = netCDFHandler.createVariable(
             "wavelength", 'f8', 'wavelength')
         setattr(tempWavelength, 'long_name', 'Hyperspectral Wavelength')
@@ -177,6 +181,10 @@ class DataContainer(object):
         ##### Write the data from frameIndex files to netCDF #####
         tempFrameTime = frameIndexParser(''.join((inputFilePath.strip("raw"), "frameIndex.txt")), yearMonthDate)
         netCDFHandler.createDimension("time", len(tempFrameTime))
+
+        # Check if the frame time information is correctly collected
+        assert len(tempFrameTime), "ERROR: Failed to collect frame time information from " + ''.join((inputFilePath.strip("raw"), "frameIndex.txt")) + ". Please check the file."
+       
         frameTime    = netCDFHandler.createVariable("frametime", "f8", ("time",))
         frameTime[:] = tempFrameTime
         setattr(frameTime, "units",     "days since 1970-01-01 00:00:00")
@@ -187,6 +195,9 @@ class DataContainer(object):
         xPixelsLocation, yPixelsLocation, boundingBox, googleMapAddress\
          = pixel2Geographic("".join((inputFilePath[:-4],"_metadata.json")), "".join((inputFilePath,'.hdr')), _CAMERAOPT)
 
+        # Check if the image width and height are correctly collected.
+        assert len(xPixelsLocation) > 0 and len(yPixelsLocation) > 0, "ERROR, Failed to collect the image size metadata from " + "".join((inputFilePath,'.hdr')) + ". Please check the file."
+        
         netCDFHandler.createDimension("x", len(xPixelsLocation))
         x    = netCDFHandler.createVariable("x", "f8", ("x",))
         x[:] = xPixelsLocation
@@ -322,7 +333,7 @@ def getDimension(fileName):
     bands   -> 'wavelength'
     '''
     with open("".join((fileName, '.hdr'))) as fileHandler:
-        for members in fileHandler.readlines():
+        for members in fileHandler.read().splitlines():
             if "samples" == members[:7]:
                 x = members[members.find("=") + 1:len(members)]
             elif "lines" == members[:5]:
@@ -331,7 +342,7 @@ def getDimension(fileName):
                 wavelength = members[members.find("=") + 1:len(members)]
 
         try:
-            return int(wavelength.strip('\n').strip('\r')), int(x.strip('\n').strip('\r')), int(y.strip('\n').strip('\r'))
+            return int(wavelength), int(x), int(y)
         except:
             if _DEBUGOPT["json"]:
                 print >> sys.stderr, _WARN_MSG.format(msg='ERROR: sample, lines and bands variables in header file are broken. Header information will not be written into the netCDF')
@@ -342,8 +353,8 @@ def getWavelength(fileName):
     Acquire wavelength(s) from related HDR file
     '''
     with open("".join((fileName, '.hdr'))) as fileHandler:
-        wavelengthGroup = [float(x.strip('\r').strip('\n').strip(',')) for x in fileHandler.readlines() if _IS_DIGIT(x.strip('\r').strip('\n').strip(','))]
-    return wavelengthGroup
+        wavelengthGroup = [float(x.strip(',')) for x in fileHandler.read().splitlines() if _IS_DIGIT(x.strip(','))]
+        return wavelengthGroup
 
 
 def getHeaderInfo(fileName):
@@ -351,7 +362,7 @@ def getHeaderInfo(fileName):
     Acquire Other Information from related HDR file
     '''
     with open("".join((fileName, '.hdr'))) as fileHandler:
-        infoDictionary = {members[0:members.find("=") - 1].strip(";") : members[members.find("=") + 2:].strip('\n').strip('\r') for members in fileHandler.readlines() if '=' in members and 'wavelength' not in members}
+        infoDictionary = {members[0:members.find("=") - 1].strip(";") : members[members.find("=") + 2:] for members in fileHandler.read().splitlines() if '=' in members and 'wavelength' not in members}
         return infoDictionary
 
 
@@ -361,7 +372,7 @@ def _fileExistingCheck(filePath, dataContainer):
     user will decide whether skip or overwrite it (no append,
     since netCDF does not support the repeating variable names)
     '''
-    userPrompt = _WARN_MSG.format(msg='--> Output file already exists; skip it or overwrite or append? (\033[4;31mS\033[0;31mkip, \033[4;31mO\033[0;31mverwrite, \033[4;31mA\033[0;31mppend)')
+    userPrompt = _WARN_MSG.format(msg='--> Output file already exists; skip it or overwrite or append? (\033[4;31mS\033[0;31mkip, \033[4;31mO\033[0;31mverwrite, \033[4;31mA\033[0;31mppend)\033[0m')
 
     if os.path.isdir(filePath):
         filePath += "".join(("/", filePath.split("/")[-1], ".nc"))
