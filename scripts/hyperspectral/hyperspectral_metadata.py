@@ -139,29 +139,24 @@ class DataContainer(object):
                     if 'date' in subkey and subkey != "date of installation" and subkey != "date of handover":
                         assert subdata != "todo", '"todo" is not a legal value for the keys'
 
-                        tempVariable = tempGroup.createVariable(_replaceIllegalChar(subkey), 'f8')
+                        tempVariable = tempGroup.createVariable(_reformat_string(subkey), 'f8')
                         tempVariable[...] = translateTime(subdata)
                         setattr(tempVariable, "units",     "days since 1970-01-01 00:00:00")
                         setattr(tempVariable, "calender", "gregorian")
 
-                    setattr(tempGroup, _replaceIllegalChar(subkey), subdata)
+                    setattr(tempGroup, _reformat_string(subkey), subdata)
 
                 else: #Case for digits variables
                     if "time" in data:
                         yearMonthDate = data["time"]
                     elif "Time" in data:
                         yearMonthDate = data["Time"]
-                    setattr(tempGroup, _replaceIllegalChar(subkey), subdata)
-                    nameSet = _spliter(subkey)
+                    setattr(tempGroup, _reformat_string(subkey), subdata)
 
-                    if 'Velocity' in subkey or 'Position' in subkey:
-                        tempVariable = tempGroup.createVariable(nameSet[0][-1], 'f8')
-                        setattr(tempVariable, 'long_name', nameSet[0][0])
-                        setattr(tempVariable, 'units',      nameSet[1])
-                    else:
-                        tempVariable = tempGroup.createVariable(nameSet[0], 'f8')
-                        setattr(tempVariable, 'long_name', nameSet[0])
-
+                    short_name, attributes = _generate_attr(subkey)
+                    tempVariable = tempGroup.createVariable(short_name, 'f8')
+                    for name, value in attributes.items():
+                        setattr(tempVariable, name, value)
                     tempVariable[...] = float(subdata)
 
         ##### Write data from header files to netCDF #####
@@ -398,18 +393,13 @@ def _fileExistingCheck(filePath, dataContainer):
 
     return Dataset(filePath, 'w', format='NETCDF4')
 
-def _replaceIllegalChar(string):
+def _reformat_string(string):
     '''
     This method will replace spaces (' '), slashes('/') and many other unwanted characters
     '''
-    if "current setting" in string:
-        string = string.split(' ')[-1]
-    elif "Velocity" in string:
-        string = "".join(('Gantry Speed in ', string[-1].upper(), ' Direction'))
-    elif "Position" in string:
-        string = "".join(('Position in ', string[-1].upper(), ' Direction'))
 
     string = string.replace('/', '_per_').replace(' ', '_')
+
     if '(' in string:
         return string[:string.find('(') - 1]
     elif '[' in string:
@@ -417,29 +407,48 @@ def _replaceIllegalChar(string):
 
     return string
 
-def _spliter(string):
+def _generate_attr(string):
     '''
     This method will parse the string to a group of long names, short names and values
     Position and Velocity variables will be specially treated
     '''
-    long_name = string.replace("[","")
 
-    if 'Position' in string:
-        return [_replaceIllegalChar(long_name.strip(' ')),
-                long_name.strip(' ').split(' ')[-1]]\
-                , _UNIT_DICTIONARY[string[string.find('[') + 1:
-                                      string.find(']')].encode('ascii', 'ignore')]
-
-    elif 'Velocity' in string:
-        return [_replaceIllegalChar(long_name.strip(' ')),
-                _VELOCITY_DICTIONARY[long_name.strip(' ').split(' ')[-1]]]\
-                , _UNIT_DICTIONARY[string[string.find('[') + 1:
-                                      string.find(']')].encode('ascii', 'ignore')]
-
+    long_name = ""
+    if "current setting" in string:
+        long_name = string.split(' ')[-1]
+    elif "speed" in string and "current setting" not in string:
+        long_name = "".join(('Gantry Speed in ', string[6].upper(), ' Direction'))
+    elif "Velocity" in string or "velocity" in string:
+        long_name = "".join(('Gantry velocity in ', string[9].upper(), ' Direction'))
+    elif "Position" in string or "position" in string:
+        long_name = "".join(('Position in ', string[9].upper(), ' Direction'))
     else:
-        return _replaceIllegalChar(long_name.strip(' '))\
-                , _replaceIllegalChar(string)
+        long_name = _reformat_string(string)
 
+    if 'Position' in string or 'position' in string:
+        return _reformat_string(string),\
+               {
+                   "units"    : _UNIT_DICTIONARY[string[string.find('[') + 1:string.find(']')]],
+                   "long_name": long_name
+               }
+    elif 'Velocity' in string or 'velocity' in string:
+        return _reformat_string(string),\
+               {
+                   "units"    : _UNIT_DICTIONARY[string[string.find('[') + 1:string.find(']')]],
+                   "long_name": long_name
+               }
+    elif 'speed' in string and "current setting" not in string:
+        return _reformat_string(string),\
+               {
+                   "units"    : _UNIT_DICTIONARY[string[string.find('[') + 1:string.find(']')]],
+                   "long_name": long_name
+               }
+    else:
+        return long_name,\
+               {
+                   "long_name": _reformat_string(string) 
+               }
+               
 
 def _filteringTheHeadings(target):
     '''
@@ -502,6 +511,7 @@ def fileDependencyCheck(filePath):
                 key = illegalFileRegex.match(file).group(1)
                 return {"".join((key,"_frameIndex.txt")), "".join((key,"_metadata.json")), "".join((key,"_raw.hdr"))} -\
                         set([matchFile for matchFile in files if matchFile.startswith(illegalFileRegex.match(file).group(1))])
+    return set()
 
 def jsonCheck(fileHandler):
     cache = list()
@@ -551,7 +561,7 @@ def writeHeaderFile(fileName, netCDFHandler):
     for members in hdrInfo:
         if members == 'default bands':
             threeColorBands = [int(bands) for bands in eval(hdrInfo[members])]
-        setattr(headerInfo, _replaceIllegalChar(members), hdrInfo[members])
+        setattr(headerInfo, _reformat_string(members), hdrInfo[members])
 
     try:
         headerInfo.createVariable(
