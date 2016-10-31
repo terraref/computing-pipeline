@@ -41,14 +41,16 @@ if(min(wavelength < 0.5e-6)){
 // Store x and y in double-precision in case we use lat/lon
 // If stored as meters from image or gantry corner, then single-precision might be adequate
 x=array(0.0,x_pxl_spc,$x);
-x@long_name="North-south offset from southeast corner of field";
+x@long_name="North distance from southeast corner of field";
 x@units="meter";
+x@orientation="The x-dimension (which runs north-south) spans what are called samples or pixels. The y-dimension (which runs east-west) spans what are called lines or scanlines. Normal, non-calibration images have the same number of pixels (384 or 1600 for SWIR and VNIR, respectively) and a variable number of lines set by the number of frames (images) the camera takes as the camera box moves east-west.";
 x@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144, x is derived from camera geometry including the Aperature Field-of-View (AFOV), the Horizontal Field-of-View (HFOV), and the height of the camera above the canopy (aka the Working Distance, or WD). We take WD = 2 m. Focal length (about 25 mm) is ignored in this estimate because it is much smaller than the WD. The camera geometry implies that AFOV[degrees]=2*atan(HFOV/WD). We use AFOV=21 and 44.6 degress for SWIR and VNIR, respectively. Then we solve for HFOV, and that distance is equally apportioned to 384 or 1600 pixels for SWIR or VNIR, respectively. For SWIR x = 1.93mm, for VNIR x = 1.025mm.";
 
 y=array(0.0,0.00098526434004512529576754637665,$y);
-y@long_name="East-west offset from southeast corner of field";
+y@long_name="West distance from southeast corner of field";
 y@units="meter";
-y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144. y is defined as 0.9853 mm per pixel. Exact number is 0.98526434004512529576754637665 mm.";
+y@orientation="The x-dimension (which runs north-south) spans what are called samples or pixels. The y-dimension (which runs east-west) spans what are called lines or scanlines. Normal, non-calibration images have the same number of pixels (384 or 1600 for SWIR and VNIR, respectively) and a variable number of lines set by the number frames (images) the camera takes as the camera box moves east-west.";
+y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144. The y-dimension spans 0.9853 mm per scanline. Exact number is 0.98526434004512529576754637665 mm.";
   
 // [W m-2 m-1] Downwelling spectral irradiance
 // 20160908 This is a placeholder for irradiance on the hyperspectral grid 
@@ -72,6 +74,7 @@ y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144.
    20160927: fxm replace guesstimate with actual, wavelength-dependent calibrated reflectance below */
 *factory_calibrated_reflectance_guesstimate=0.95f; // [frc]
 
+// #include "hyperspectral_spectralon_reflectance_factory.nco"
 // [nbr] Number of wavelengths in factory calibration of Spectralon reference
 *wvl_clb_nbr=2201;
 defdim("wvl_clb",wvl_clb_nbr);
@@ -319,7 +322,7 @@ wvl_clb*=1.0e-9; // [m]
 0.883695,0.884502,0.885360,0.885706,0.885301,0.886630,0.887173,0.887959,0.888513,0.888462,
 0.889262,0.890599,0.889916,0.889301,0.890386,0.888856,0.889094,0.888942,0.888969,0.887626,
 0.887455}; // end factory_calibrated_reflectance[wvl_clb], 10 reflectances per line, 2201 total
-  
+
 /* Interpolate factory calibration of spectralon target to wavelength grid of current instrument (VNIR, SWIR) */
 gsl_interp_cspline(&ram_ntp_spl,wvl_clb,factory_calibrated_reflectance);
 factory_calibrated_reflectance_interpolated=gsl_spline_eval(ram_ntp_spl,wavelength);
@@ -329,7 +332,7 @@ ram_delete(ram_ntp_spl);
    Camera exposed to natural light reflecting from reference target for standard exposure time accumulates exposure_reference counts in each channel
    Expected to be large fraction (assumed here to be factory_calibrated_reflectance_guesstimate) of exposure_theoretical_maximum for white reflector 
    However, grey reference reflector might be more optimal than white
-   Plants have maximum reflectance of ~0.4 so calibrating at white not as accurate as calibrating near 0.4 
+   Plants have maximum reflectance of ~0.4 so calibrating at white (~0.95) not as accurate as calibrating near 0.4 
    We hope Lemnatec tunes exposure time to achieve the greatest dynamic range, and thus precision, under a wide range of circumstances
    One tuning consideration is that maximum exposure for white reflector at noon is close to but does not exceed exposure_theoretical_maximum 
    Other tuning considerations are possible... */
