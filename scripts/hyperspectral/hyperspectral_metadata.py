@@ -42,7 +42,7 @@ Update 20160822:
 Fix major bugs, including:
 1. file checking functions now works as expectedly by reimplemented with regular expression
 2. the data from "user_given_metadata" are saved as group attributes except those time variables
-3. translateTime() now could calculate either time since Unix base time or the time split between certain time points
+3. translate_time() now could calculate either time since Unix base time or the time split between certain time points
 Other improvements including better implementations on DataContainer and a more friendly prompts to users
 when the output file had already existed.
 
@@ -97,7 +97,7 @@ _WARN_MSG         = "{msg}"
 
 _DEBUGOPT         = {"json"  : False, 
                      "graph" : False,
-                     "latlng": False}
+                     "latlon": False}
 
 _CAMERAOPT        = "SWIR"
 
@@ -126,7 +126,7 @@ class DataContainer(object):
         # weird, but useful to check whether the HeaderInfo id in the netCDF
         # file
         setattr(self, "header_info", None)
-        netCDFHandler = _fileExistingCheck(outputFilePath, self)
+        netCDFHandler = _file_existence_check(outputFilePath, self)
         delattr(self, "header_info")
 
         #### Replace the original isdigit function
@@ -140,7 +140,7 @@ class DataContainer(object):
                         assert subdata != "todo", '"todo" is not a legal value for the keys'
 
                         tempVariable = tempGroup.createVariable(_reformat_string(subkey), 'f8')
-                        tempVariable[...] = translateTime(subdata)
+                        tempVariable[...] = translate_time(subdata)
                         setattr(tempVariable, "units",     "days since 1970-01-01 00:00:00")
                         setattr(tempVariable, "calender", "gregorian")
 
@@ -160,7 +160,7 @@ class DataContainer(object):
                     tempVariable[...] = float(subdata)
 
         ##### Write data from header files to netCDF #####
-        wavelength = getWavelength(inputFilePath)
+        wavelength = get_wavelength(inputFilePath)
         netCDFHandler.createDimension("wavelength", len(wavelength))
 
         # Check if the wavelength is correctly collected
@@ -173,10 +173,10 @@ class DataContainer(object):
         setattr(tempWavelength, 'long_name', 'Hyperspectral Wavelength')
         setattr(tempWavelength, 'units', 'nanometers')
         tempWavelength[:] = wavelength
-        writeHeaderFile(inputFilePath, netCDFHandler)
+        write_header_file(inputFilePath, netCDFHandler)
 
         ##### Write the data from frameIndex files to netCDF #####
-        tempFrameTime = frameIndexParser(''.join((inputFilePath.strip("raw"), "frameIndex.txt")), yearMonthDate)
+        tempFrameTime = frame_index_parser(''.join((inputFilePath.strip("raw"), "frameIndex.txt")), yearMonthDate)
         netCDFHandler.createDimension("time", len(tempFrameTime))
 
         # Check if the frame time information is correctly collected
@@ -184,8 +184,9 @@ class DataContainer(object):
        
         frameTime    = netCDFHandler.createVariable("frametime", "f8", ("time",))
         frameTime[:] = tempFrameTime
-        setattr(frameTime, "units",     "days since 1970-01-01 00:00:00")
+        setattr(frameTime, "units",    "days since 1970-01-01 00:00:00")
         setattr(frameTime, "calender", "gregorian")
+        setattr(frameTime, "notes",    "Each time of the scanline of the y taken")
 
         ########################### Adding geographic positions ###########################
 
@@ -207,69 +208,81 @@ class DataContainer(object):
         y[:] = yPixelsLocation
         setattr(netCDFHandler.variables["y"], "units", "meters")
         setattr(netCDFHandler.variables['y'], 'reference_point', 'Southeast corner of field')
-        setattr(netCDFHandler.variables['y'], "long_name", "East-west offset from southeast corner of field")
+        setattr(netCDFHandler.variables['y'], "long_name", "Distance west of the southeast corner of the field")
 
-        x_pt, y_pt = REFERENCE_POINT
+        lat_pt, lon_pt = REFERENCE_POINT
+
+        lat_pt_var = netCDFHandler.createVariable("lat_reference_point", "f8")
+        lat_pt_var[...] = lat_pt
+        setattr(netCDFHandler.variables["lat_reference_point"], "units", "degrees_north")
+        setattr(netCDFHandler.variables["lat_reference_point"], "long_name", "Latitude of the master reference point at southeast corner of field")
+        setattr(netCDFHandler.variables["lat_reference_point"], "provenance", "https://github.com/terraref/reference-data/issues/32 by Dr. David LeBauer")
+
+        lon_pt_var = netCDFHandler.createVariable("lon_reference_point", "f8")
+        lon_pt_var[...] = lon_pt
+        setattr(netCDFHandler.variables["lon_reference_point"], "units", "degrees_east")
+        setattr(netCDFHandler.variables["lon_reference_point"], "long_name", "Longitude of the master reference point at southeast corner of field")
+        setattr(netCDFHandler.variables["lon_reference_point"], "provenance", "https://github.com/terraref/reference-data/issues/32 by Dr. David LeBauer")
 
         x_ref_pt = netCDFHandler.createVariable("x_reference_point", "f8")
-        x_ref_pt[...] = x_pt
-        setattr(netCDFHandler.variables["x_reference_point"], "units", "degrees")
-        setattr(netCDFHandler.variables["x_reference_point"], "long_name", "Master reference point at southeast corner of field")
+        x_ref_pt[...] = 0
+        setattr(netCDFHandler.variables["x_reference_point"], "units", "meters")
+        setattr(netCDFHandler.variables["x_reference_point"], "long_name", "x of the master reference point at southeast corner of field")
         setattr(netCDFHandler.variables["x_reference_point"], "provenance", "https://github.com/terraref/reference-data/issues/32 by Dr. David LeBauer")
 
         y_ref_pt = netCDFHandler.createVariable("y_reference_point", "f8")
-        y_ref_pt[...] = y_pt
-        setattr(netCDFHandler.variables["y_reference_point"], "units", "degrees")
-        setattr(netCDFHandler.variables["y_reference_point"], "long_name", "Master reference point at southeast corner of field")
+        y_ref_pt[...] = 0
+        setattr(netCDFHandler.variables["y_reference_point"], "units", "meters")
+        setattr(netCDFHandler.variables["y_reference_point"], "long_name", "y of the master reference point at southeast corner of field")
         setattr(netCDFHandler.variables["y_reference_point"], "provenance", "https://github.com/terraref/reference-data/issues/32 by Dr. David LeBauer")
 
         # Write latitude and longitude of bounding box
         SE, SW, NE, NW = boundingBox[0], boundingBox[1], boundingBox[2], boundingBox[3]
-        lat_se, lng_se = tuple(SE.split(", "))
-        lat_sw, lng_sw = tuple(SW.split(", "))
-        lat_ne, lng_ne = tuple(NE.split(", "))
-        lat_nw, lng_nw = tuple(NW.split(", "))
+        lat_se, lon_se = tuple(SE.split(", "))
+        lat_sw, lon_sw = tuple(SW.split(", "))
+        lat_ne, lon_ne = tuple(NE.split(", "))
+        lat_nw, lon_nw = tuple(NW.split(", "))
 
         latSe = netCDFHandler.createVariable("lat_img_se", "f8")
         latSe[...] = float(lat_se)
-        setattr(netCDFHandler.variables["lat_img_se"], "units", "degrees")
-        setattr(netCDFHandler.variables["lat_img_se"], "long_name", "Latitute of southeast corner of image")
+        setattr(netCDFHandler.variables["lat_img_se"], "units", "degrees_north")
+        setattr(netCDFHandler.variables["lat_img_se"], "long_name", "Latitude of southeast corner of image")
 
         # have a "x_y_img_se" in meters, double
-        lonSe = netCDFHandler.createVariable("lng_img_se", "f8")
-        lonSe[...] = float(lng_se)
-        setattr(netCDFHandler.variables["lng_img_se"], "units", "degrees")
-        setattr(netCDFHandler.variables["lng_img_se"], "long_name", "Longitude of southeast corner of image")
+        lonSe = netCDFHandler.createVariable("lon_img_se", "f8")
+        lonSe[...] = float(lon_se)
+        setattr(netCDFHandler.variables["lon_img_se"], "units", "degrees_east")
+        setattr(netCDFHandler.variables["lon_img_se"], "long_name", "Longitude of southeast corner of image")
 
         latSw = netCDFHandler.createVariable("lat_img_sw", "f8")
         latSw[...] = float(lat_sw)
-        setattr(netCDFHandler.variables["lat_img_sw"], "units", "degrees")
-        setattr(netCDFHandler.variables["lat_img_sw"], "long_name", "Latitute of southwest corner of image")
+        setattr(netCDFHandler.variables["lat_img_sw"], "units", "degrees_north")
+        setattr(netCDFHandler.variables["lat_img_sw"], "long_name", "Latitude of southwest corner of image")
 
-        lonSw = netCDFHandler.createVariable("lng_img_sw", "f8")
-        lonSw[...] = float(lng_sw)
-        setattr(netCDFHandler.variables["lng_img_sw"], "units", "degrees")
-        setattr(netCDFHandler.variables["lng_img_sw"], "long_name", "Longitude of southwest corner of image")
+        lonSw = netCDFHandler.createVariable("lon_img_sw", "f8")
+        lonSw[...] = float(lon_sw)
+        setattr(netCDFHandler.variables["lon_img_sw"], "units", "degrees_east")
+        setattr(netCDFHandler.variables["lon_img_sw"], "long_name", "Longitude of southwest corner of image")
 
         latNe = netCDFHandler.createVariable("lat_img_ne", "f8")
         latNe[...] = float(lat_ne)
         setattr(netCDFHandler.variables["lat_img_ne"], "units", "degrees_north")
-        setattr(netCDFHandler.variables["lat_img_ne"], "long_name", "Latitute of northeast corner of image")
+        setattr(netCDFHandler.variables["lat_img_ne"], "long_name", "Latitude of northeast corner of image")
 
-        lngNe = netCDFHandler.createVariable("lng_img_ne", "f8")
-        lngNe[...] = float(lng_ne)
-        setattr(netCDFHandler.variables["lng_img_ne"], "units", "degrees")
-        setattr(netCDFHandler.variables["lng_img_ne"], "long_name", "Longitude of northeast corner of image")
+        lonNe = netCDFHandler.createVariable("lon_img_ne", "f8")
+        lonNe[...] = float(lon_ne)
+        setattr(netCDFHandler.variables["lon_img_ne"], "units", "degrees_east")
+        setattr(netCDFHandler.variables["lon_img_ne"], "long_name", "Longitude of northeast corner of image")
 
         latNw = netCDFHandler.createVariable("lat_img_nw", "f8")
         latNw[...] = float(lat_nw)
-        setattr(netCDFHandler.variables["lat_img_nw"], "units", "degrees")
-        setattr(netCDFHandler.variables["lat_img_nw"], "long_name", "Latitute of northwest corner of image")
+        setattr(netCDFHandler.variables["lat_img_nw"], "units", "degrees_north")
+        setattr(netCDFHandler.variables["lat_img_nw"], "long_name", "Latitude of northwest corner of image")
 
-        lngNw = netCDFHandler.createVariable("lng_img_nw", "f8")
-        lngNw[...] = float(lng_nw)
-        setattr(netCDFHandler.variables["lng_img_nw"], "units", "degrees_east")
-        setattr(netCDFHandler.variables["lng_img_nw"], "long_name", "Longitude of northwest corner of image")
+        lonNw = netCDFHandler.createVariable("lon_img_nw", "f8")
+        lonNw[...] = float(lon_nw)
+        setattr(netCDFHandler.variables["lon_img_nw"], "units", "degrees_east")
+        setattr(netCDFHandler.variables["lon_img_nw"], "long_name", "Longitude of northwest corner of image")
 
         xSe = netCDFHandler.createVariable("x_img_se", "f8")
         xSe[...] = float(x[-1] + REFERENCE_POINT[0])
@@ -280,37 +293,37 @@ class DataContainer(object):
         ySe = netCDFHandler.createVariable("y_img_se", "f8")
         ySe[...] = float(y[-1] + REFERENCE_POINT[1])
         setattr(netCDFHandler.variables["y_img_se"], "units", "meters")
-        setattr(netCDFHandler.variables["y_img_se"], "long_name", "Longitude of southeast corner of image")
+        setattr(netCDFHandler.variables["y_img_se"], "long_name", "Southeast corner of image, west distance to reference point")
 
         xSw = netCDFHandler.createVariable("x_img_sw", "f8")
         xSw[...] = float(x[0] + REFERENCE_POINT[0])
         setattr(netCDFHandler.variables["x_img_sw"], "units", "meters")
-        setattr(netCDFHandler.variables["x_img_sw"], "long_name", "Longitude of southwest corner of image")
+        setattr(netCDFHandler.variables["x_img_sw"], "long_name", "Southwest corner of image, north distance to reference point")
 
         ySw = netCDFHandler.createVariable("y_img_sw", "f8")
         ySw[...] = float(y[-1] + REFERENCE_POINT[1])
         setattr(netCDFHandler.variables["y_img_sw"], "units", "meters")
-        setattr(netCDFHandler.variables["y_img_sw"], "long_name", "Longitude of southwest corner of image")
+        setattr(netCDFHandler.variables["y_img_sw"], "long_name", "Southwest corner of image, west distance to reference point")
 
         xNe = netCDFHandler.createVariable("x_img_ne", "f8")
         xNe[...] = float(x[-1] + REFERENCE_POINT[0])
         setattr(netCDFHandler.variables["x_img_ne"], "units", "meters")
-        setattr(netCDFHandler.variables["x_img_ne"], "long_name", "Latitute of northeast corner of image")
+        setattr(netCDFHandler.variables["x_img_ne"], "long_name", "Northeast corner of image, north distance to reference point")
 
         yNe = netCDFHandler.createVariable("y_img_ne", "f8")
         yNe[...] = float(y[0] + REFERENCE_POINT[1])
         setattr(netCDFHandler.variables["y_img_ne"], "units", "meters")
-        setattr(netCDFHandler.variables["y_img_ne"], "long_name", "Longitude of northeast corner of image")
+        setattr(netCDFHandler.variables["y_img_ne"], "long_name", "Northeast corner of image, west distance to reference point")
 
         xNw = netCDFHandler.createVariable("x_img_nw", "f8")
         xNw[...] = float(x[0] + REFERENCE_POINT[0])
         setattr(netCDFHandler.variables["x_img_nw"], "units", "meters")
-        setattr(netCDFHandler.variables["x_img_nw"], "long_name", "Longitude of northwest corner of image")
+        setattr(netCDFHandler.variables["x_img_nw"], "long_name", "Northwest corner of image, north distance to reference point")
 
         yNw = netCDFHandler.createVariable("y_img_nw", "f8")
         yNw[...] = float(y[0] + REFERENCE_POINT[1])
         setattr(netCDFHandler.variables["y_img_nw"], "units", "meters")
-        setattr(netCDFHandler.variables["y_img_nw"], "long_name", "Longitude of northwest corner of image")
+        setattr(netCDFHandler.variables["y_img_nw"], "long_name", "Northwest corner of image, west distance to reference point")
 
         googleMapView = netCDFHandler.createVariable("Google_Map_View", str)
         googleMapView[...] = googleMapAddress
@@ -345,7 +358,7 @@ def getDimension(fileName):
                 print >> sys.stderr, _WARN_MSG.format(msg='ERROR: sample, lines and bands variables in header file are broken. Header information will not be written into the netCDF')
             return 0, 0, 0
 
-def getWavelength(fileName):
+def get_wavelength(fileName):
     '''
     Acquire wavelength(s) from related HDR file
     '''
@@ -354,7 +367,7 @@ def getWavelength(fileName):
         return wavelengthGroup
 
 
-def getHeaderInfo(fileName):
+def get_header_info(fileName):
     '''
     Acquire Other Information from related HDR file
     '''
@@ -363,7 +376,7 @@ def getHeaderInfo(fileName):
         return infoDictionary
 
 
-def _fileExistingCheck(filePath, dataContainer):
+def _file_existence_check(filePath, dataContainer):
     '''
     This method will check wheter the filePath has the same variable name as the dataContainer has. If so,
     user will decide whether skip or overwrite it (no append,
@@ -450,7 +463,7 @@ def _generate_attr(string):
                }
                
 
-def _filteringTheHeadings(target):
+def _filter_the_headings(target):
     '''
     A hook for json module to filter and process the useful data
     '''
@@ -466,9 +479,9 @@ def jsonHandler(jsonFile):
     with open("".join((jsonFile[:-4],'_metadata.json'))) as fileHandler:
         if _DEBUGOPT["json"]:
             jsonCheck(fileHandler)
-        return json.loads(fileHandler.read(), object_hook=_filteringTheHeadings)
+        return json.loads(fileHandler.read(), object_hook=_filter_the_headings)
 
-def translateTime(yearMonthDate, frameTimeString=None):
+def translate_time(yearMonthDate, frameTimeString=None):
     hourUnpack, timeUnpack = None, None
     time_pattern      = re.compile(r'(\d{4})-(\d{2})-(\d{2})'),\
                         re.compile(r'(\d{2})/(\d{2})/(\d{4})\s(\d{2}):(\d{2}):(\d{2})'),\
@@ -490,15 +503,15 @@ def translateTime(yearMonthDate, frameTimeString=None):
     else:
         return timeSplit.total_seconds() / (3600.0 * 24.0)
 
-def frameIndexParser(fileName, yearMonthDate):
+def frame_index_parser(fileName, yearMonthDate):
     '''
     translate all the time in *frameIndex.txt
     '''
     with open(fileName) as fileHandler:
-        return [translateTime(yearMonthDate, dataMembers.split()[1]) for dataMembers in fileHandler.readlines()[1:]]
+        return [translate_time(yearMonthDate, dataMembers.split()[1]) for dataMembers in fileHandler.readlines()[1:]]
 
 
-def fileDependencyCheck(filePath):
+def file_dependency_check(filePath):
     '''
     Check if the input location has all 
     '''
@@ -525,7 +538,7 @@ def jsonCheck(fileHandler):
     fileHandler.seek(0) #Reset the file read ptr
 
 
-def writeHeaderFile(fileName, netCDFHandler):
+def write_header_file(fileName, netCDFHandler):
     '''
     The main function, reading the data and exporting netCDF file
     '''
@@ -533,7 +546,7 @@ def writeHeaderFile(fileName, netCDFHandler):
         print >> sys.stderr, "ERROR: Cannot get dimension infos from", "".join((fileName, '.hdr'))
         return
     dimensionWavelength, dimensionX, dimensionY = getDimension(fileName)
-    hdrInfo = getHeaderInfo(fileName)
+    hdrInfo = get_header_info(fileName)
 
     # netCDFHandler.createDimension('wavelength',       dimensionWavelength)
     # netCDFHandler.createDimension('x',          dimensionX)
@@ -564,12 +577,17 @@ def writeHeaderFile(fileName, netCDFHandler):
         setattr(headerInfo, _reformat_string(members), hdrInfo[members])
 
     try:
-        headerInfo.createVariable(
-            'red_band_index', 'f8')[...]   = threeColorBands[0]
-        headerInfo.createVariable(
-            'green_band_index', 'f8')[...] = threeColorBands[1]
-        headerInfo.createVariable(
-            'blue_band_index', 'f8')[...]  = threeColorBands[2]
+        headerInfo.createVariable('red_band_index', 'u2')[...]   = threeColorBands[0]
+        setattr(netCDFHandler.groups['header_info'].variables['red_band_index'],
+                'long_name', 'Index of red band used for RGB composite')
+
+        headerInfo.createVariable('green_band_index', 'u2')[...] = threeColorBands[1]
+        setattr(netCDFHandler.groups['header_info'].variables['green_band_index'],
+                'long_name', 'Index of green band used for RGB composite')
+
+        headerInfo.createVariable('blue_band_index', 'u2')[...]  = threeColorBands[2]
+        setattr(netCDFHandler.groups['header_info'].variables['blue_band_index'],
+                'long_name', 'Index of blue band used for RGB composite')
 
         setattr(netCDFHandler.groups['sensor_variable_metadata'].variables[
                 'exposure'], 'red_band_index',   threeColorBands[0])
@@ -577,7 +595,7 @@ def writeHeaderFile(fileName, netCDFHandler):
                 'exposure'], 'green_band_index', threeColorBands[1])
         setattr(netCDFHandler.groups['sensor_variable_metadata'].variables[
                 'exposure'], 'blue_band_index',  threeColorBands[2])
-# blue_band_index long_name = 'Index of blue band used for RGB composite'
+        # blue_band_index long_name = 'Index of blue band used for RGB composite'
         
     except:
         if _DEBUGOPT["json"]:
@@ -592,7 +610,7 @@ def main():
             _DEBUGOPT[members] = True
 
     fileInput, fileOutput = sys.argv[-2], sys.argv[-1]
-    missingFiles = fileDependencyCheck(fileInput)
+    missingFiles = file_dependency_check(fileInput)
     if len(missingFiles) > 0:
         print >> sys.stderr, _WARN_MSG.format(msg="One or more important file(s) is(are) missing. Program terminated")
 
