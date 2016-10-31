@@ -253,7 +253,7 @@ class DataContainer(object):
 
         latNe = netCDFHandler.createVariable("lat_img_ne", "f8")
         latNe[...] = float(lat_ne)
-        setattr(netCDFHandler.variables["lat_img_ne"], "units", "degrees")
+        setattr(netCDFHandler.variables["lat_img_ne"], "units", "degrees_north")
         setattr(netCDFHandler.variables["lat_img_ne"], "long_name", "Latitute of northeast corner of image")
 
         lngNe = netCDFHandler.createVariable("lng_img_ne", "f8")
@@ -268,13 +268,13 @@ class DataContainer(object):
 
         lngNw = netCDFHandler.createVariable("lng_img_nw", "f8")
         lngNw[...] = float(lng_nw)
-        setattr(netCDFHandler.variables["lng_img_nw"], "units", "degrees")
+        setattr(netCDFHandler.variables["lng_img_nw"], "units", "degrees_east")
         setattr(netCDFHandler.variables["lng_img_nw"], "long_name", "Longitude of northwest corner of image")
 
         xSe = netCDFHandler.createVariable("x_img_se", "f8")
         xSe[...] = float(x[-1] + REFERENCE_POINT[0])
         setattr(netCDFHandler.variables["x_img_se"], "units", "meters")
-        setattr(netCDFHandler.variables["x_img_se"], "long_name", "meters of southeast corner of image")
+        setattr(netCDFHandler.variables["x_img_se"], "long_name", "Southeast corner of image, north distance to reference point")
 
         # have a "x_y_img_se" in meters, double
         ySe = netCDFHandler.createVariable("y_img_se", "f8")
@@ -577,6 +577,8 @@ def writeHeaderFile(fileName, netCDFHandler):
                 'exposure'], 'green_band_index', threeColorBands[1])
         setattr(netCDFHandler.groups['sensor_variable_metadata'].variables[
                 'exposure'], 'blue_band_index',  threeColorBands[2])
+# blue_band_index long_name = 'Index of blue band used for RGB composite'
+        
     except:
         if _DEBUGOPT["json"]:
             print >> sys.stderr, _WARN_MSG.format(msg='WARNING: default_band variable in the header file is missing.')
