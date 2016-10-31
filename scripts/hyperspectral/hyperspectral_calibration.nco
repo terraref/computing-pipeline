@@ -75,6 +75,7 @@ y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144.
 *factory_calibrated_reflectance_guesstimate=0.95f; // [frc]
 
 // #include "hyperspectral_spectralon_reflectance_factory.nco"
+// #include "/Users/zender/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_spectralon_reflectance_factory.nco"
 // [nbr] Number of wavelengths in factory calibration of Spectralon reference
 *wvl_clb_nbr=2201;
 defdim("wvl_clb",wvl_clb_nbr);
@@ -322,6 +323,7 @@ wvl_clb*=1.0e-9; // [m]
 0.883695,0.884502,0.885360,0.885706,0.885301,0.886630,0.887173,0.887959,0.888513,0.888462,
 0.889262,0.890599,0.889916,0.889301,0.890386,0.888856,0.889094,0.888942,0.888969,0.887626,
 0.887455}; // end factory_calibrated_reflectance[wvl_clb], 10 reflectances per line, 2201 total
+
 
 /* Interpolate factory calibration of spectralon target to wavelength grid of current instrument (VNIR, SWIR) */
 gsl_interp_cspline(&ram_ntp_spl,wvl_clb,factory_calibrated_reflectance);
