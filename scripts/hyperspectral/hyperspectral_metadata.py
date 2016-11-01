@@ -330,6 +330,22 @@ class DataContainer(object):
         setattr(netCDFHandler.variables["Google_Map_View"], "usage", "copy and paste to your web browser")
         setattr(netCDFHandler.variables["Google_Map_View"], 'reference_point', 'Southeast corner of field')
 
+        y_pxl_sz = netCDFHandler.createVariable("y_pxl_sz", "f8")
+        y_pxl_sz[...] = 0.98526434004512529576754637665e-3
+        setattr(netCDFHandler.variables["y_pxl_sz"], "units", "meters")
+        setattr(netCDFHandler.variables["y_pxl_sz"], "notes", "y coordinate length of a single pixel in pictures captured by SWIR and VNIR camera")
+
+        if _CAMERAOPT == "SWIR":
+            x_pxl_sz = netCDFHandler.createVariable("x_pxl_sz", "f8")
+            x_pxl_sz[...] = 1.025e-3
+            setattr(netCDFHandler.variables["x_pxl_sz"], "units", "meters")
+            setattr(netCDFHandler.variables["x_pxl_sz"], "notes", "x coordinate length of a single pixel in pictures captured by SWIR camera")
+        else:
+            x_pxl_sz = netCDFHandler.createVariable("x_pxl_sz", "f8")
+            x_pxl_sz[...] = 1.930615052e-3
+            setattr(netCDFHandler.variables["x_pxl_sz"], "units", "meters")
+            setattr(netCDFHandler.variables["x_pxl_sz"], "notes", "x coordinate length of a single pixel in pictures captured by VNIR camera")
+
         ##### Write the history to netCDF #####
         netCDFHandler.history = ''.join((_TIMESTAMP(), ': python ', commandLine))
 
