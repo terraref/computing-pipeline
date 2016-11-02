@@ -194,7 +194,7 @@ class DataContainer(object):
          = pixel2Geographic("".join((inputFilePath[:-4],"_metadata.json")), "".join((inputFilePath,'.hdr')), _CAMERAOPT)
 
         # Check if the image width and height are correctly collected.
-        assert len(xPixelsLocation) > 0 and len(yPixelsLocation) > 0, "ERROR, Failed to collect the image size metadata from " + "".join((inputFilePath,'.hdr')) + ". Please check the file."
+        assert len(xPixelsLocation) > 0 and len(yPixelsLocation) > 0, "ERROR: Failed to collect the image size metadata from " + "".join((inputFilePath,'.hdr')) + ". Please check the file."
         
         netCDFHandler.createDimension("x", len(xPixelsLocation))
         x    = netCDFHandler.createVariable("x", "f8", ("x",))
@@ -285,43 +285,43 @@ class DataContainer(object):
         setattr(netCDFHandler.variables["lon_img_nw"], "long_name", "Longitude of northwest corner of image")
 
         xSe = netCDFHandler.createVariable("x_img_se", "f8")
-        xSe[...] = float(x[-1] + REFERENCE_POINT[0])
+        xSe[...] = float(x[-1])
         setattr(netCDFHandler.variables["x_img_se"], "units", "meters")
         setattr(netCDFHandler.variables["x_img_se"], "long_name", "Southeast corner of image, north distance to reference point")
 
         # have a "x_y_img_se" in meters, double
         ySe = netCDFHandler.createVariable("y_img_se", "f8")
-        ySe[...] = float(y[-1] + REFERENCE_POINT[1])
+        ySe[...] = float(y[-1])
         setattr(netCDFHandler.variables["y_img_se"], "units", "meters")
         setattr(netCDFHandler.variables["y_img_se"], "long_name", "Southeast corner of image, west distance to reference point")
 
         xSw = netCDFHandler.createVariable("x_img_sw", "f8")
-        xSw[...] = float(x[0] + REFERENCE_POINT[0])
+        xSw[...] = float(x[0])
         setattr(netCDFHandler.variables["x_img_sw"], "units", "meters")
         setattr(netCDFHandler.variables["x_img_sw"], "long_name", "Southwest corner of image, north distance to reference point")
 
         ySw = netCDFHandler.createVariable("y_img_sw", "f8")
-        ySw[...] = float(y[-1] + REFERENCE_POINT[1])
+        ySw[...] = float(y[-1])
         setattr(netCDFHandler.variables["y_img_sw"], "units", "meters")
         setattr(netCDFHandler.variables["y_img_sw"], "long_name", "Southwest corner of image, west distance to reference point")
 
         xNe = netCDFHandler.createVariable("x_img_ne", "f8")
-        xNe[...] = float(x[-1] + REFERENCE_POINT[0])
+        xNe[...] = float(x[-1])
         setattr(netCDFHandler.variables["x_img_ne"], "units", "meters")
         setattr(netCDFHandler.variables["x_img_ne"], "long_name", "Northeast corner of image, north distance to reference point")
 
         yNe = netCDFHandler.createVariable("y_img_ne", "f8")
-        yNe[...] = float(y[0] + REFERENCE_POINT[1])
+        yNe[...] = float(y[0])
         setattr(netCDFHandler.variables["y_img_ne"], "units", "meters")
         setattr(netCDFHandler.variables["y_img_ne"], "long_name", "Northeast corner of image, west distance to reference point")
 
         xNw = netCDFHandler.createVariable("x_img_nw", "f8")
-        xNw[...] = float(x[0] + REFERENCE_POINT[0])
+        xNw[...] = float(x[0])
         setattr(netCDFHandler.variables["x_img_nw"], "units", "meters")
         setattr(netCDFHandler.variables["x_img_nw"], "long_name", "Northwest corner of image, north distance to reference point")
 
         yNw = netCDFHandler.createVariable("y_img_nw", "f8")
-        yNw[...] = float(y[0] + REFERENCE_POINT[1])
+        yNw[...] = float(y[0])
         setattr(netCDFHandler.variables["y_img_nw"], "units", "meters")
         setattr(netCDFHandler.variables["y_img_nw"], "long_name", "Northwest corner of image, west distance to reference point")
 
