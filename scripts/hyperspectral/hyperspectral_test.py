@@ -63,7 +63,8 @@ class HyperspectralWorkFlowTest(unittest.TestCase, HyperspectralWorkFlowTestWidg
         '''
         cls.masterNetCDFHandler.close()
 
-    
+    #################### Test Cases ####################
+
     def testTheNumberOfGroupsInRootLevelIsCorrect(self):
         '''
         Check if there are six groups in the root level
@@ -76,27 +77,41 @@ class HyperspectralWorkFlowTest(unittest.TestCase, HyperspectralWorkFlowTestWidg
         '''
         self.assertEqual(len(self.dimensions), EXPECTED_NUMBER_OF_DIMENSIONS, msg="There should be four dimensions total")
 
-    def testAllTheDimensionsHaveCorrectValues(self):
+    def testTheTimeDimensionsHaveCorrectValues(self):
         '''
         Check if all the dimensions have the right values
         '''
         self.assertEqual(len(self.dimensions["time"]), 169,  msg="The dimension for time should be 169")
+
+    def testTheXDimensionsHaveCorrectValues(self):
         self.assertEqual(len(self.dimensions["x"]),    1600, msg="The dimension for x should be 1600")
+
+    def testTheYDimensionsHaveCorrectValues(self):
         self.assertEqual(len(self.dimensions["y"]),    169,  msg="The dimension for y should be 1600")
 
+    def testTheWavelengthDimensionsHaveCorrectValues(self):
         self.assertIn(len(self.dimensions["wavelength"]), (272, 955), msg="The dimension for wavelength should be either 272 or 955")
 
-    @HyperspectralWorkFlowTestWidget.skipIfDontHaveEnoughGroups
-    def testAllTheGroupsAreCorrectlyNamed(self):
+    def testTheGantrySystemFixedMetadataGroupIsCorrectlyNamed(self):
         '''
         Check if all the groups are named as what we want
         '''
-        self.assertIn("gantry_system_fixed_metadata",    self.groups, msg="gantry_system_fixed_metadata should be a group in root level")
-        self.assertIn("sensor_fixed_metadata",           self.groups, msg="sensor_fixed_metadata should be a group in root level")
+        self.assertIn("gantry_system_fixed_metadata", self.groups, msg="gantry_system_fixed_metadata should be a group in root level")
+        
+    def testTheSensorFixedMetadataGroupIsCorrectlyNamed(self):
+        self.assertIn("sensor_fixed_metadata", self.groups, msg="sensor_fixed_metadata should be a group in root level")
+        
+    def testTheGantrySystemVariableMetadataGroupIsCorrectlyNamed(self):
         self.assertIn("gantry_system_variable_metadata", self.groups, msg="gantry_system_variable_metadata should be a group in root level")
-        self.assertIn("user_given_metadata",             self.groups, msg="user_given_metadata should be a group in root level")
-        self.assertIn("sensor_variable_metadata",        self.groups, msg="gantry_system_fixed_metadata should be a group in root level")
-        self.assertIn("header_info",                     self.groups, msg="header_info should be a group in root level")
+        
+    def testTheUserGivenMetadataGroupIsCorrectlyNamed(self):
+        self.assertIn("user_given_metadata", self.groups, msg="user_given_metadata should be a group in root level")
+        
+    def testTheSensorVariableMetadataGroupIsCorrectlyNamed(self):
+        self.assertIn("sensor_variable_metadata", self.groups, msg="gantry_system_fixed_metadata should be a group in root level")
+        
+    def testTheHeaderInfoGroupIsCorrectlyNamed(self):
+        self.assertIn("header_info", self.groups, msg="header_info should be a group in root level")
 
     def testWavelengthArrayHasEnoughData(self):
         '''
@@ -118,18 +133,26 @@ class HyperspectralWorkFlowTest(unittest.TestCase, HyperspectralWorkFlowTestWidg
                                  r'[a-zA-Z]{3}\s[a-zA-Z]{3}\s[\d]{1,2}\s[\d]{2}[:][\d]{2}[:][\d]{2}\s[\d]{4}[:]\spython\s.*', 
                                  msg="The history string should anyhow larger than 0")
     
-    def testRGBIndicesAreCorrectlyRecorded(self):
+    def testRedBandIndexIsCorrectlyRecorded(self):
         '''
         Check if there are three band indices and their values are correct
         '''
         self.headerInformation = self.groups["header_info"]
         self.redIndex   = self.headerInformation.variables["red_band_index"]
-        self.blueIndex  = self.headerInformation.variables["blue_band_index"]
-        self.greenIndex = self.headerInformation.variables["green_band_index"]
 
         self.assertEqual(self.redIndex[...],   235, msg="The value of red_band_index is always 235")
-        self.assertEqual(self.blueIndex[...],  141, msg="The value of red_band_index is always 141")
-        self.assertEqual(self.greenIndex[...], 501, msg="The value of red_band_index is always 501")
+
+    def testBlueBandIndexIsCorrectlyRecorded(self):
+        self.headerInformation = self.groups["header_info"]
+
+        self.blueIndex  = self.headerInformation.variables["blue_band_index"]
+        self.assertEqual(self.blueIndex[...],  141, msg="The value of blue_band_index is always 141")
+
+    def testBlueBandIndexIsCorrectlyRecorded(self):
+        self.headerInformation = self.groups["header_info"]
+
+        self.greenIndex = self.headerInformation.variables["green_band_index"]
+        self.assertEqual(self.greenIndex[...], 501, msg="The value of green_band_index is always 501")
 
     def testXHaveCorrectValuesAndAttributes(self):
         '''
