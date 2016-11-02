@@ -85,9 +85,9 @@ def pixel2Geographic(jsonFileLocation, headerFileLocation, cameraOption):
         ########### Sample result: x -> 0.377 [m], y -> 0.267 [m] ###########
 
         SE = x_final_result[-1] * LONGITUDE_TO_METER + REFERENCE_POINT[0], y_final_result[-1] * LATITUDE_TO_METER + REFERENCE_POINT[1]
-        SW = x_final_result[0] * LONGITUDE_TO_METER + + REFERENCE_POINT[0] , y_final_result[-1] * LATITUDE_TO_METER + REFERENCE_POINT[1]
-        NE = x_final_result[-1] * LONGITUDE_TO_METER + REFERENCE_POINT[0], y_final_result[0] * LATITUDE_TO_METER + REFERENCE_POINT[1]
-        NW = x_final_result[0] * LONGITUDE_TO_METER + REFERENCE_POINT[0] , y_final_result[0] * LATITUDE_TO_METER + REFERENCE_POINT[1]
+        SW = x_final_result[0] * LONGITUDE_TO_METER  + REFERENCE_POINT[0], y_final_result[-1] * LATITUDE_TO_METER + REFERENCE_POINT[1]
+        NE = x_final_result[-1] * LONGITUDE_TO_METER + REFERENCE_POINT[0], y_final_result[0]  * LATITUDE_TO_METER + REFERENCE_POINT[1]
+        NW = x_final_result[0] * LONGITUDE_TO_METER + REFERENCE_POINT[0] , y_final_result[0]  * LATITUDE_TO_METER + REFERENCE_POINT[1]
 
         bounding_box = [str(SE).strip("()"), str(SW).strip("()"), str(NE).strip("()"), str(NW).strip("()")]
         bounding_box_mapview = GOOGLE_MAP_TEMPLATE.format(pointA=bounding_box[0],
