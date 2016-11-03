@@ -65,10 +65,8 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
 
     def assertHasAttribute(self, object, attr, msg=None):
         '''Home-made attribute test method'''
-        try:
-            getattr(object, attr)
-
-        except AttributeError:
+        if not hasattr(object, attr):
+            
             msg = self._formatMessage(msg, "%s has no attribute %s"%(unittest.util.safe_repr(object), attr))
             raise self.failureException(msg)
 
