@@ -748,7 +748,22 @@ fi # !cln_flg
 
 echo "======================================================================"
 echo "Final QA ..."
-python hyperspectral_test.py ${out_fl}
+cmd_QACheck="python hyperspectral_test.py ${out_fl}"
+
+eval ${cmd_QACheck}
+if [ $? -ne 0 ]; then
+	RED='\033[0;31m'
+	END='\033[0m'
+	printf "${RED}======================================================================\n"
+	printf "Final product test quits with exit code of 1 (Finished with FAILURES)\n"
+	printf "======================================================================${END}\n"
+else
+	GREEN='\033[0;32m'
+	END='\033[0m'
+	printf "${GREEN}======================================================================\n"
+	printf "Final product test quits with exit code of 0 (Successfully Finished All Testcases)\n"
+	printf "======================================================================${END}\n"
+fi
 
 date_end=$(date +"%s")
 if [ ${fl_nbr} -eq 0 ]; then

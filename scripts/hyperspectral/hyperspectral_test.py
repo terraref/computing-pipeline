@@ -241,5 +241,7 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
 
 if __name__ == "__main__":
     TEST_FILE_DIRECTORY = sys.argv[1]
-    testSuite = unittest.TestLoader().loadTestsFromTestCase(HyperspectralWorkflowTest)
-    unittest.TextTestRunner(verbosity=3).run(testSuite)
+    testSuite   = unittest.TestLoader().loadTestsFromTestCase(HyperspectralWorkflowTest)
+    runner      = unittest.TextTestRunner(verbosity=3).run(testSuite)
+    returnValue = runner.wasSuccessful()
+    sys.exit(not returnValue)
