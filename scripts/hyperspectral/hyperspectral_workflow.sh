@@ -748,7 +748,7 @@ fi # !cln_flg
 
 echo "======================================================================"
 echo "Final QA ..."
-cmd_QACheck="python hyperspectral_test.py ${out_fl}"
+cmd_QACheck="python ${drc_spt}/hyperspectral_test.py ${out_fl}"
 
 eval ${cmd_QACheck}
 if [ $? -ne 0 ]; then
