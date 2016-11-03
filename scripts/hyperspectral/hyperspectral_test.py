@@ -21,29 +21,33 @@ It will check the followings so far:
 3. Have enough number of root level variables
 4. The dimensions are all correct (in both name and numerical value)
 5. The groups are all correctly named
-6. The wavelengths are correctly written
+6. The wavelengths are correctly written (in both name and numerical value)
 7. The georeferencing data are correctly recorded
 8. The RGB indices are correctly recorded (in both name and numerical value)
 9. The history is correctly recorded (match the regex pattern)
+10. Check the variables are saved in proper data types
 
 '''
-
 
 EXPECTED_NUMBER_OF_GROUPS     = 6
 EXPECTED_NUMBER_OF_DIMENSIONS = 4
 TEST_FILE_DIRECTORY           = None
 
-class HyperspectralWorkFlowTestWidget:
+class HyperspectralWorkflowTestWidget:
 
     @staticmethod
-    def skipIfDontHaveEnoughGroups(func):
-        def innerWrapper(self):
-            if len(self.groups) == 6:
-                return unittest.skip("Skipped because failed to satisfy the number requirements")
-        return innerWrapper
+    def ParameterizedTest(Parameters={}):
+        def outerWrapper(func):
+            def innerWrapper(self):
+                funcGlobals = func.func_globals
+                funcGlobals["Parameters"] = Parameters
+
+                return func(self)
+            return innerWrapper
+        return outerWrapper
 
 
-class HyperspectralWorkFlowTest(unittest.TestCase, HyperspectralWorkFlowTestWidget):
+class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidget):
 
     @classmethod
     def setUpClass(cls):
@@ -56,10 +60,17 @@ class HyperspectralWorkFlowTest(unittest.TestCase, HyperspectralWorkFlowTestWidg
 
     @classmethod
     def tearDownClass(cls):
-        '''
-        Do the clean up after all the test cases were finished
-        '''
+        '''Do the clean up after all the test cases were finished'''
         cls.masterNetCDFHandler.close()
+
+    def assertHasAttribute(self, object, attr, msg=None):
+        '''Home-made attribute test method'''
+        try:
+            getattr(object, attr)
+
+        except AttributeError:
+            msg = self._formatMessage(msg, "%s has no attribute %s"%(unittest.util.safe_repr(object), attr))
+            raise self.failureException(msg)
 
     #################### Test Cases ####################
 
@@ -91,7 +102,6 @@ class HyperspectralWorkFlowTest(unittest.TestCase, HyperspectralWorkFlowTestWidg
     def testTheWavelengthDimensionsHaveCorrectValues(self):
         self.assertIn(len(self.dimensions["wavelength"]), (272, 955), msg="The dimension for wavelength should be either 272 or 955")
 
-    @HyperspectralWorkFlowTestWidget.skipIfDontHaveEnoughGroups
     def testTheGantrySystemFixedMetadataGroupIsCorrectlyNamed(self):
         '''
         Check if all the groups are named as what we want
@@ -220,8 +230,24 @@ class HyperspectralWorkFlowTest(unittest.TestCase, HyperspectralWorkFlowTestWidg
         self.assertEqual(self.variable_metadata["speed_x"].units, "meter second-1", msg="The speed should has an unit of meter second-1")
         self.assertEqual(self.variable_metadata["speed_x"].long_name, "Gantry Speed in X Direction", msg="The speed should has a correctly formatted long name")
 
+    # Marked as a parameterized testcases; will be executed several times
+    @HyperspectralWorkflowTestWidget.ParameterizedTest(["units", "reference_point", "long_name", "algorithm"])
+    def testXHasEnoughAttributes(self):
+        self.x = self.masterNetCDFHandler.variables["x"]
+
+        for potentialAttributes in Parameters:
+            self.assertHasAttribute(self.x, potentialAttributes, msg="X has missing attributes")
+
+    # Marked as a parameterized testcases; will be executed several times
+    @HyperspectralWorkflowTestWidget.ParameterizedTest(["units", "reference_point", "long_name", "algorithm"])
+    def testYHasEnoughAttributes(self):
+        self.y = self.masterNetCDFHandler.variables["y"]
+        
+        for potentialAttributes in Parameters:
+            self.assertHasAttribute(self.y, potentialAttributes, msg="Y has missing attributes")
+
 
 if __name__ == "__main__":
     TEST_FILE_DIRECTORY = sys.argv[1]
-    testSuite = unittest.TestLoader().loadTestsFromTestCase(HyperspectralWorkFlowTest)
+    testSuite = unittest.TestLoader().loadTestsFromTestCase(HyperspectralWorkflowTest)
     unittest.TextTestRunner(verbosity=3).run(testSuite)
