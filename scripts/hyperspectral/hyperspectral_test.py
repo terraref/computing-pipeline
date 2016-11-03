@@ -125,8 +125,8 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
     def testWavelengthArrayHasCorrectData(self):
         self.wavelengthArray = self.masterNetCDFHandler.variables['wavelength']
 
-        self.assertGreater(self.wavelengthArray[0], 300,     msg="The first sample of the wavelength should greater than 300nm")
-        self.assertLess(   self.wavelengthArray[0], 1000,    msg="The last sample of the wavelength should greater than 1000nm")
+        self.assertGreater(self.wavelengthArray[0], 3e-7, msg="The first sample of the wavelength should greater than 300nm")
+        self.assertLess(   self.wavelengthArray[0], 1e-6, msg="The last sample of the wavelength should greater than 1000nm")
 
     def testHistoryIsCorrectlyRecorded(self):
         '''
