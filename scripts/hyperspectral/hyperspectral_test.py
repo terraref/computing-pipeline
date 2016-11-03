@@ -1,7 +1,9 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import unittest
 import sys
 from netCDF4   import Dataset
-from functools import wraps
 
 '''
 Test for Hyperspectral Workflow
@@ -12,7 +14,9 @@ and will take one or two samples to check the values.
 
 ==============================================================================
 To run the test from the commandline, do:
-python hyperspectral_test.py <the input netCDF file>
+python hyperspectral_test.py <input_netCDF_file> <verbosity_level>
+
+* verbosity level can be 0, 1 or 2 (from the quietest to most verbose)
 
 ==============================================================================
 It will check the followings so far:
