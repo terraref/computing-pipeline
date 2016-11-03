@@ -339,12 +339,12 @@ class DataContainer(object):
             x_pxl_sz = netCDFHandler.createVariable("x_pxl_sz", "f8")
             x_pxl_sz[...] = 1.025e-3
             setattr(netCDFHandler.variables["x_pxl_sz"], "units", "meters")
-            setattr(netCDFHandler.variables["x_pxl_sz"], "notes", "x coordinate length of a single pixel in pictures captured by SWIR camera")
+            setattr(netCDFHandler.variables["x_pxl_sz"], "notes", "x coordinate length of a single pixel in SWIR images")
         else:
             x_pxl_sz = netCDFHandler.createVariable("x_pxl_sz", "f8")
             x_pxl_sz[...] = 1.930615052e-3
             setattr(netCDFHandler.variables["x_pxl_sz"], "units", "meters")
-            setattr(netCDFHandler.variables["x_pxl_sz"], "notes", "x coordinate length of a single pixel in pictures captured by VNIR camera")
+            setattr(netCDFHandler.variables["x_pxl_sz"], "notes", "x coordinate length of a single pixel in VNIR images")
 
         ##### Write the history to netCDF #####
         netCDFHandler.history = ''.join((_TIMESTAMP(), ': python ', commandLine))

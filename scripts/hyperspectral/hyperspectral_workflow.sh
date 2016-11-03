@@ -746,6 +746,10 @@ if [ "${cln_flg}" = 'Yes' ]; then
     /bin/rm -f ${anl_fl}.fl*.tmp ${att_fl}.fl*.tmp ${clb_fl}.fl*.tmp ${cmp_fl}.fl*.tmp ${jsn_fl}.fl*.tmp ${mrg_fl}.fl*.tmp ${trn_fl}.fl*.tmp
 fi # !cln_flg
 
+echo "======================================================================"
+echo "Final QA ..."
+python hyperspectral_test.py ${out_fl}
+
 date_end=$(date +"%s")
 if [ ${fl_nbr} -eq 0 ]; then
     printf "Completed pipeline at `date`.\n"
