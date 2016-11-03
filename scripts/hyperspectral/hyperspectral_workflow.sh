@@ -746,7 +746,12 @@ if [ "${cln_flg}" = 'Yes' ]; then
     /bin/rm -f ${anl_fl}.fl*.tmp ${att_fl}.fl*.tmp ${clb_fl}.fl*.tmp ${cmp_fl}.fl*.tmp ${jsn_fl}.fl*.tmp ${mrg_fl}.fl*.tmp ${trn_fl}.fl*.tmp
 fi # !cln_flg
 
-cmd_qaqc="python ${drc_spt}/hyperspectral_test.py ${out_fl}"
+verbosity=2
+if [ ${dbg_lvl} -eq 0 ]; then
+	verbosity=0
+fi
+cmd_qaqc="python ${drc_spt}/hyperspectral_test.py ${out_fl} ${verbosity}"
+
 eval ${cmd_qaqc}
 RED='\033[0;31m'
 GREEN='\033[0;32m'
