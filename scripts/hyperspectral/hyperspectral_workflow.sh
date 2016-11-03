@@ -746,23 +746,15 @@ if [ "${cln_flg}" = 'Yes' ]; then
     /bin/rm -f ${anl_fl}.fl*.tmp ${att_fl}.fl*.tmp ${clb_fl}.fl*.tmp ${cmp_fl}.fl*.tmp ${jsn_fl}.fl*.tmp ${mrg_fl}.fl*.tmp ${trn_fl}.fl*.tmp
 fi # !cln_flg
 
-echo "======================================================================"
-echo "Final QA ..."
-cmd_QACheck="python ${drc_spt}/hyperspectral_test.py ${out_fl}"
-
-eval ${cmd_QACheck}
+cmd_qaqc="python ${drc_spt}/hyperspectral_test.py ${out_fl}"
+eval ${cmd_qaqc}
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+END='\033[0m'
 if [ $? -ne 0 ]; then
-	RED='\033[0;31m'
-	END='\033[0m'
-	printf "${RED}======================================================================\n"
-	printf "Final product test quits with exit code of 1 (Finished with FAILURES)\n"
-	printf "======================================================================${END}\n"
+    printf "${RED}QA/QC check found with 1 or more FAILURES${END}\n"
 else
-	GREEN='\033[0;32m'
-	END='\033[0m'
-	printf "${GREEN}======================================================================\n"
-	printf "Final product test quits with exit code of 0 (Successfully Finished All Testcases)\n"
-	printf "======================================================================${END}\n"
+    printf "${GREEN}QA/QC check successful for all tests${END}\n"
 fi
 
 date_end=$(date +"%s")
