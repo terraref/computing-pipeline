@@ -66,7 +66,7 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
     def assertHasAttribute(self, object, attr, msg=None):
         '''Home-made attribute test method'''
         if not hasattr(object, attr):
-            
+
             msg = self._formatMessage(msg, "%s has no attribute %s"%(unittest.util.safe_repr(object), attr))
             raise self.failureException(msg)
 
@@ -85,17 +85,11 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
         '''
         self.assertEqual(len(self.dimensions), EXPECTED_NUMBER_OF_DIMENSIONS, msg="There should be four dimensions total")
 
-    def testTheTimeDimensionsHaveCorrectValues(self):
-        '''
-        Check if all the dimensions have the right values
-        '''
-        self.assertEqual(len(self.dimensions["time"]), 169,  msg="The dimension for time should be 169")
-
     def testTheXDimensionsHaveCorrectValues(self):
         self.assertEqual(len(self.dimensions["x"]),    1600, msg="The dimension for x should be 1600")
 
-    def testTheYDimensionsHaveCorrectValues(self):
-        self.assertEqual(len(self.dimensions["y"]),    169,  msg="The dimension for y should be 1600")
+    def testTheYDimensionsMatchesTimeDimension(self):
+        self.assertEqual(len(self.dimensions["y"]), len(self.dimensions["time"]),  msg="The dimension for y should be the same as for time")
 
     def testTheWavelengthDimensionsHaveCorrectValues(self):
         self.assertIn(len(self.dimensions["wavelength"]), (272, 955), msg="The dimension for wavelength should be either 272 or 955")
