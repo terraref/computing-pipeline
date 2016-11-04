@@ -76,7 +76,7 @@ y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144.
 *factory_calibrated_reflectance_guesstimate=0.95f; // [frc]
 
 //print(drc_spt@s,"%s");
-//print(drc_spt@s);
+print(drc_spt);
 // #include "hyperspectral_spectralon_reflectance_factory.nco"
 // #include "/Users/zender/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_spectralon_reflectance_factory.nco"
 // [nbr] Number of wavelengths in factory calibration of Spectralon reference
