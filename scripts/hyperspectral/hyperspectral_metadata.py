@@ -10,7 +10,7 @@ This script works with both Python 2.7+ and 3+, depending on the netCDF4 module 
 Thanks for the advice from Professor Zender and sample data from Dr. LeBauer.
 ----------------------------------------------------------------------------------------
 Usage (commandline):
-python hyperspectral_metadata.py filePath1 filePath2
+python hyperspectral_metadata.py -dbg=json filePath1 filePath2
 
 where
 hyperspectral_metadata.py is where this script located
@@ -31,7 +31,7 @@ python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_m
 hyperspectral_metadata.py will authomatically find data_raw, data_metadata.json and data_raw.hdr
 
 Example:
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_metadata.py -C SWIR -dbg=json ${DATA}/terraref/test_metadata.json ${DATA}/terraref/data
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_metadata.py -dbg=json ${DATA}/terraref/test_metadata.json ${DATA}/terraref/data
 ----------------------------------------------------------------------------------------
 UPDATE LOG (reverse chronological order)
 
@@ -172,7 +172,7 @@ class DataContainer(object):
             "wavelength", 'f8', 'wavelength')
         setattr(tempWavelength, 'long_name', 'Hyperspectral Wavelength')
         setattr(tempWavelength, 'units', 'nanometers')
-        tempWavelength[:] = wavelength
+        tempWavelength[...] = wavelength
         write_header_file(inputFilePath, netCDFHandler)
 
         ##### Write the data from frameIndex files to netCDF #####
@@ -183,7 +183,7 @@ class DataContainer(object):
         assert len(tempFrameTime), "ERROR: Failed to collect frame time information from " + ''.join((inputFilePath.strip("raw"), "frameIndex.txt")) + ". Please check the file."
        
         frameTime    = netCDFHandler.createVariable("frametime", "f8", ("time",))
-        frameTime[:] = tempFrameTime
+        frameTime[...] = tempFrameTime
         setattr(frameTime, "units",    "days since 1970-01-01 00:00:00")
         setattr(frameTime, "calender", "gregorian")
         setattr(frameTime, "notes",    "Each time of the scanline of the y taken")
@@ -198,14 +198,14 @@ class DataContainer(object):
         
         netCDFHandler.createDimension("x", len(xPixelsLocation))
         x    = netCDFHandler.createVariable("x", "f8", ("x",))
-        x[:] = xPixelsLocation
+        x[...] = xPixelsLocation
         setattr(netCDFHandler.variables["x"], "units", "meters")
         setattr(netCDFHandler.variables['x'], 'reference_point', 'Southeast corner of field')
         setattr(netCDFHandler.variables['x'], "long_name", "North-south offset from southeast corner of field")
 
         netCDFHandler.createDimension("y", len(yPixelsLocation))
         y    = netCDFHandler.createVariable("y", "f8", ("y",))
-        y[:] = yPixelsLocation
+        y[...] = yPixelsLocation
         setattr(netCDFHandler.variables["y"], "units", "meters")
         setattr(netCDFHandler.variables['y'], 'reference_point', 'Southeast corner of field')
         setattr(netCDFHandler.variables['y'], "long_name", "Distance west of the southeast corner of the field")
@@ -618,7 +618,7 @@ def write_header_file(fileName, netCDFHandler):
             print >> sys.stderr, _WARN_MSG.format(msg='WARNING: default_band variable in the header file is missing.')
 
 def main():
-    assert len(sys.argv) >= 3, "Please make sure you have enough arguments! (sourcefile, camera_option, [debug_option,] fileInput, fileoutput)"
+    assert len(sys.argv) >= 3, "Please make sure you have enough arguments! (sourcefile, [debug_option,] fileInput, fileoutput)"
 
     if len(sys.argv) >= 4:
         debug_option = sys.argv[-3].split("=")[-1].split(",")

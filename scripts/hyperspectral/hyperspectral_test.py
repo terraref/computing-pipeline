@@ -3,7 +3,7 @@
 
 import unittest
 import sys
-from netCDF4   import Dataset
+from netCDF4 import Dataset
 
 '''
 Test for Hyperspectral Workflow
@@ -31,6 +31,19 @@ It will check the followings so far:
 9. The history is correctly recorded (match the regex pattern)
 10. Check the variables are saved in proper data types
 
+==============================================================================
+NOTES:
+* 1. This test module now have an exit code. Usually it is used to be trapped by 
+*    Hyperspectral master script.
+* 2. Feel free to add more testcases! Follow this format:
+*    -----------------------------------------------------------------------------------
+*    def <the_name_of_this_testcase_starts_with_"test">(self):
+*        self.<data> = blahblahblah... //How do you retrieve this data from the dataset
+*        self.assertEqual(self.<data>, <expected_value>, msg=<your_message>)
+*    -----------------------------------------------------------------------------------
+* 3. Add @unittest.expectedFailure for those test which results has not been implemented
+*
+*
 '''
 
 EXPECTED_NUMBER_OF_GROUPS     = 6
