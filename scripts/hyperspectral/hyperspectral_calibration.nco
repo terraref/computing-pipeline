@@ -20,7 +20,7 @@
 
 // Defaults for values not provided on command-line
 if(!exists(clb_nbr)) *clb_nbr=73; // [nbr] Calibration number
-if(!exists(drc_spt)) *drc_spt=73; // [sng] Script directory
+if(!exists(drc_spt)) *drc_spt="."; // [sng] Script directory
 
 // Change hyperspectral camera wavelengths from nm to m (SI)
 wavelength*=1.0e-9; // [m]
@@ -76,7 +76,9 @@ y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144.
 *factory_calibrated_reflectance_guesstimate=0.95f; // [frc]
 
 //print(drc_spt@s,"%s");
-print(drc_spt);
+//print(drc_spt);
+drc_spt@fl_clb=drc_spt+"/"s+"hyperspectral_spectralon_reflectance_factory.nco"s;
+print(drc_spt@fl_clb);
 // #include "hyperspectral_spectralon_reflectance_factory.nco"
 // #include "/Users/zender/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_spectralon_reflectance_factory.nco"
 // [nbr] Number of wavelengths in factory calibration of Spectralon reference

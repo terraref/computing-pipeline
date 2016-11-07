@@ -499,12 +499,14 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	# NCO is much faster, and creates a "data cube" directory so no reassembly required
 	# Collect metadata necessary to process image from header
 	hdr_fl=${fl_in[${fl_idx}]/_raw/_raw.hdr}
-	# tr strips invisible and vexing DOS ^M characters from line
+	mtd_fl=${fl_in[${fl_idx}]/_raw/_metadata.json}
+	# tr strips invisible, vexing DOS ^M characters from line
 	wvl_nbr=$(grep '^bands' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	xdm_nbr=$(grep '^samples' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	ntl_in=$(grep '^interleave' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	typ_in_ENVI=$(grep '^data type' ${hdr_fl} | cut -d ' ' -f 4 | tr -d '\015')
+	xps_tm=xps_tm=$(grep 'current setting exposure' ${mtd_fl} | cut -d ':' -f 2 | tr -d '",\015' )
 	case "${typ_in_ENVI}" in
 	    4 ) typ_in='NC_FLOAT' ; ;;
 	    12 ) typ_in='NC_USHORT' ; ;;
@@ -603,7 +605,9 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	# cmd_clb[${fl_idx}]="ncap2 -O -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_out}"
 	# Hence perform calibration as root-level append operation, then, if successful, move file to output file
 	#cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_in}"
-	 drc_spt_var="drc_spt='\"${drc_spt}\"s'"
+	 drc_spt_var="\*drc_spt='\"${drc_spt}\"s'"
+	 fl_clb_wht="${drc_spt}/vnir_wht_avg_${xps_tm}.nc"
+	 printf "fl_clb_wht=${fl_clb_wht}\n"
 	 cmd_clb[${fl_idx}]="ncap2 -A -s ${drc_spt_var} -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_in}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_clb[${fl_idx}]}
