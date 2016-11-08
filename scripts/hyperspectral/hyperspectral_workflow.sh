@@ -605,10 +605,11 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	# cmd_clb[${fl_idx}]="ncap2 -O -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_out}"
 	# Hence perform calibration as root-level append operation, then, if successful, move file to output file
 	#cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_in}"
-	 drc_spt_var="\*drc_spt='\"${drc_spt}\"s'"
+	#drc_spt_var="\*drc_spt='\"${drc_spt}\"s'" # OK, passes string into variable
+	 drc_spt_att="@drc_spt='\"${drc_spt}\"'" 
 	 fl_clb_wht="${drc_spt}/vnir_wht_avg_${xps_tm}.nc"
 	 printf "fl_clb_wht=${fl_clb_wht}\n"
-	 cmd_clb[${fl_idx}]="ncap2 -A -s ${drc_spt_var} -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_in}"
+	 cmd_clb[${fl_idx}]="ncap2 -A -s ${drc_spt_att} -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_in}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_clb[${fl_idx}]}
 	fi # !dbg
