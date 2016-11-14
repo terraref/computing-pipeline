@@ -49,6 +49,6 @@ done
 
 # Combine dark and white reference exposures in single file for each exposure duration
 for xps_tm in 20ms 25ms 30ms 35ms 40ms 45ms 50ms 55ms ; do
-    ncks -O -v xps_img_wht ${drc_clb}/vnir_wht_avg_${xps_tm}.nc ${drc_clb}/vnir_avg_${xps_tm}.nc
-    ncks -A -v xps_img_drk ${drc_clb}/vnir_drk_avg_${xps_tm}.nc ${drc_clb}/vnir_avg_${xps_tm}.nc
+    ncks -O -v xps_img_wht ${drc_clb}/vnir_wht_avg_${xps_tm}.nc ${drc_clb}/calibration_vnir_${xps_tm}.nc
+    ncks -A -v xps_img_drk ${drc_clb}/vnir_drk_avg_${xps_tm}.nc ${drc_clb}/calibration_vnir_${xps_tm}.nc
 done
