@@ -30,11 +30,9 @@ wavelength@units="meter";
 /* 20161005 Set flags to separate blocks of VNIR from SWIR code when necessary */
 if(min(wavelength < 0.5e-6)){
   flg_vnir=1s;
-  *wvl_pxl_nbr=2160;
   *x_pxl_spc=0.001025; // [m]
  }else{
   flg_swir=1s;
-  *wvl_pxl_nbr=288;
   *x_pxl_spc=0.001930615052; // [m]
  } // !wavelength
 
@@ -52,7 +50,16 @@ y@long_name="West distance from southeast corner of field";
 y@units="meter";
 y@orientation="The x-dimension (which runs north-south) spans what are called samples or pixels. The y-dimension (which runs east-west) spans what are called lines or scanlines. Normal, non-calibration images have the same number of pixels (384 or 1600 for SWIR and VNIR, respectively) and a variable number of lines set by the number frames (images) the camera takes as the camera box moves east-west.";
 y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144. The y-dimension spans 0.9853 mm per scanline. Exact number is 0.98526434004512529576754637665 mm.";
-  
+
+// Compute quality control diagnostics (also used in "guesstimate" calibration)
+xps_img_max=xps_img.max($y,$x);
+xps_img_max@long_name="Maximum image exposure at each wavelength";
+xps_img_max@units="Counts on scale from 0 to 2^16-1 = 65535";
+
+xps_img_min=xps_img.min($y,$x);
+xps_img_min@long_name="Minimum image exposure at each wavelength";
+xps_img_min@units="Counts on scale from 0 to 2^16-1 = 65535";
+
 // [W m-2 m-1] Downwelling spectral irradiance
 // 20160908 This is a placeholder for irradiance on the hyperspectral grid 
 // Currently no instrument measures this
@@ -62,20 +69,8 @@ y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144.
 //flx_dwn@standard_name="surface_downwelling_radiative_flux_per_unit_wavelength_in_air";
 //flx_dwn@units="watt meter-2 meter-1"; 
 
-/* Calibrate hyperspectral image from raw counts to reflectance
-   Optimal calibration would have this equal 2^16-1 in each channel for a perfectly white reflector
-   This parameter depends solely on the bit-resolution of the camera (currently 16 bits) */
-*exposure_theoretical_maximum=ushort(2^16-1); // [cnt]
-
-/* Assume spectral reference target employed is "white" reference sheet that reflects all wavelengths with 95% efficiency
-   (Some) Documentation for Spectralon reference targets at
-   https://github.com/terraref/reference-data/issues/36
-   https://github.com/terraref/reference-data/issues/53
-
-   20160927: fxm replace guesstimate with actual, wavelength-dependent calibrated reflectance below */
-*factory_calibrated_reflectance_guesstimate=0.95f; // [frc]
-
-@fl_clb=push(@drc_spt,"/hyperspectral_spectralon_reflectance_factory.nco");
+// Input factory calibrated Spectralon reflectance from NCO file in script directory
+//@fl_clb=push(@drc_spt,"/hyperspectral_spectralon_reflectance_factory.nco");
 //print(@fl_clb," = %s\n");
 #include "hyperspectral_spectralon_reflectance_factory.nco"
 
@@ -84,53 +79,60 @@ gsl_interp_cspline(&ram_ntp_spl,wvl_clb,factory_calibrated_reflectance);
 factory_calibrated_reflectance_interpolated=gsl_spline_eval(ram_ntp_spl,wavelength);
 ram_delete(ram_ntp_spl);
 
-/* exposure_reference is exposure measured when pointing at Spectralon reference target
-   Camera exposed to natural light reflecting from reference target for standard exposure time accumulates exposure_reference counts in each channel
-   Expected to be large fraction (assumed here to be factory_calibrated_reflectance_guesstimate) of exposure_theoretical_maximum for white reflector 
-   However, grey reference reflector might be more optimal than white
-   Plants have maximum reflectance of ~0.4 so calibrating at white (~0.95) not as accurate as calibrating near 0.4 
-   We hope Lemnatec tunes exposure time to achieve the greatest dynamic range, and thus precision, under a wide range of circumstances
-   One tuning consideration is that maximum exposure for white reflector at noon is close to but does not exceed exposure_theoretical_maximum 
-   Other tuning considerations are possible... */
-// 20160908: actual values are not yet available so use this guesstimate
-*exposure_reference_guesstimate=ushort(factory_calibrated_reflectance_guesstimate*exposure_theoretical_maximum); // [cnt]
-*maximum_plant_reflectance_guesstimate=0.37f; // [frc]
+if(flg_swir){
+  // As of 20161114, SWIR calibration data are insufficient, so implement "guesstimate" method
+  
+  /* Calibrate hyperspectral image from raw counts to reflectance
+     Optimal calibration would have this equal 2^16-1 in each channel for a perfectly white reflector
+     This parameter depends solely on the bit-resolution of the camera (currently 16 bits) */
+  *exposure_theoretical_maximum=ushort(2^16-1); // [cnt]
 
-// A perfect detector would measure no counts when aperture shut
-*exposure_theoretical_minimum=ushort(0); // [cnt]
+  /* Assume spectral reference target employed is "white" reference sheet that reflects all wavelengths with 95% efficiency
+     (Some) Documentation for Spectralon reference targets at
+     https://github.com/terraref/reference-data/issues/36
+     https://github.com/terraref/reference-data/issues/53
 
-// A real detector exposed to darkness for standard exposure time accumulates exposure_dark counts in each channel
-// 20160908: actual values are not yet available so we use this guesstimate
-*exposure_dark_guesstimate=ushort(10); // [cnt]
+     20160927: fxm replace guesstimate with actual, wavelength-dependent calibrated reflectance below */
+  *factory_calibrated_reflectance_guesstimate=0.95f; // [frc]
 
-xps_img_max=xps_img.max($y,$x);
-xps_img_max@long_name="Maximum image exposure at each wavelength";
-xps_img_max@units="Counts on scale from 0 to 2^16-1 = 65535";
+  /* exposure_reference is exposure measured when pointing at Spectralon reference target
+     Camera exposed to natural light reflecting from reference target for standard exposure time accumulates exposure_reference counts in each channel
+     Expected to be large fraction (assumed here to be factory_calibrated_reflectance_guesstimate) of exposure_theoretical_maximum for white reflector 
+     However, grey reference reflector might be more optimal than white
+     Plants have maximum reflectance of ~0.4 so calibrating at white (~0.95) not as accurate as calibrating near 0.4 
+     We hope Lemnatec tunes exposure time to achieve the greatest dynamic range, and thus precision, under a wide range of circumstances
+     One tuning consideration is that maximum exposure for white reflector at noon is close to but does not exceed exposure_theoretical_maximum 
+     Other tuning considerations are possible... */
+  // 20160908: actual values are not yet available so use this guesstimate
+  *exposure_reference_guesstimate=ushort(factory_calibrated_reflectance_guesstimate*exposure_theoretical_maximum); // [cnt]
+  *maximum_plant_reflectance_guesstimate=0.37f; // [frc]
+
+  // A perfect detector would measure no counts when aperture shut
+  *exposure_theoretical_minimum=ushort(0); // [cnt]
+
+  // A real detector exposed to darkness for standard exposure time accumulates exposure_dark counts in each channel
+  // 20160908: actual values are not yet available for SWIR so we use this guesstimate
+  *exposure_dark_guesstimate=ushort(10); // [cnt]
+
+} // !flg_swir
 
 // [cnt] Exposure from Spectralon reference target
-//xps_img_wht[wavelength]=exposure_reference_guesstimate; // Produces reflectances too small by ~10^5
-//xps_img_wht[wavelength]=ushort(xps_img_max*(factory_calibrated_reflectance_guesstimate/maximum_plant_reflectance_guesstimate));
+//if(flg_swir) xps_img_wht[wavelength]=exposure_reference_guesstimate; // Produces reflectances too small by ~10^5
+if(flg_swir) xps_img_wht[wavelength]=ushort(xps_img_max*(factory_calibrated_reflectance_guesstimate/maximum_plant_reflectance_guesstimate));
 xps_img_wht@long_name="Exposure from Spectralon reference target";
 xps_img_wht@units="Counts on scale from 0 to 2^16-1 = 65535";
 
-xps_img_min=xps_img.min($y,$x);
-xps_img_min@long_name="Minimum image exposure at each wavelength";
-xps_img_min@units="Counts on scale from 0 to 2^16-1 = 65535";
-
 // [cnt] Exposure under dark (nighttime) conditions
-//xps_img_drk[wavelength]=xps_img_min*0.01f;
+if(flg_swir) xps_img_drk[wavelength]=xps_img_min*0.01f;
 xps_img_drk@long_name="Exposure under dark (nighttime) conditions";
 xps_img_drk@units="Counts on scale from 0 to 2^16-1 = 65535";
 
 // [frc] Reflectance of Spectralon reference target (from factory calibration)
 // 20160908: fxm track this down, possibly add angular dependence...
-rfl_rfr_fct[wavelength]=factory_calibrated_reflectance_guesstimate;
+if(flg_swir) rfl_rfr_fct[wavelength]=factory_calibrated_reflectance_guesstimate;
+if(flg_vnir) rfl_rfr_fct[wavelength]=factory_calibrated_reflectance_interpolated;
 rfl_rfr_fct@long_name="Reflectance of Spectralon reference target (from factory calibration)";
 rfl_rfr_fct@units="1";
-
-// [cnt/cnt] Proportionality constant between factory-calibrated reflectance and current image and field calibration
-// 20160908: No real reason to use or archive this
-//rfl_img_prp=(xps_img-xps_img_drk)/(xps_img_wht-xps_img_drk);
 
 // [frc] = Reflectance of image (plant reflectance)
 // 20160826: Pre-assigning to zero would create additional copy and increase required memory

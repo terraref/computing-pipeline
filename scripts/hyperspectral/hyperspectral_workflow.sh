@@ -108,6 +108,8 @@ drc_in='' # [sng] Input file directory
 drc_in_xmp='drc_in' # [sng] Input file directory for examples
 drc_out="${drc_pwd}" # [sng] Output file directory
 drc_out_xmp='drc_out' # [sng] Output file directory for examples
+flg_swir='No' # [flg] SWIR camera
+flg_vnir='No' # [flg] VNIR camera
 gaa_sng="--gaa terraref_script=${spt_nm} --gaa terraref_hostname=${HOSTNAME} --gaa terraref_version=${nco_vrs}" # [sng] Global attributes to add
 hdr_pad='10000' # [B] Pad at end of header section
 in_fl='' # [sng] Input file stub
@@ -504,6 +506,15 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	typ_in_ENVI=$(grep '^data type' ${hdr_fl} | cut -d ' ' -f 4 | tr -d '\015')
 	xps_tm=$(grep 'current setting exposure' ${mtd_fl} | cut -d ':' -f 2 | tr -d '" ,\015' )
 	fl_clb="${drc_spt}/calibration_vnir_${xps_tm}ms.nc"
+	if [ "${wvl_nbr}" -eq 272 ]; then 
+	    flg_swir='Yes' # [flg] SWIR camera
+	elif [ "${wvl_nbr}" -eq 955 ]; then 
+	    flg_vnir='Yes' # [flg] VNIR camera
+	else
+	    echo "ERROR: Unable to identify camera type (SWIR or VNIR?)"
+	    echo "HINT: ${spt_nm} requires header file ${fl_hdr} to report either 272 (SWIR) or 955 (VNIR) or wavelengths. Actual number reported = wvl_nbr = ${wvl_nbr}."
+	    exit 1
+	fi # !wvl_nbr
 	case "${typ_in_ENVI}" in
 	    4 ) typ_in='NC_FLOAT' ; ;;
 	    12 ) typ_in='NC_USHORT' ; ;;
@@ -586,22 +597,24 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 		exit 1
 	    fi # !err
 	fi # !dbg
-	# 20161114: Second merge step adds exposure-appropriate calibration data to image file
-	mrg_in=${fl_clb}
-	mrg_out=${att_out}
-	printf "mrg(in)  : ${mrg_in}\n"
-	printf "mrg(out) : ${mrg_out}\n"
-	cmd_mrg[${fl_idx}]="ncks -A -C -v xps_img_wht,xps_img_drk ${mrg_in} ${mrg_out}"
-	if [ ${dbg_lvl} -ge 1 ]; then
-	    echo ${cmd_mrg[${fl_idx}]}
-	fi # !dbg
-	if [ ${dbg_lvl} -ne 2 ]; then
-	    eval ${cmd_mrg[${fl_idx}]}
-	    if [ $? -ne 0 ] || [ ! -f ${mrg_out} ]; then
-		printf "${spt_nm}: ERROR Failed to merge white/dark calibration with data file. Debug this:\n${cmd_mrg[${fl_idx}]}\n"
-		exit 1
-	    fi # !err
-	fi # !dbg
+	if [ "${flg_vnir}" = 'Yes' ]; then
+	    # 20161114: Second merge adds exposure-appropriate calibration data to VNIR image files
+	    mrg_in=${fl_clb}
+	    mrg_out=${att_out}
+	    printf "mrg(in)  : ${mrg_in}\n"
+	    printf "mrg(out) : ${mrg_out}\n"
+	    cmd_mrg[${fl_idx}]="ncks -A -C -v xps_img_wht,xps_img_drk ${mrg_in} ${mrg_out}"
+	    if [ ${dbg_lvl} -ge 1 ]; then
+		echo ${cmd_mrg[${fl_idx}]}
+	    fi # !dbg
+	    if [ ${dbg_lvl} -ne 2 ]; then
+		eval ${cmd_mrg[${fl_idx}]}
+		if [ $? -ne 0 ] || [ ! -f ${mrg_out} ]; then
+		    printf "${spt_nm}: ERROR Failed to merge white/dark calibration with data file. Debug this:\n${cmd_mrg[${fl_idx}]}\n"
+		    exit 1
+		fi # !err
+	    fi # !dbg
+	fi # !flg_vnir
     fi # !mrg_flg
     
     # Calibrate
