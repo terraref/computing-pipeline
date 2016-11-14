@@ -116,8 +116,8 @@ fl_nbr=0 # [nbr] Number of files
 job_nbr=6 # [nbr] Job simultaneity for parallelism
 mpi_flg='No' # [sng] Parallelize over nodes
 mtd_mk='Yes' # [sng] Process metadata
-nco_opt='-O --no_tmp_fl' # [sng] NCO defaults (e.g., '-O -6 -t 1')
-nco_usr='' # [sng] NCO user-configurable options (e.g., '-D 1')
+nco_opt='' # [sng] NCO defaults (e.g., '-D 1')
+nco_usr='' # [sng] NCO user-configurable options (e.g., '-D 2')
 nd_nbr=1 # [nbr] Number of nodes
 ntl_out='bsq' # [enm] Interleave-type of output
 out_fl='' # [sng] Output file name
@@ -287,9 +287,6 @@ fi # !dbg_lvl
 if [ -n "${nco_usr}" ]; then 
     nco_opt="${nco_usr} ${nco_opt}"
 fi # !var_lst
-if [ -n "${gaa_sng}" ]; then 
-    nco_opt="${nco_opt} ${gaa_sng}"
-fi # !var_lst
 if [ -n "${hdr_pad}" ]; then 
     nco_opt="${nco_opt} --hdr_pad=${hdr_pad}"
 fi # !hdr_pad
@@ -401,7 +398,6 @@ fi # !mpi
 # Print initial state
 if [ ${dbg_lvl} -ge 2 ]; then
     printf "dbg: cln_flg  = ${cln_flg}\n"
-	printf "dbg: cam_opt  = ${cam_opt}\n"
     printf "dbg: dbg_lvl  = ${dbg_lvl}\n"
     printf "dbg: drc_in   = ${drc_in}\n"
     printf "dbg: drc_nco  = ${drc_nco}\n"
@@ -513,7 +509,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	    12 ) typ_in='NC_USHORT' ; ;;
 	    * ) printf "${spt_nm}: ERROR Unknown typ_in in ${hdr_fl}. Debug grep command.\n" ; exit 1 ; ;; # Other
 	esac # !typ_in_ENVI
-	cmd_trn[${fl_idx}]="ncks -O --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ${drc_spt}/hyperspectral_dummy.nc ${trn_out}"
+	cmd_trn[${fl_idx}]="ncks -O ${nco_opt} --no_tmp_fl --trr_wxy=${wvl_nbr},${xdm_nbr},${ydm_nbr} --trr typ_in=${typ_in} --trr typ_out=${typ_out} --trr ntl_in=${ntl_in} --trr ntl_out=${ntl_out} --trr_in=${trn_in} ${drc_spt}/hyperspectral_dummy.nc ${trn_out}"
 	hst_att="`date`: ${cmd_ln}"
 	att_in="${trn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
@@ -626,7 +622,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	 drc_spt_att="@drc_spt='\"${drc_spt}\"'" 
 	 # NCO_PATH environment variable required for hyperspectral_calibration.nco to find hyperspectral_spectralon_reflectance_factory.nco
 	 export NCO_PATH="${drc_spt}"
-	 cmd_clb[${fl_idx}]="ncap2 -A -s ${drc_spt_att} -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_in}"
+	 cmd_clb[${fl_idx}]="ncap2 -A ${nco_opt} -s ${drc_spt_att} -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_in}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_clb[${fl_idx}]}
 	fi # !dbg
@@ -656,7 +652,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	cmp_out="${cmp_fl}.fl${idx_prn}.tmp"
 	printf "cmp(in)  : ${cmp_in}\n"
 	printf "cmp(out) : ${cmp_out}\n"
-	cmd_cmp[${fl_idx}]="ncks -L ${dfl_lvl} ${cmp_in} ${cmp_out}"
+	cmd_cmp[${fl_idx}]="ncks -O --no_tmp_fl ${nco_opt} -L ${dfl_lvl} ${cmp_in} ${cmp_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_cmp[${fl_idx}]}
 	fi # !dbg

@@ -68,7 +68,7 @@ y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144.
 *exposure_theoretical_maximum=ushort(2^16-1); // [cnt]
 
 /* Assume spectral reference target employed is "white" reference sheet that reflects all wavelengths with 95% efficiency
-   (Some) Documentation for spectralon reference targets at
+   (Some) Documentation for Spectralon reference targets at
    https://github.com/terraref/reference-data/issues/36
    https://github.com/terraref/reference-data/issues/53
 
@@ -79,12 +79,12 @@ y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144.
 //print(@fl_clb," = %s\n");
 #include "hyperspectral_spectralon_reflectance_factory.nco"
 
-/* Interpolate factory calibration of spectralon target to wavelength grid of current instrument (VNIR, SWIR) */
+/* Interpolate factory calibration of Spectralon target to wavelength grid of current instrument (VNIR, SWIR) */
 gsl_interp_cspline(&ram_ntp_spl,wvl_clb,factory_calibrated_reflectance);
 factory_calibrated_reflectance_interpolated=gsl_spline_eval(ram_ntp_spl,wavelength);
 ram_delete(ram_ntp_spl);
 
-/* exposure_reference is exposure measured when pointing at spectralon reference target
+/* exposure_reference is exposure measured when pointing at Spectralon reference target
    Camera exposed to natural light reflecting from reference target for standard exposure time accumulates exposure_reference counts in each channel
    Expected to be large fraction (assumed here to be factory_calibrated_reflectance_guesstimate) of exposure_theoretical_maximum for white reflector 
    However, grey reference reflector might be more optimal than white
@@ -107,22 +107,22 @@ xps_img_max=xps_img.max($y,$x);
 xps_img_max@long_name="Maximum image exposure at each wavelength";
 xps_img_max@units="Counts on scale from 0 to 2^16-1 = 65535";
 
-// [cnt] Exposure from spectralon reference target
-//xps_rfr[wavelength,x]=exposure_reference_guesstimate; // Produces reflectances too small by ~10^5
-xps_rfr[wavelength,x]=ushort(xps_img_max*(factory_calibrated_reflectance_guesstimate/maximum_plant_reflectance_guesstimate));
-xps_rfr@long_name="Exposure from spectralon reference target";
-xps_rfr@units="Counts on scale from 0 to 2^16-1 = 65535";
+// [cnt] Exposure from Spectralon reference target
+//xps_img_wht[wavelength]=exposure_reference_guesstimate; // Produces reflectances too small by ~10^5
+//xps_img_wht[wavelength]=ushort(xps_img_max*(factory_calibrated_reflectance_guesstimate/maximum_plant_reflectance_guesstimate));
+xps_img_wht@long_name="Exposure from Spectralon reference target";
+xps_img_wht@units="Counts on scale from 0 to 2^16-1 = 65535";
 
 xps_img_min=xps_img.min($y,$x);
 xps_img_min@long_name="Minimum image exposure at each wavelength";
 xps_img_min@units="Counts on scale from 0 to 2^16-1 = 65535";
 
-// [cnt] Exposure from dark current image
-xps_drk[wavelength,x]=xps_img_min*0.01f;
-xps_drk@long_name="Exposure from dark current image";
-xps_drk@units="Counts on scale from 0 to 2^16-1 = 65535";
+// [cnt] Exposure under dark (nighttime) conditions
+//xps_img_drk[wavelength]=xps_img_min*0.01f;
+xps_img_drk@long_name="Exposure under dark (nighttime) conditions";
+xps_img_drk@units="Counts on scale from 0 to 2^16-1 = 65535";
 
-// [frc] Reflectance of spectralon reference target (from factory calibration)
+// [frc] Reflectance of Spectralon reference target (from factory calibration)
 // 20160908: fxm track this down, possibly add angular dependence...
 rfl_rfr_fct[wavelength]=factory_calibrated_reflectance_guesstimate;
 rfl_rfr_fct@long_name="Reflectance of Spectralon reference target (from factory calibration)";
@@ -130,13 +130,13 @@ rfl_rfr_fct@units="1";
 
 // [cnt/cnt] Proportionality constant between factory-calibrated reflectance and current image and field calibration
 // 20160908: No real reason to use or archive this
-//rfl_img_prp=(xps_img-xps_drk)/(xps_rfr-xps_drk);
+//rfl_img_prp=(xps_img-xps_img_drk)/(xps_img_wht-xps_img_drk);
 
 // [frc] = Reflectance of image (plant reflectance)
 // 20160826: Pre-assigning to zero would create additional copy and increase required memory
 // Instead use implicit casting, and overwrite attributes propagated from rfl_rfr_fct
 //rfl_img[wavelength,y,x]=0.0f;
-rfl_img=rfl_rfr_fct*(xps_img-xps_drk)/(xps_rfr-xps_drk);
+rfl_img=rfl_rfr_fct*(xps_img-xps_img_drk)/(xps_img_wht-xps_img_drk);
 rfl_img@long_name="Reflectance of image";
 rfl_img@standard_name="surface_albedo";
 rfl_img@units="1";
