@@ -507,6 +507,9 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	ntl_in=$(grep '^interleave' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	typ_in_ENVI=$(grep '^data type' ${hdr_fl} | cut -d ' ' -f 4 | tr -d '\015')
 	xps_tm=$(grep 'current setting exposure' ${mtd_fl} | cut -d ':' -f 2 | tr -d '" ,\015' )
+	fl_clb_wht="${drc_spt}/vnir_wht_avg_${xps_tm}ms.nc"
+	fl_clb_drk="${drc_spt}/vnir_drk_avg_${xps_tm}ms.nc"
+	printf "fl_clb_wht=${fl_clb_wht}\n"
 	case "${typ_in_ENVI}" in
 	    4 ) typ_in='NC_FLOAT' ; ;;
 	    12 ) typ_in='NC_USHORT' ; ;;
@@ -607,8 +610,6 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	#cmd_clb[${fl_idx}]="ncap2 -A -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_in}"
 	#drc_spt_var="\*drc_spt='\"${drc_spt}\"s'" # OK, passes string into variable
 	 drc_spt_att="@drc_spt='\"${drc_spt}\"'" 
-	 fl_clb_wht="${drc_spt}/vnir_wht_avg_${xps_tm}.nc"
-	 printf "fl_clb_wht=${fl_clb_wht}\n"
 	 export NCO_PATH="${drc_spt}"
 	 cmd_clb[${fl_idx}]="ncap2 -A -s ${drc_spt_att} -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_in}"
 	if [ ${dbg_lvl} -ge 1 ]; then
