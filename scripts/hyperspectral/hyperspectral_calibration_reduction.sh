@@ -4,7 +4,7 @@
 # Hence this script will need to change for every generation of white and dark references
 # Output files contain xps_img_[drk/wht] variables in one file per exposure time
 
-terraref calibration
+# Directory for hyperspectral calibration output files
 drc_clb=${DATA}/terraref/clb
 
 # White reference, single pixel (px1), created by Solmaz (NB: pre-compensated for dark counts)
