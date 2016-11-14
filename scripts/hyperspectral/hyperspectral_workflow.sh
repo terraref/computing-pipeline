@@ -68,9 +68,9 @@ esac # !HOSTNAME
 # hyperspectral_workflow.sh $fl > ~/hyperspectral.out 2>&1 &
 
 # Debugging and Benchmarking:
-# hyperspectral_workflow.sh -d 1  -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/hyperspectral.out 2>&1 &
-# hyperspectral_workflow.sh -d 1  -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o foo.nc -O ~/rgr > ~/hyperspectral.out 2>&1 &
-# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/VNIR/2016-10-06/2016-10-06__15-21-20-178/b73a4f00-4140-4576-8c70-8e1d26ae245e_raw -o foo.nc -O ~/rgr > ~/hyperspectral.out 2>&1 &
+# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/hyperspectral.out 2>&1 &
+# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o ~/foo.nc > ~/hyperspectral.out 2>&1 &
+# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/VNIR/2016-10-06/2016-10-06__15-21-20-178/b73a4f00-4140-4576-8c70-8e1d26ae245e_raw -o ~/foo.nc > ~/hyperspectral.out 2>&1 &
 
 # dbg_lvl: 0 = Quiet, print basic status during evaluation
 #          1 = Print configuration, full commands, and status to output during evaluation
@@ -506,7 +506,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	ydm_nbr=$(grep '^lines' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	ntl_in=$(grep '^interleave' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	typ_in_ENVI=$(grep '^data type' ${hdr_fl} | cut -d ' ' -f 4 | tr -d '\015')
-	xps_tm=xps_tm=$(grep 'current setting exposure' ${mtd_fl} | cut -d ':' -f 2 | tr -d '",\015' )
+	xps_tm=$(grep 'current setting exposure' ${mtd_fl} | cut -d ':' -f 2 | tr -d '" ,\015' )
 	case "${typ_in_ENVI}" in
 	    4 ) typ_in='NC_FLOAT' ; ;;
 	    12 ) typ_in='NC_USHORT' ; ;;
@@ -609,6 +609,7 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	 drc_spt_att="@drc_spt='\"${drc_spt}\"'" 
 	 fl_clb_wht="${drc_spt}/vnir_wht_avg_${xps_tm}.nc"
 	 printf "fl_clb_wht=${fl_clb_wht}\n"
+	 export NCO_PATH="${drc_spt}"
 	 cmd_clb[${fl_idx}]="ncap2 -A -s ${drc_spt_att} -S ${drc_spt}/hyperspectral_calibration.nco ${clb_in} ${clb_in}"
 	if [ ${dbg_lvl} -ge 1 ]; then
 	    echo ${cmd_clb[${fl_idx}]}
