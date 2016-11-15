@@ -775,22 +775,20 @@ fi # !0
 if [ "${cln_flg}" = 'Yes' ]; then
     printf "Cleaning-up intermediate files...\n"
     /bin/rm -f ${anl_fl}.fl*.tmp ${att_fl}.fl*.tmp ${clb_fl}.fl*.tmp ${cmp_fl}.fl*.tmp ${jsn_fl}.fl*.tmp ${mrg_fl}.fl*.tmp ${trn_fl}.fl*.tmp
+else # !cln_flg
+    printf "Explicitly instructed not to clean-up intermediate files.\n"
 fi # !cln_flg
 
 verbosity=2
 if [ ${dbg_lvl} -eq 0 ]; then
-	verbosity=0
-fi
+    verbosity=0
+fi # !dbg_lvl
 cmd_qaqc="python ${drc_spt}/hyperspectral_test.py ${out_fl} ${verbosity}"
-
 eval ${cmd_qaqc}
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-END='\033[0m'
 if [ $? -ne 0 ]; then
-    printf "${RED}QA/QC check found with 1 or more FAILURES${END}\n"
+    printf "QA/QC check found with 1 or more unexpected FAILURES\n"
 else
-    printf "${GREEN}QA/QC check successful for all tests${END}\n"
+    printf "QA/QC check successful for all tests\n"
 fi
 
 date_end=$(date +"%s")

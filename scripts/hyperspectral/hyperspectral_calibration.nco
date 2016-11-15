@@ -27,13 +27,15 @@ wavelength*=1.0e-9; // [m]
 wavelength@standard_name="radiation_wavelength";  
 wavelength@units="meter";  
 
-/* 20161005 Set flags to separate blocks of VNIR from SWIR code when necessary */
-if(min(wavelength < 0.5e-6)){
+/* 20161005 Set flags to separate VNIR from SWIR code when necessary */
+if(min(wavelength) < 0.5e-6){
   flg_vnir=1s;
   *x_pxl_spc=0.001025; // [m]
+  @camera="VNIR Camera";
  }else{
   flg_swir=1s;
   *x_pxl_spc=0.001930615052; // [m]
+  @camera="SWIR Camera";
  } // !wavelength
 
 // Add georeferenced coordinates
@@ -128,7 +130,7 @@ xps_img_drk@long_name="Exposure under dark (nighttime) conditions";
 xps_img_drk@units="Counts on scale from 0 to 2^16-1 = 65535";
 
 // [frc] Reflectance of Spectralon reference target (from factory calibration)
-// 20160908: fxm track this down, possibly add angular dependence...
+// 20160908: Add angular dependence?
 if(flg_swir) rfl_rfr_fct[wavelength]=factory_calibrated_reflectance_guesstimate;
 if(flg_vnir) rfl_rfr_fct[wavelength]=factory_calibrated_reflectance_interpolated;
 rfl_rfr_fct@long_name="Reflectance of Spectralon reference target (from factory calibration)";
