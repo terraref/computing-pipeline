@@ -74,6 +74,7 @@ xps_img_min@units="Counts on scale from 0 to 2^16-1 = 65535";
 // Input factory calibrated Spectralon reflectance from NCO file in script directory
 //@fl_clb=push(@drc_spt,"/hyperspectral_spectralon_reflectance_factory.nco");
 //print(@fl_clb," = %s\n");
+// Directory containing this file must be CWD or in NCO_PATH environment variable
 #include "hyperspectral_spectralon_reflectance_factory.nco"
 
 /* Interpolate factory calibration of Spectralon target to wavelength grid of current instrument (VNIR, SWIR) */
