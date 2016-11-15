@@ -50,7 +50,7 @@ x@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144,
 y=array(0.0,0.00098526434004512529576754637665,$y);
 y@long_name="West distance from southeast corner of field";
 y@units="meter";
-y@orientation="The x-dimension (which runs north-south) spans what are called samples or pixels. The y-dimension (which runs east-west) spans what are called lines or scanlines. Normal, non-calibration images have the same number of pixels (384 or 1600 for SWIR and VNIR, respectively) and a variable number of lines set by the number frames (images) the camera takes as the camera box moves east-west.";
+y@orientation="The x-dimension (which runs north-south) spans what are called samples or pixels. The y-dimension (which runs east-west) spans what are called lines or scanlines. Normal, non-calibration images have the same number of pixels (384 or 1600 for SWIR and VNIR, respectively) and a variable number of lines set by the number of frames (images) the camera takes as the camera box moves east-west.";
 y@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144. The y-dimension spans 0.9853 mm per scanline. Exact number is 0.98526434004512529576754637665 mm.";
 
 // Compute quality control diagnostics (also used in "guesstimate" calibration)
@@ -78,7 +78,7 @@ xps_img_min@units="Counts on scale from 0 to 2^16-1 = 65535";
 
 /* Interpolate factory calibration of Spectralon target to wavelength grid of current instrument (VNIR, SWIR) */
 gsl_interp_cspline(&ram_ntp_spl,wvl_clb,factory_calibrated_reflectance);
-factory_calibrated_reflectance_interpolated=gsl_spline_eval(ram_ntp_spl,wavelength);
+factory_calibrated_reflectance_interpolated=float(gsl_spline_eval(ram_ntp_spl,wavelength));
 ram_delete(ram_ntp_spl);
 
 if(flg_swir){
@@ -145,3 +145,11 @@ rfl_img@long_name="Reflectance of image";
 rfl_img@standard_name="surface_albedo";
 rfl_img@units="1";
   
+// Compute quality control diagnostics
+rfl_img_max=rfl_img.max($y,$x);
+rfl_img_max@long_name="Maximum reflectance at each wavelength";
+rfl_img_max@units="1";
+
+rfl_img_min=rfl_img.min($y,$x);
+rfl_img_min@long_name="Minimum reflectance at each wavelength";
+rfl_img_min@units="1";

@@ -60,7 +60,7 @@ esac # !HOSTNAME
 # UIUC: qsub -I -A arpae -l walltime=00:60:00 -N hyperspectral -q devel # Interactive dedicated compute node in devel queue (1 hr max, insufficient for raw >= 62 GB)
 #       qsub -I -A arpae -l walltime=03:00:00 -N hyperspectral -q batch # Interactive dedicated compute node in batch queue (48 hr max)
 #       echo "hyperspectral_workflow.sh -d 1 -i /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-10-07/2016-10-07__12-12-09-294/755e5eca-55b7-4412-a145-e8d1d4833b3f_raw" > ~/hyperspectral.pbs;chmod a+x ~/hyperspectral.pbs
-#       qsub -I -A arpae -l walltime=03:00:00 -N hyperspectral -q batch -j oe -m e -o ~/hyperspectral.out ~/hyperspectral.pbs
+#       qsub -A arpae -l walltime=03:00:00 -l nodes=1 -N hyperspectral -q batch -j oe -m e -o ~/hyperspectral.out ~/hyperspectral.pbs # Dedicated non-interactive compute node in batch queue in batch mode
 #       hyperspectral_workflow.sh -d 1 -i /projects/arpae/terraref/sites/ua-mac/raw_data/VNIR/2016-10-07/2016-10-07__12-12-09-294/755e5eca-55b7-4412-a145-e8d1d4833b3f_raw > ~/foo 2>&1 & # Process full-scan (~62 GB raw image)
 # UCI:  ls -R ${DATA}/terraref/MovingSensor/VNIR/2016-04-07/*/*_raw | hyperspectral_workflow.sh -d 1 -O ~/rgr > ~/hyperspectral.out 2>&1 &
 

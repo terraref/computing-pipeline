@@ -6,7 +6,7 @@ wvl_clb@long_name="Wavelength of factory calibration of Spectralon reference";
 wvl_clb@standard_name="sensor_band_central_radiation_wavelength";
 wvl_clb@units="meter";
 wvl_clb@provenance="Factory calibration";
-wvl_clb=array(250.0,1.0,$wvl_clb);
+wvl_clb=array(250.0f,1.0f,$wvl_clb);
 // Change calibration wavelengths from nm to m (SI)
 wvl_clb*=1.0e-9; // [m]
 
@@ -23,7 +23,8 @@ wvl_clb*=1.0e-9; // [m]
    The file header reads "Factory calibration of Zenith Lite Diffuse Reflectance Target - 95%R.csv;Reflectivity: 95% (UV-VIS-NIR);DETECTOR-PC\admin;10.04.2014 15:35:46;Lambda 950;950L1211082;1.61.00 Lambda 900".
    Data are 2201 absolute calibrated reflectances at 1 nm resolution from 250--2450 nm.
    More information at https://github.com/terraref/reference-data/issues/53 */
-*factory_calibrated_reflectance[wvl_clb]={ // [frc] 10 wavelengths per line, 2201 total
+*factory_calibrated_reflectance[wvl_clb]=0.0f;
+*factory_calibrated_reflectance={ // [frc] 10 wavelengths per line, 2201 total
 0.911211,0.912225,0.912077,0.912555,0.911949,0.912477,0.912572,0.913257,0.913936,0.914543,
 0.914366,0.913324,0.912303,0.912679,0.912197,0.913096,0.914527,0.913261,0.913015,0.911970,
 0.911637,0.913419,0.914956,0.917668,0.920981,0.921512,0.920908,0.919402,0.922392,0.926741,
