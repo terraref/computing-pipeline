@@ -84,7 +84,6 @@ def writeTaskToDatabase(task):
     curs = psql_conn.cursor()
     #print("Writing task %s to PostgreSQL..." % gid)
     curs.execute(q_insert)
-    psql_conn.commit()
     curs.close()
 
 """Write dataset (name -> clowder_id) mapping to PostgreSQL database"""
@@ -97,7 +96,6 @@ def writeDatasetRecordToDatabase(dataset_name, dataset_id):
     curs = psql_conn.cursor()
     #print("Writing dataset %s to PostgreSQL..." % dataset_name)
     curs.execute(q_insert)
-    psql_conn.commit()
     curs.close()
 
 """Write collection (name -> clowder_id) mapping to PostgreSQL database"""
@@ -110,7 +108,6 @@ def writeCollectionRecordToDatabase(collection_name, collection_id):
     curs = psql_conn.cursor()
     #print("Writing collection %s to PostgreSQL..." % collection_name)
     curs.execute(q_insert)
-    psql_conn.commit()
     curs.close()
 
 # ERROR FILES
@@ -123,18 +120,25 @@ root = "/home/globusmonitor/computing-pipeline/scripts/globusmonitor/data"
 #--------------------------------------------------------------------------
 
 psql_conn = connectToPostgres()
+commLoop = 0
 
 # Handle ID maps first
 print("Loading dataset map into Postgres...")
 ds_json = loadJsonFile(os.path.join(root, 'log/datasets.json'))
 for key in ds_json:
     writeDatasetRecordToDatabase(key, ds_json[key])
+    commLoop += 1
+    if commLoop % 10000 == 0:
+        psql_conn.commit()
 del ds_json
 
 print("Loading collection map into Postgres...")
 coll_json = loadJsonFile(os.path.join(root, 'log/collections.json'))
 for key in coll_json:
     writeDatasetRecordToDatabase(key, coll_json[key])
+    commLoop += 1
+    if commLoop % 10000 == 0:
+        psql_conn.commit()
 del coll_json
     
 # Now handle tasks
@@ -159,6 +163,7 @@ for root, dirs, files in os.walk(completed):
                 print("...no JSON object decoded in %s" % fpath)
         if count % 1000 == 0:
             print("...loaded %s files" % count)
+            psql_conn.commit()
 
 print("Data load complete.")
 
