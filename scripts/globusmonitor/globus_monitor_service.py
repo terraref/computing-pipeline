@@ -381,7 +381,7 @@ def writeTaskToDatabase(task):
     q_insert = "INSERT INTO globus_tasks (globus_id, status, received, completed, globus_user, contents) " \
                "VALUES ('%s', '%s', '%s', '%s', '%s', '%s') " \
                "ON CONFLICT (globus_id) DO UPDATE " \
-               "SET status='%s', received='%s', completed='%s', user='%s', contents='%s';" % (
+               "SET status='%s', received='%s', completed='%s', globus_user='%s', contents='%s';" % (
         gid, stat, recv, comp, guser, jbody, stat, recv, comp, guser, jbody)
 
     curs = psql_conn.cursor()
