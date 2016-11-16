@@ -128,7 +128,8 @@ ds_json = loadJsonFile(os.path.join(root, 'log/datasets.json'))
 for key in ds_json:
     writeDatasetRecordToDatabase(key, ds_json[key])
     commLoop += 1
-    if commLoop % 10000 == 0:
+    if commLoop % 100000 == 0:
+        print('...committing after %s total writes' % commLoop)
         psql_conn.commit()
 del ds_json
 
@@ -137,7 +138,8 @@ coll_json = loadJsonFile(os.path.join(root, 'log/collections.json'))
 for key in coll_json:
     writeDatasetRecordToDatabase(key, coll_json[key])
     commLoop += 1
-    if commLoop % 10000 == 0:
+    if commLoop % 100000 == 0:
+        print('...committing after %s total writes' % commLoop)
         psql_conn.commit()
 del coll_json
     
