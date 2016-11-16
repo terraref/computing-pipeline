@@ -52,18 +52,18 @@ def initializeDatabase(db_connection):
 
     # Execute each query
     curs = db_connection.cursor()
-    logger.info("Creating PostgreSQL tables...")
+    print("Creating PostgreSQL tables...")
     curs.execute(ct_tasks)
     curs.execute(ct_dsets)
     curs.execute(ct_colls)
-    logger.info("Creating PostgreSQL indexes...")
+    print("Creating PostgreSQL indexes...")
     curs.execute(ix_tasks)
     curs.execute(ix_dsets)
     curs.execute(ix_colls)
     curs.close()
     db_connection.commit()
 
-    logger.info("PostgreSQL initialization complete.")
+    print("PostgreSQL initialization complete.")
     
 """Write a Globus task into PostgreSQL, insert/update as needed"""
 def writeTaskToDatabase(task):
