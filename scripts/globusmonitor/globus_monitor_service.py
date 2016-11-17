@@ -392,7 +392,7 @@ def writeTaskToDatabase(task):
     curs.close()
 
 """Fetch all Globus tasks with a particular status"""
-def readTasksByStatus(status):
+def readTasksByStatus(status, id_only=False):
     """
     IN PROGRESS (received notification from sender but not yet verified complete)
          FAILED (Globus could not complete; no longer attempting to complete)
@@ -400,21 +400,27 @@ def readTasksByStatus(status):
       SUCCEEDED (verified complete; not yet uploaded into Clowder)
       PROCESSED (complete & uploaded into Clowder)
     """
-    q_fetch = "SELECT * FROM globus_tasks WHERE status = '%s'" % status
+    if id_only:
+        q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s'" % status
+    else:
+        q_fetch = "SELECT * FROM globus_tasks WHERE status = '%s'" % status
     results = []
 
     curs = psql_conn.cursor()
     logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
     curs.execute(q_fetch)
     for result in curs:
-        results.append({
-            "globus_id": result[0],
-            "status": result[1],
-            "received": result[2],
-            "completed": result[3],
-            "user": result[4],
-            "contents": result[5]
-        })
+        if id_only:
+            results.append(result[0])
+        else:
+            results.append({
+                "globus_id": result[0],
+                "status": result[1],
+                "received": result[2],
+                "completed": result[3],
+                "user": result[4],
+                "contents": result[5]
+            })
     curs.close()
 
     return results
@@ -906,7 +912,7 @@ if __name__ == '__main__':
     psql_conn = connectToPostgres()
     readRecordsFromDatabase()
     activeTasks = readTasksByStatus("IN PROGRESS")
-    unprocessedTasks = readTasksByStatus("SUCCEEDED")
+    unprocessedTasks = readTasksByStatus("SUCCEEDED", True)
     generateAuthTokens()
 
     logger.info("- initializing services")
