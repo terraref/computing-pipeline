@@ -1,0 +1,13 @@
+[Unit]
+Description=TERRA Globus Pipeline Monitor
+After=clowder.service
+
+[Service]
+User=ubuntu
+Group=users
+Restart=on-failure
+WorkingDirectory=/home/globusmonitor/computing-pipeline/scripts/globusmonitor
+ExecStart=/usr/bin/python /home/globusmonitor/computing-pipeline/scripts/globusmonitor/globus_monitor_service.py
+
+[Install]
+WantedBy=multi-user.target
