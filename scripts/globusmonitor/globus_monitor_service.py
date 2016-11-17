@@ -386,7 +386,7 @@ def writeTaskToDatabase(task):
         gid, stat, recv, comp, guser, jbody, stat, recv, comp, guser, jbody)
 
     curs = psql_conn.cursor()
-    logger.debug("Writing task %s to PostgreSQL..." % gid)
+    #logger.debug("Writing task %s to PostgreSQL..." % gid)
     curs.execute(q_insert)
     psql_conn.commit()
     curs.close()
@@ -455,7 +455,7 @@ def writeDatasetRecordToDatabase(dataset_name, dataset_id):
         dataset_name, dataset_id, dataset_id)
 
     curs = psql_conn.cursor()
-    logger.debug("Writing dataset %s to PostgreSQL..." % dataset_name)
+    #logger.debug("Writing dataset %s to PostgreSQL..." % dataset_name)
     curs.execute(q_insert)
     psql_conn.commit()
     curs.close()
@@ -468,7 +468,7 @@ def writeCollectionRecordToDatabase(collection_name, collection_id):
         collection_name, collection_id, collection_id)
 
     curs = psql_conn.cursor()
-    logger.debug("Writing collection %s to PostgreSQL..." % collection_name)
+    #logger.debug("Writing collection %s to PostgreSQL..." % collection_name)
     curs.execute(q_insert)
     psql_conn.commit()
     curs.close()
