@@ -402,25 +402,30 @@ def readTasksByStatus(status, id_only=False):
     """
     if id_only:
         q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s'" % status
+        results = []
     else:
         q_fetch = "SELECT * FROM globus_tasks WHERE status = '%s'" % status
-    results = []
+        results = {}
+
 
     curs = psql_conn.cursor()
     logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
     curs.execute(q_fetch)
     for result in curs:
         if id_only:
+            # Just add globus ID to list
             results.append(result[0])
         else:
-            results.append({
-                "globus_id": result[0],
+            # Add record to dictionary, with globus ID as key
+            gid = result[0]
+            results[gid] = {
+                "globus_id": gid,
                 "status": result[1],
                 "received": result[2],
                 "completed": result[3],
                 "user": result[4],
                 "contents": result[5]
-            })
+            }
     curs.close()
 
     return results
@@ -823,7 +828,7 @@ def globusMonitorLoop():
             logger.info("- checking for Globus updates")
             # Use copy of task list so it doesn't change during iteration
             currentActiveTasks = safeCopy(activeTasks)
-            for globusID in currentActiveTasks.keys():
+            for globusID in currentActiveTasks:
                 task = activeTasks[globusID]
                 globusStatus = getGlobusStatus(task)
                 logger.info("%s status received: %s" % (globusID, globusStatus), extra={
