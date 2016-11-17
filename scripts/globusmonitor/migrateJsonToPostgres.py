@@ -119,54 +119,74 @@ def writeCollectionRecordToDatabase(collection_name, collection_id):
 root = "/home/globusmonitor/computing-pipeline/scripts/globusmonitor/data"
 #--------------------------------------------------------------------------
 
+PROCESS_DATASETS = True
+PROCESS_COLLECTIONS = True
+PROCESS_COMPLETED = True
+PROCESS_ACTIVE = True
+
 psql_conn = connectToPostgres()
-commLoop = 0
 
 # Handle ID maps first
-print("Loading dataset map into Postgres...")
-ds_json = loadJsonFile(os.path.join(root, 'log/datasets.json'))
-for key in ds_json:
-    writeDatasetRecordToDatabase(key, ds_json[key])
-    commLoop += 1
-    if commLoop % 100000 == 0:
-        print('...committing after %s total writes' % commLoop)
-        psql_conn.commit()
-del ds_json
+commLoop = 0
+if PROCESS_DATASETS:
+    print("Loading dataset map into Postgres...")
+    ds_json = loadJsonFile(os.path.join(root, 'log/datasets.json'))
+    for key in ds_json:
+        if key != "":
+            writeDatasetRecordToDatabase(key, ds_json[key])
+            commLoop += 1
+            if commLoop % 100000 == 0:
+                print('...committing after %s total writes' % commLoop)
+                psql_conn.commit()
+    del ds_json
 
-print("Loading collection map into Postgres...")
-coll_json = loadJsonFile(os.path.join(root, 'log/collections.json'))
-for key in coll_json:
-    writeDatasetRecordToDatabase(key, coll_json[key])
-    commLoop += 1
-    if commLoop % 100000 == 0:
-        print('...committing after %s total writes' % commLoop)
-        psql_conn.commit()
-del coll_json
-    
+if PROCESS_COLLECTIONS:
+    print("Loading collection map into Postgres...")
+    coll_json = loadJsonFile(os.path.join(root, 'log/collections.json'))
+    for key in coll_json:
+        if key != "":
+            writeCollectionRecordToDatabase(key, coll_json[key])
+            commLoop += 1
+            if commLoop % 100000 == 0:
+                print('...committing after %s total writes' % commLoop)
+                psql_conn.commit()
+    del coll_json
+
 # Now handle tasks
-print("Loading completed.json files into Postgres...")
-completed = os.path.join(root, 'completed')
-unproc_list = loadJsonFile(os.path.join(root, 'log/unprocessed_tasks.txt'))
+active_handled = []
 active_list = loadJsonFile(os.path.join(root, 'log/active_tasks.json'))
-count = 0
-for root, dirs, files in os.walk(completed):
-    for f in files:
-        if f.endswith(".json"):
-            fpath = os.path.join(root, f)
+if PROCESS_COMPLETED:
+    print("Loading completed.json files into Postgres...")
+    completed = os.path.join(root, 'completed')
+    unproc_list = loadJsonFile(os.path.join(root, 'log/unprocessed_tasks.txt'))
 
-            try:
-                taskdata = loadJsonFile(fpath)
-                gid = taskdata['globus_id']
-                if gid in active_list.keys(): taskdata['status'] = 'IN PROGRESS'
-                elif gid not in unproc_list:  taskdata['status'] = 'PROCESSED'
-                writeTaskToDatabase(taskdata)
-                count += 1
-            except ValueError:
-                print("...no JSON object decoded in %s" % fpath)
-        if count % 1000 == 0:
-            print("...loaded %s files" % count)
-            psql_conn.commit()
+    count = 0
+    for root, dirs, files in os.walk(completed):
+        for f in files:
+            if f.endswith(".json"):
+                fpath = os.path.join(root, f)
+
+                try:
+                    taskdata = loadJsonFile(fpath)
+                    gid = taskdata['globus_id']
+                    if gid in active_list.keys():
+                        taskdata['status'] = 'IN PROGRESS'
+                        active_handled += gid
+                    elif gid not in unproc_list:
+                        taskdata['status'] = 'PROCESSED'
+                    writeTaskToDatabase(taskdata)
+                    count += 1
+                except ValueError:
+                    print("...no JSON object decoded in %s" % fpath)
+            if count % 1000 == 0:
+                print("...loaded %s files" % count)
+                psql_conn.commit()
+
+if PROCESS_ACTIVE:
+    print("Loading remaining active tasks...")
+    for gid in active_list.keys():
+        if gid not in active_handled:
+            writeTaskToDatabase(active_list[gid])
+    psql_conn.commit()
 
 print("Data load complete.")
-
-

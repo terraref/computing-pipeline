@@ -316,6 +316,7 @@ def connectToPostgres():
         conn = psycopg2.connect(dbname='globusmonitor')
         initializeDatabase(conn)
 
+    logger.info("Connected to Postgres")
     return conn
 
 """Create PostgreSQL database tables"""
@@ -428,12 +429,11 @@ def readRecordsFromDatabase():
     curs.execute(q_fetch_datas)
     for currds in curs:
         datasetMap[currds[0]] = currds[1]
-    curs.close()
 
     logger.debug("Fetching collection mappings from PostgreSQL...")
     curs.execute(q_detch_colls)
     for currco in curs:
-        datasetMap[currco[0]] = currco[1]
+        collectionMap[currco[0]] = currco[1]
     curs.close()
 
 """Write dataset (name -> clowder_id) mapping to PostgreSQL database"""
