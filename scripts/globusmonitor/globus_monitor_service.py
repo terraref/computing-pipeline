@@ -823,7 +823,7 @@ def globusMonitorLoop():
             logger.info("- checking for Globus updates")
             # Use copy of task list so it doesn't change during iteration
             currentActiveTasks = safeCopy(activeTasks)
-            for globusID in currentActiveTasks:
+            for globusID in currentActiveTasks.keys():
                 task = activeTasks[globusID]
                 globusStatus = getGlobusStatus(task)
                 logger.info("%s status received: %s" % (globusID, globusStatus), extra={
