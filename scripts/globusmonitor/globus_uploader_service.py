@@ -547,7 +547,7 @@ def clowderSubmissionLoop():
         if clowderWait >= config['clowder']['globus_processing_frequency']:
             task = getNextUnprocessedTask()
 
-            if task:
+            while task:
                 globusID = task['globus_id']
                 clowderDone = notifyClowderOfCompletedTask(task)
                 if clowderDone:
@@ -559,6 +559,8 @@ def clowderSubmissionLoop():
                     writeTaskToDatabase(task)
                 else:
                     logger.error("%s not successfully sent" % globusID)
+
+                task = getNextUnprocessedTask()
 
             clowderWait = 0
 
