@@ -860,24 +860,6 @@ def notifyMonitorOfNewTransfer(globusID, contents):
         logger.error("- cannot connect to NCSA API")
         return {'status_code':503}
 
-"""Send message to NCSA Globus monitor API with metadata for a dataset, without other files"""
-def sendMetadataToMonitor(datasetName, metadata):
-    sess = requests.Session()
-    sess.auth = (config['globus']['username'], config['globus']['password'])
-
-    # Check with Globus monitor rather than Globus itself, to make sure file was handled properly before deleting from src
-    logger.info("- sending metadata for %s" % datasetName)
-    try:
-        status = sess.post(config['ncsa_api']['host']+"/metadata", data=json.dumps({
-            "user": config['globus']['username'],
-            "dataset": datasetName,
-            "md": metadata
-        }))
-        return status
-    except requests.ConnectionError as e:
-        logger.error("- cannot connect to NCSA API")
-        return {'status_code':503}
-
 """Contact NCSA Globus monitor API to check whether task was completed successfully"""
 def getTransferStatusFromMonitor(globusID):
     sess = requests.Session()

@@ -1,5 +1,6 @@
 {
-  "log_path": "home/globusmonitor/data/log/log.txt",
+  "monitor_log_path": "home/globusmonitor/data/log/monitor_log.txt",
+  "uploader_log_path": "home/globusmonitor/data/log/uploader_log.txt",
   "active_tasks_path": "home/globusmonitor/data/log/active_tasks.json",
   "unprocessed_tasks_path": "home/globusmonitor/data/log/unprocessed_tasks.txt",
   "completed_tasks_path": "home/globusmonitor/data/completed",
