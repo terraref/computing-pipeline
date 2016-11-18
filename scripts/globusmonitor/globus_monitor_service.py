@@ -214,7 +214,7 @@ def initializeDatabase(db_connection):
 
 """Fetch a Globus task from PostgreSQL"""
 def readTaskFromDatabase(globus_id):
-   q_fetch = "SELECT globus_id, status, received, completed, user," \
+   q_fetch = "SELECT globus_id, status, received, completed, globus_user, " \
              "file_count, bytes, contents FROM globus_tasks WHERE globus_id = '%s'" % globus_id
 
    curs = psql_conn.cursor()
@@ -275,7 +275,7 @@ def readTasksByStatus(status, id_only=False):
         q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s'" % status
         results = []
     else:
-        q_fetch = "SELECT globus_id, status, received, completed, user," \
+        q_fetch = "SELECT globus_id, status, received, completed, globus_user, " \
                   "file_count, bytes, contents FROM globus_tasks WHERE status = '%s'" % status
         results = {}
 
