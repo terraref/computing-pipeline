@@ -186,7 +186,9 @@ def connectToPostgres():
 """Create PostgreSQL database tables"""
 def initializeDatabase(db_connection):
     # Table creation queries
-    ct_tasks = "CREATE TABLE globus_tasks (globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL, received TEXT NOT NULL, completed TEXT, globus_user TEXT, contents JSON);"
+    ct_tasks = "CREATE TABLE globus_tasks (globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL, " \
+               "received TEXT NOT NULL, completed TEXT, " \
+               "file_count INT, bytes INT, globus_user TEXT, contents JSON);"
     ct_dsets = "CREATE TABLE datasets (name TEXT PRIMARY KEY NOT NULL, clowder_id TEXT NOT NULL);"
     ct_colls = "CREATE TABLE collections (name TEXT PRIMARY KEY NOT NULL, clowder_id TEXT NOT NULL);"
 
@@ -212,7 +214,8 @@ def initializeDatabase(db_connection):
 
 """Fetch a Globus task from PostgreSQL"""
 def readTaskFromDatabase(globus_id):
-   q_fetch = "SELECT * FROM globus_tasks WHERE globus_id = '%s'" % globus_id
+   q_fetch = "SELECT globus_id, status, received, completed, user," \
+             "file_count, bytes, contents FROM globus_tasks WHERE globus_id = '%s'" % globus_id
 
    curs = psql_conn.cursor()
    logger.debug("Fetching task %s from PostgreSQL..." % globus_id)
@@ -227,7 +230,9 @@ def readTaskFromDatabase(globus_id):
            "received": result[2],
            "completed": result[3],
            "user": result[4],
-           "contents": result[5]
+           "file_count": result[5],
+           "bytes": result[6],
+           "contents": result[7]
        }
    else:
        logger.debug("Task %s not found in PostgreSQL" % globus_id)
@@ -240,14 +245,16 @@ def writeTaskToDatabase(task):
     recv = task['received']
     comp = task['completed']
     guser = task['user']
+    filecount = int(task['file_count']) if 'file_count' in task else -1
+    bytecount = int(task['bytes']) if 'bytes' in task else -1
     jbody = json.dumps(task['contents'])
 
     # Attempt to insert, update if globus ID already exists
-    q_insert = "INSERT INTO globus_tasks (globus_id, status, received, completed, globus_user, contents) " \
-               "VALUES ('%s', '%s', '%s', '%s', '%s', '%s') " \
+    q_insert = "INSERT INTO globus_tasks (globus_id, status, received, completed, globus_user, file_count, bytes, contents) " \
+               "VALUES ('%s', '%s', '%s', '%s', '%s', %s, %s, '%s') " \
                "ON CONFLICT (globus_id) DO UPDATE " \
-               "SET status='%s', received='%s', completed='%s', globus_user='%s', contents='%s';" % (
-        gid, stat, recv, comp, guser, jbody, stat, recv, comp, guser, jbody)
+               "SET status='%s', received='%s', completed='%s', globus_user='%s', file_count=%s, bytes=%s, contents='%s';" % (
+        gid, stat, recv, comp, guser, filecount, bytecount, jbody, stat, recv, comp, guser, filecount, bytecount, jbody)
 
     curs = psql_conn.cursor()
     #logger.debug("Writing task %s to PostgreSQL..." % gid)
@@ -288,7 +295,9 @@ def readTasksByStatus(status, id_only=False):
                 "received": result[2],
                 "completed": result[3],
                 "user": result[4],
-                "contents": result[5]
+                "file_count": result[5],
+                "bytes": result[6],
+                "contents": result[7]
             }
     curs.close()
 
@@ -465,11 +474,11 @@ def generateAuthTokens():
             ).token
 
 """Query Globus API to get current transfer status of a given task"""
-def getGlobusStatus(task):
+def getGlobusTaskData(task):
     authToken = config['globus']['valid_users'][task['user']]['auth_token']
     api = TransferAPIClient(username=task['user'], goauth=authToken)
     try:
-        logger.debug("%s requesting status from Globus" % task['globus_id'])
+        logger.debug("%s requesting task data from Globus" % task['globus_id'])
         status_code, status_message, task_data = api.task(task['globus_id'])
     except (APIError, ClientError) as e:
         try:
@@ -483,7 +492,7 @@ def getGlobusStatus(task):
             status_code = 503
 
     if status_code == 200:
-        return task_data['status']
+        return task_data
     else:
         return None
 
@@ -503,26 +512,34 @@ def globusMonitorLoop():
             currentActiveTasks = safeCopy(activeTasks)
             for globusID in currentActiveTasks:
                 task = activeTasks[globusID]
-                globusStatus = getGlobusStatus(task)
-                logger.info("%s status received: %s" % (globusID, globusStatus), extra={
-                    "globus_id": globusID,
-                    "status": globusStatus,
-                    "action": "STATUS UPDATED"
-                })
+                task_data = getGlobusTaskData(task)
 
-                # If this isn't done yet, leave the task active so we can try again next time
-                if globusStatus in ["SUCCEEDED", "FAILED"]:
-                    # Update task parameters
-                    task['status'] = globusStatus
-                    task['completed'] = str(datetime.datetime.now())
-                    for ds in task['contents']:
-                        if 'files' in task['contents'][ds]:
-                            for f in task['contents'][ds]['files']:
-                                fobj = task['contents'][ds]['files'][f]
-                                fobj['path'] = os.path.join(config['globus']['incoming_files_path'], fobj['path'])
+                if task_data:
+                    globusStatus = task_data['status']
+                    logger.info("%s status received: %s" % (globusID, globusStatus), extra={
+                        "globus_id": globusID,
+                        "status": globusStatus,
+                        "action": "STATUS UPDATED"
+                    })
 
-                    writeTaskToDatabase(task)
-                    del activeTasks[globusID]
+                    # If this isn't done yet, leave the task active so we can try again next time
+                    if globusStatus in ["SUCCEEDED", "FAILED"]:
+                        # Update task parameters
+                        task['status'] = globusStatus
+                        task['received'] = task_data['request_time']
+                        task['completed'] = task_data['completion_time']
+                        task['file_count'] = task_data['files']
+                        task['bytes'] = task_data['bytes_transferred']
+
+                        # Update task file paths
+                        for ds in task['contents']:
+                            if 'files' in task['contents'][ds]:
+                                for f in task['contents'][ds]['files']:
+                                    fobj = task['contents'][ds]['files'][f]
+                                    fobj['path'] = os.path.join(config['globus']['incoming_files_path'], fobj['path'])
+
+                        writeTaskToDatabase(task)
+                        del activeTasks[globusID]
 
             logger.debug("- done checking for Globus updates")
 
