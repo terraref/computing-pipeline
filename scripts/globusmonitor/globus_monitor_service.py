@@ -516,6 +516,10 @@ def globusMonitorLoop():
 
                 if task_data:
                     globusStatus = task_data['status']
+                    task['received'] = task_data['request_time']
+                    task['file_count'] = task_data['files']
+                    task['bytes'] = task_data['bytes_transferred']
+
                     logger.info("%s status received: %s" % (globusID, globusStatus), extra={
                         "globus_id": globusID,
                         "status": globusStatus,
@@ -526,11 +530,8 @@ def globusMonitorLoop():
                     if globusStatus in ["SUCCEEDED", "FAILED"]:
                         # Update task parameters
                         task['status'] = globusStatus
-                        task['received'] = task_data['request_time']
                         task['completed'] = task_data['completion_time']
-                        task['file_count'] = task_data['files']
-                        task['bytes'] = task_data['bytes_transferred']
-
+                        
                         # Update task file paths
                         for ds in task['contents']:
                             if 'files' in task['contents'][ds]:
