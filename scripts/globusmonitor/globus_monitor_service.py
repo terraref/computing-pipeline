@@ -273,7 +273,7 @@ def readTasksByStatus(status, id_only=False):
 
 
     curs = psql_conn.cursor()
-    logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
+    #logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
     curs.execute(q_fetch)
     for result in curs:
         if id_only:
