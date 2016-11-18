@@ -275,7 +275,8 @@ def readTasksByStatus(status, id_only=False):
         q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s'" % status
         results = []
     else:
-        q_fetch = "SELECT * FROM globus_tasks WHERE status = '%s'" % status
+        q_fetch = "SELECT globus_id, status, received, completed, user," \
+                  "file_count, bytes, contents FROM globus_tasks WHERE status = '%s'" % status
         results = {}
 
 
@@ -531,7 +532,7 @@ def globusMonitorLoop():
                         # Update task parameters
                         task['status'] = globusStatus
                         task['completed'] = task_data['completion_time']
-                        
+
                         # Update task file paths
                         for ds in task['contents']:
                             if 'files' in task['contents'][ds]:
