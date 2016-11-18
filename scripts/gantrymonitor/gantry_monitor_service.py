@@ -941,7 +941,7 @@ def globusMonitorLoop():
                 task = activeTasks[globusID]
 
                 globusStatus = getTransferStatusFromMonitor(globusID)
-                if globusStatus in ["SUCCEEDED", "FAILED"]:
+                if globusStatus in ["SUCCEEDED", "PROCESSED", "FAILED"]:
                     logger.info("%s status update received: %s" % (globusID, globusStatus), extra={
                         "globus_id": globusID,
                         "action": "STATUS UPDATE",
@@ -990,9 +990,9 @@ def globusCleanupLoop():
             for gid in currentlyActiveTasks:
                 task = activeTasks[gid]
 
-                if task['status'] in ["SUCCEEDED", "FAILED"]:
+                if task['status'] in ["SUCCEEDED", "PROCESSED", "FAILED"]:
                     # Move files to staging area for deletion
-                    if task['status'] == "SUCCEEDED":
+                    if task['status'] == "SUCCEEDED" or task['status'] == "PROCESSED":
                         logger.info("%s creating symlinks" % gid)
                         deleteDir = config['gantry']['deletion_queue']
                         if deleteDir != "":
