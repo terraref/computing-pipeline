@@ -583,5 +583,4 @@ if __name__ == '__main__':
 
     logger.info("- initializing service")
     # Create thread for service to begin monitoring
-    thread.start_new_thread(clowderSubmissionLoop, ())
-    logger.info("*** Service now waiting to process completed tasks into Clowder ***")
+    clowderSubmissionLoop()
