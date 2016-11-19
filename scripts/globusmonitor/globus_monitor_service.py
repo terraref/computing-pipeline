@@ -188,7 +188,7 @@ def initializeDatabase(db_connection):
     # Table creation queries
     ct_tasks = "CREATE TABLE globus_tasks (globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL, " \
                "received TEXT NOT NULL, completed TEXT, " \
-               "file_count INT, bytes INT, globus_user TEXT, contents JSON);"
+               "file_count INT, bytes BIGINT, globus_user TEXT, contents JSON);"
     ct_dsets = "CREATE TABLE datasets (name TEXT PRIMARY KEY NOT NULL, clowder_id TEXT NOT NULL);"
     ct_colls = "CREATE TABLE collections (name TEXT PRIMARY KEY NOT NULL, clowder_id TEXT NOT NULL);"
 
