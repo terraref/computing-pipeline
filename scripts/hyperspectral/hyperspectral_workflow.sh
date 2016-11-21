@@ -9,7 +9,7 @@
 # https://github.com/terraref/computing-pipeline/issues/88 # Calibration employed until 20160908
 
 # Prerequisites:
-# NCO version 4.6.0 (dated 20160401) or later
+# NCO version 4.6.2 (dated 20161116) or later
 # Python: Python 2.7.X or 3.X (preferred) with netCDF4 module
 # hyperspectral_workflow.sh, hyperspectral_calibration.nco, hyperspectral_metadata.py and environmental_logger_json2netcdf.py must be in same directory
 

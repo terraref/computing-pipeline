@@ -2,7 +2,8 @@
 
 '''
 Created on Feb 5, 2016
-This module parses JSON formatted metadata and data and header provided by LemnaTec and outputs a formatted netCDF4 file
+
+Purpose: Parse JSON-formatted metadata and data and header provided by LemnaTec to produce netCDF4 output
 
 @author: jeromemao
 ----------------------------------------------------------------------------------------
@@ -25,15 +26,15 @@ Data: data_raw
 Metadata: data_metadata.json
 Header: data_raw.hdr
 
-The correct command is
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_metadata.py ${DATA}/terraref/data_raw ${DATA}/terraref/output
-
-hyperspectral_metadata.py will authomatically find data_raw, data_metadata.json and data_raw.hdr
+Usage:
+python hyperspectral_metadata.py -dbg=json in.json out.nc
 
 Example:
-python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_metadata.py -dbg=json ${DATA}/terraref/test_metadata.json ${DATA}/terraref/data
+python ${HOME}/terraref/computing-pipeline/scripts/hyperspectral/hyperspectral_metadata.py -dbg=json ${DATA}/terraref/VNIR/2016-10-06/2016-10-06__15-21-20-178/b73a4f00-4140-4576-8c70-8e1d26ae245e_raw ~/foo.nc
+
+If pointed to a directory rather than a file, hyperspectral_metadata.py will authomatically find data_raw, data_metadata.json and data_raw.hdr
 ----------------------------------------------------------------------------------------
-UPDATE LOG (reverse chronological order)
+UPDATE LOG (reverse chronological order):
 
 Update 20160901:
 Rename from JsonDealer.py to hyperspectral_metadata.py
