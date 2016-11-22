@@ -47,7 +47,7 @@ fi # HOSTNAME
 case "${HOSTNAME}" in 
     cg-gpu* | cg-cmp* ) # Roger login nodes named "cg-gpu*", compute nodes named "cg-cmp*"
 	module add gdal-stack-2.7.10 # 20160422: /usr/bin/python is version 2.6.6. Must load Python 2.7+
-	module add netcdf nco # hyperspectral_workflow.sh requires NCO version 4.6.0 (dated 20160401) or later
+	module add netcdf nco # hyperspectral_workflow.sh requires NCO version 4.6.2 (dated 20161116) or later
 	# Following two lines guarantee use of latest NCO executables Zender's directories:
 	#       export PATH='/home/zender/bin'\:${PATH}
 	#	export LD_LIBRARY_PATH='/home/zender/lib'\:${LD_LIBRARY_PATH} ; ;;
