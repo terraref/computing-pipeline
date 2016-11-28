@@ -89,11 +89,11 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
 
     #################### Test Cases ####################
 
-    def testTheNumberOfGroupsInRootLevelIsCorrect(self):
-        '''
-        Check if there are six groups in the root level
-        '''
-        self.assertEqual(len(self.groups), EXPECTED_NUMBER_OF_GROUPS, msg="There should be six groups total")
+    # def testTheNumberOfGroupsInRootLevelIsCorrect(self):
+    #     '''
+    #     Check if there are six groups in the root level
+    #     '''
+    #     self.assertEqual(len(self.groups), EXPECTED_NUMBER_OF_GROUPS, msg="There should be six groups total")
 
     @unittest.expectedFailure
     def testTheNumberOfDimensionsInRootLevelIsCorrect(self):
@@ -111,26 +111,26 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
     def testTheWavelengthDimensionsHaveCorrectValues(self):
         self.assertIn(len(self.dimensions["wavelength"]), (272, 955), msg="The dimension for wavelength should be either 272 or 955")
 
-    def testTheGantrySystemFixedMetadataGroupIsCorrectlyNamed(self):
-        '''
-        Check if all the groups are named as what we want
-        '''
-        self.assertIn("gantry_system_fixed_metadata", self.groups, msg="gantry_system_fixed_metadata should be a group in root level")
+    # def testTheGantrySystemFixedMetadataGroupIsCorrectlyNamed(self):
+    #     '''
+    #     Check if all the groups are named as what we want
+    #     '''
+    #     self.assertIn("gantry_system_fixed_metadata", self.groups, msg="gantry_system_fixed_metadata should be a group in root level")
         
-    def testTheSensorFixedMetadataGroupIsCorrectlyNamed(self):
-        self.assertIn("sensor_fixed_metadata", self.groups, msg="sensor_fixed_metadata should be a group in root level")
+    # def testTheSensorFixedMetadataGroupIsCorrectlyNamed(self):
+    #     self.assertIn("sensor_fixed_metadata", self.groups, msg="sensor_fixed_metadata should be a group in root level")
         
-    def testTheGantrySystemVariableMetadataGroupIsCorrectlyNamed(self):
-        self.assertIn("gantry_system_variable_metadata", self.groups, msg="gantry_system_variable_metadata should be a group in root level")
+    # def testTheGantrySystemVariableMetadataGroupIsCorrectlyNamed(self):
+    #     self.assertIn("gantry_system_variable_metadata", self.groups, msg="gantry_system_variable_metadata should be a group in root level")
         
-    def testTheUserGivenMetadataGroupIsCorrectlyNamed(self):
-        self.assertIn("user_given_metadata", self.groups, msg="user_given_metadata should be a group in root level")
+    # def testTheUserGivenMetadataGroupIsCorrectlyNamed(self):
+    #     self.assertIn("user_given_metadata", self.groups, msg="user_given_metadata should be a group in root level")
         
-    def testTheSensorVariableMetadataGroupIsCorrectlyNamed(self):
-        self.assertIn("sensor_variable_metadata", self.groups, msg="gantry_system_fixed_metadata should be a group in root level")
+    # def testTheSensorVariableMetadataGroupIsCorrectlyNamed(self):
+    #     self.assertIn("sensor_variable_metadata", self.groups, msg="gantry_system_fixed_metadata should be a group in root level")
         
-    def testTheHeaderInfoGroupIsCorrectlyNamed(self):
-        self.assertIn("header_info", self.groups, msg="header_info should be a group in root level")
+    # def testTheHeaderInfoGroupIsCorrectlyNamed(self):
+    #     self.assertIn("header_info", self.groups, msg="header_info should be a group in root level")
 
     def testWavelengthArrayHasEnoughData(self):
         '''
@@ -170,44 +170,44 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
         self.frameTime = self.masterNetCDFHandler.variables["frametime"]       
         self.assertGreater(self.frameTime[0], 17000, msg="The value for frametime should anyhow larger than 17000")
     
-    def testRedBandIndexIsCorrectlyRecorded(self):
-        '''
-        Check if there are three band indices and their values are correct
-        '''
-        self.headerInformation = self.groups["header_info"]
-        self.redIndex   = self.headerInformation.variables["red_band_index"]
+    # def testRedBandIndexIsCorrectlyRecorded(self):
+    #     '''
+    #     Check if there are three band indices and their values are correct
+    #     '''
+    #     self.headerInformation = self.groups["header_info"]
+    #     self.redIndex   = self.headerInformation.variables["red_band_index"]
 
-        self.assertEqual(self.redIndex[...],   235, msg="The value of red_band_index is always 235")
+    #     self.assertEqual(self.redIndex[...],   235, msg="The value of red_band_index is always 235")
 
-    def testBlueBandIndexIsCorrectlyRecorded(self):
-        self.headerInformation = self.groups["header_info"]
+    # def testBlueBandIndexIsCorrectlyRecorded(self):
+    #     self.headerInformation = self.groups["header_info"]
 
-        self.blueIndex  = self.headerInformation.variables["blue_band_index"]
-        self.assertEqual(self.blueIndex[...],  141, msg="The value of blue_band_index is always 141")
+    #     self.blueIndex  = self.headerInformation.variables["blue_band_index"]
+    #     self.assertEqual(self.blueIndex[...],  141, msg="The value of blue_band_index is always 141")
 
-    def testGreenBandIndexIsCorrectlyRecorded(self):
-        self.headerInformation = self.groups["header_info"]
+    # def testGreenBandIndexIsCorrectlyRecorded(self):
+    #     self.headerInformation = self.groups["header_info"]
 
-        self.greenIndex = self.headerInformation.variables["green_band_index"]
-        self.assertEqual(self.greenIndex[...], 501, msg="The value of green_band_index is always 501")
+    #     self.greenIndex = self.headerInformation.variables["green_band_index"]
+    #     self.assertEqual(self.greenIndex[...], 501, msg="The value of green_band_index is always 501")
 
-    def testGreenBandIndexIsUnsignedShortInteger(self):
-        self.headerInformation = self.groups["header_info"]
+    # def testGreenBandIndexIsUnsignedShortInteger(self):
+    #     self.headerInformation = self.groups["header_info"]
 
-        self.greenIndex = self.headerInformation.variables["green_band_index"]
-        self.assertEqual(self.greenIndex.dtype, "u2", msg="Indices must be saved as unsigned short integers")
+    #     self.greenIndex = self.headerInformation.variables["green_band_index"]
+    #     self.assertEqual(self.greenIndex.dtype, "u2", msg="Indices must be saved as unsigned short integers")
 
-    def testBlueBandIndexIsUnsignedShortInteger(self):
-        self.headerInformation = self.groups["header_info"]
+    # def testBlueBandIndexIsUnsignedShortInteger(self):
+    #     self.headerInformation = self.groups["header_info"]
 
-        self.blueIndex = self.headerInformation.variables["blue_band_index"]
-        self.assertEqual(self.blueIndex.dtype, "u2", msg="Indices must be saved as unsigned short integers")
+    #     self.blueIndex = self.headerInformation.variables["blue_band_index"]
+    #     self.assertEqual(self.blueIndex.dtype, "u2", msg="Indices must be saved as unsigned short integers")
 
-    def testRedBandIndexIsUnsignedShortInteger(self):
-        self.headerInformation = self.groups["header_info"]
+    # def testRedBandIndexIsUnsignedShortInteger(self):
+    #     self.headerInformation = self.groups["header_info"]
 
-        self.redIndex = self.headerInformation.variables["red_band_index"]
-        self.assertEqual(self.redIndex.dtype, "u2", msg="Indices must be saved as unsigned short integers")
+    #     self.redIndex = self.headerInformation.variables["red_band_index"]
+    #     self.assertEqual(self.redIndex.dtype, "u2", msg="Indices must be saved as unsigned short integers")
 
     def testXHaveCorrectValuesAndAttributes(self):
         '''
@@ -226,19 +226,19 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
         self.assertEqual(len(self.y), 169,  msg="The height of the image should always be 169 pxl")
         self.assertEqual(self.y.units, "meter", msg="The unit for y should always be meter")
 
-    def testPositionVariablesAreCorrectlyFormatted(self):
-        self.variable_metadata = self.groups["gantry_system_variable_metadata"].variables
-        self.assertIn("position_x", self.variable_metadata, msg="The position should be named as position x")
+    # def testPositionVariablesAreCorrectlyFormatted(self):
+    #     self.variable_metadata = self.groups["gantry_system_variable_metadata"].variables
+    #     self.assertIn("position_x", self.variable_metadata, msg="The position should be named as position x")
 
-        self.assertEqual(self.variable_metadata["position_x"].units, "meter", msg="The position should has an unit of meter")
-        self.assertEqual(self.variable_metadata["position_x"].long_name, "Position in X Direction", msg="The position should has a correctly formatted long name")
+    #     self.assertEqual(self.variable_metadata["position_x"].units, "meter", msg="The position should has an unit of meter")
+    #     self.assertEqual(self.variable_metadata["position_x"].long_name, "Position in X Direction", msg="The position should has a correctly formatted long name")
 
-    def testSpeedVariablesAreCorrectlyFormatted(self):
-        self.variable_metadata = self.groups["gantry_system_variable_metadata"].variables
-        self.assertIn("speed_x", self.variable_metadata, msg="The position should be named as speed x")
+    # def testSpeedVariablesAreCorrectlyFormatted(self):
+    #     self.variable_metadata = self.groups["gantry_system_variable_metadata"].variables
+    #     self.assertIn("speed_x", self.variable_metadata, msg="The position should be named as speed x")
 
-        self.assertEqual(self.variable_metadata["speed_x"].units, "meter second-1", msg="The speed should has an unit of meter second-1")
-        self.assertEqual(self.variable_metadata["speed_x"].long_name, "Gantry Speed in X Direction", msg="The speed should has a correctly formatted long name")
+    #     self.assertEqual(self.variable_metadata["speed_x"].units, "meter second-1", msg="The speed should has an unit of meter second-1")
+    #     self.assertEqual(self.variable_metadata["speed_x"].long_name, "Gantry Speed in X Direction", msg="The speed should has a correctly formatted long name")
 
     # Marked as a parameterized testcases; will be executed several times
     @HyperspectralWorkflowTestWidget.ParameterizedTest(["units", "reference_point", "long_name", "algorithm"])
