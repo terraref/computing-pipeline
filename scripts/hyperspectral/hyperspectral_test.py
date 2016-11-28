@@ -220,6 +220,7 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
     def testYHaveCorrectValuesAndAttributes(self):
         '''
         Check if the georeferencing data are correct (for x and y)
+        CHANGE the msg.
         '''
         self.y = self.masterNetCDFHandler.variables["y"]
         self.assertEqual(len(self.y), 169,  msg="The height of the image should always be 169 pxl")
