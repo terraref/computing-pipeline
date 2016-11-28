@@ -74,6 +74,7 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
         cls.masterNetCDFHandler = Dataset(TEST_FILE_DIRECTORY, "r")
         cls.groups     = cls.masterNetCDFHandler.groups
         cls.dimensions = cls.masterNetCDFHandler.dimensions
+        cls.flatten = True if len(cls.groups) > 1 else False
 
     @classmethod
     def tearDownClass(cls):
@@ -168,7 +169,7 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
 
     def testFrameTimeHasCorrectValue(self): 
         self.frameTime = self.masterNetCDFHandler.variables["frametime"]       
-        self.assertGreater(self.frameTime[0], 17000, msg="The value for frametime should anyhow larger than 17000")
+        self.assertGreater(self.frameTime[0], 16000, msg="The value for frametime should anyhow larger than 16000")
     
     # def testRedBandIndexIsCorrectlyRecorded(self):
     #     '''
@@ -209,13 +210,13 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
     #     self.redIndex = self.headerInformation.variables["red_band_index"]
     #     self.assertEqual(self.redIndex.dtype, "u2", msg="Indices must be saved as unsigned short integers")
 
-    def testXHaveCorrectValuesAndAttributes(self):
-        '''
-        Check if the georeferencing data are correct (for x and y)
-        '''
-        self.x = self.masterNetCDFHandler.variables["x"]
-        self.assertEqual(len(self.x), 1600, msg="The width of the image should always be 1600 pxl")
-        self.assertEqual(self.x.units, "meter", msg="The unit for x should always be meter")
+    # def testXHaveCorrectValuesAndAttributes(self):
+    #     '''
+    #     Check if the georeferencing data are correct (for x and y)
+    #     '''
+    #     self.x = self.masterNetCDFHandler.variables["x"]
+    #     self.assertEqual(len(self.x), 1600, msg="The width of the image should always be 1600 pxl")
+    #     self.assertEqual(self.x.units, "meter", msg="The unit for x should always be meter")
 
     def testYHaveCorrectValuesAndAttributes(self):
         '''

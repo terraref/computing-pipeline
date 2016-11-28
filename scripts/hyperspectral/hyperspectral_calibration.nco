@@ -43,13 +43,11 @@ if(min(wavelength) < 0.5e-6){
 // Add georeferenced coordinates
 // Store x and y in double-precision in case we use lat/lon
 // If stored as meters from image or gantry corner, then single-precision might be adequate
-x=array(0.0,x_pxl_spc,$x);
 x@long_name="North distance from southeast corner of field";
 x@units="meter";
 x@orientation="The x-dimension (which runs north-south) spans what are called samples or pixels. The y-dimension (which runs east-west) spans what are called lines or scanlines or frames. Normal, non-calibration images have the same number of pixels (384 or 1600 for SWIR and VNIR, respectively) and a variable number of lines/frames (images) that the camera takes as the camera box moves east-west.";
 x@algorithm="Based on https://github.com/terraref/computing-pipeline/issues/144, x is derived from camera geometry including the Aperature Field-of-View (AFOV), the Horizontal Field-of-View (HFOV), and the height of the camera above the canopy (aka the Working Distance, or WD). We take WD = 2 m. Focal length (about 25 mm) is ignored in this estimate because it is much smaller than the WD. The camera geometry implies that AFOV[degrees]=2*atan(HFOV/WD). We use AFOV=21 and 44.6 degress for SWIR and VNIR, respectively. Then we solve for HFOV, and that distance is equally apportioned to 384 or 1600 pixels for SWIR or VNIR, respectively. For SWIR x = 1.93mm, for VNIR x = 1.025mm.";
 
-y=array(0.0,0.00098526434004512529576754637665,$y);
 y@long_name="West distance from southeast corner of field";
 y@units="meter";
 y@orientation="The x-dimension (which runs north-south) spans what are called samples or pixels. The y-dimension (which runs east-west) spans what are called lines or scanlines or frames. Normal, non-calibration images have the same number of pixels (384 or 1600 for SWIR and VNIR, respectively) and a variable number of lines/frames (images) the camera takes as the camera box moves east-west.";
