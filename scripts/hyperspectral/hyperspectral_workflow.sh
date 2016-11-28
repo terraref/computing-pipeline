@@ -567,13 +567,13 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	printf "jsn(in)  : ${jsn_in}\n"
 	printf "jsn(out) : ${jsn_fl}\n"
 
-	dbg_cmd="dbg=yes" # display debug information (yes/no)
-	fmt_cmd="fmt=4" # format option (netCDF[3]/netCDF[4])
-	ftn_cmd="ftn=no" # flatten option (yes/no)
+	dbg_cmd="dbg=yes" # Display debug information
+	fmt_cmd="fmt=4" # netCDF format (netCDF[3]/netCDF[4])
+	ftn_cmd="ftn=no" # Flatten output file
 
 	if [ ${dbg_lvl} -eq 0 ]; then
-		dbg_cmd="dbg=no" # make it quiet
-	fi
+	    dbg_cmd="dbg=no" # Quiet
+	fi # !dbg
 
 	cmd_jsn[${fl_idx}]="python ${drc_spt}/hyperspectral_metadata.py ${dbg_cmd} ${fmt_cmd} ${ftn_cmd} ${jsn_in} ${jsn_out}"
 	if [ ${dbg_lvl} -ge 1 ]; then
