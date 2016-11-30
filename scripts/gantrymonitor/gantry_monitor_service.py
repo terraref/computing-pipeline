@@ -753,9 +753,13 @@ def initializeGlobusTransfer():
                         dest_path = dest_path.replace("MovingSensor/", "")
                         dest_path = dest_path.replace("MAC/", "")
                         dest_path = dest_path.replace("3DScannerRawDataTmp/", "")
+                        dest_path = dest_path.replace("3DScannerRawDataLowerOnEastSideTmp/", "")
+                        dest_path = dest_path.replace("3DScannerRawDataLowerOnWestSideTmp/", "")
                         # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.png
                         # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
-                        if dest_path.endswith(".ply") and dest_path.find("scanner3DTop") > -1:
+                        if dest_path.endswith(".ply") and (dest_path.find("scanner3DTop") or
+                                                               dest_path.find("scanner3DLowerOnEastSide") or
+                                                               dest_path.find("scanner3DLowerOnWestSide")) > -1:
                             dest_path = dest_path.replace("raw_data", "Level_1")
                         if dest_path.find("MovingSensor.reproc") > -1:
                             new_dest_path = ""
