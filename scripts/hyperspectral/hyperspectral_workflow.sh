@@ -72,8 +72,8 @@ esac # !HOSTNAME
 # hyperspectral_workflow.sh $fl > ~/hyperspectral.out 2>&1 &
 
 # Debugging and Benchmarking:
-# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/whiteReference_raw -o whiteReference.nc -O ~/rgr > ~/hyperspectral.out 2>&1 &
-# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/MovingSensor/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o ~/foo.nc > ~/hyperspectral.out 2>&1 &
+# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/hyperspectral_tst_raw -o ~/hyperspectral_tst.nc > ~/hyperspectral.out 2>&1 &
+# hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/SWIR/2016-03-05/2016-03-05__09-46_17_450/8d54accb-0858-4e31-aaac-e021b31f3188_raw -o ~/foo.nc > ~/hyperspectral.out 2>&1 &
 # hyperspectral_workflow.sh -d 1 -i ${DATA}/terraref/VNIR/2016-10-06/2016-10-06__15-21-20-178/b73a4f00-4140-4576-8c70-8e1d26ae245e_raw -o ~/foo.nc > ~/hyperspectral.out 2>&1 &
 
 # dbg_lvl: 0 = Quiet, print basic status during evaluation
