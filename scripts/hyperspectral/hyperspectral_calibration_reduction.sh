@@ -1,8 +1,10 @@
-# Purpose: Reduce raw calibration data (~10 GB) to exopsures (~10 kB) used by hyperspectral_calibration.nco
+# Purpose: Reduce raw calibration data (~10 GB) to exposures (~10 kB) used by hyperspectral_calibration.nco
 # Script is run off-line, usually on CSZ's machines, although that could be generalized
 # Input names and formats provided by Lemnatec are non-standard (e.g., 7Z)
 # Hence this script will need to change for every generation of white and dark references
 # Output files contain xps_img_[drk/wht] variables in one file per exposure time
+
+# Source: https://github.com/terraref/computing-pipeline/tree/master/scripts/hyperspectral/hyperspectral_calibration_reduction.sh
 
 # Directory for hyperspectral calibration output files
 drc_clb=${DATA}/terraref/clb
