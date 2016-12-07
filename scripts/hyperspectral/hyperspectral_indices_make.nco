@@ -1,0 +1,171 @@
+iR445=min_coords(wavelength, 4.45e-7d);
+iR450=min_coords(wavelength, 4.5e-7d);
+iR470=min_coords(wavelength, 4.7e-7d);
+
+iR500=min_coords(wavelength, 5.0e-7d);
+iR512=min_coords(wavelength, 5.120e-7d);
+iR531=min_coords(wavelength, 5.310e-7d);
+iR540=min_coords(wavelength, 5.40e-7d);
+iR550=min_coords(wavelength, 5.50e-7d);
+iR570=min_coords(wavelength, 5.7e-7d);
+iR586=min_coords(wavelength, 5.86e-7d);
+iR590=min_coords(wavelength, 5.9e-7d);
+
+iR600=min_coords(wavelength, 6e-7d);
+iR650=min_coords(wavelength, 6.5e-7d);
+iR670=min_coords(wavelength, 6.7e-7d);
+iR680=min_coords(wavelength, 6.8e-7d);
+iR690=min_coords(wavelength, 6.9e-7d);
+
+iR700=min_coords(wavelength, 7.00e-7d);
+iR705=min_coords(wavelength, 7.05e-7d);
+iR710=min_coords(wavelength, 7.1e-7d);
+iR720=min_coords(wavelength, 7.1e-7d);
+iR740=min_coords(wavelength, 7.4e-7d);
+iR750=min_coords(wavelength, 7.5e-7d);
+iR760=min_coords(wavelength, 7.6e-7d);
+iR780=min_coords(wavelength, 7.8e-7d);
+iR790=min_coords(wavelength, 7.9e-7d);
+
+
+iR800=min_coords(wavelength, 8e-7d);
+
+iR900=min_coords(wavelength, 9e-7d);
+iR970=min_coords(wavelength, 9.7e-7d);
+
+
+
+R445=rfl_img(iR445,:,:);
+R450=rfl_img(iR450,:,:);
+R470=rfl_img(iR470,:,:);
+
+R500=rfl_img(iR500,:,:);
+R512=rfl_img(iR512,:,:);
+R531=rfl_img(iR531,:,:);
+R540=rfl_img(iR540,:,:);
+R550=rfl_img(iR550,:,:);
+R570=rfl_img(iR570,:,:);
+R586=rfl_img(iR586,:,:);
+R590=rfl_img(iR590,:,:);
+
+R600=rfl_img(iR600,:,:);
+R650=rfl_img(iR650,:,:);
+R670=rfl_img(iR670,:,:);
+R680=rfl_img(iR680,:,:);
+R690=rfl_img(iR690,:,:);
+
+R700=rfl_img(iR700,:,:);
+R705=rfl_img(iR705,:,:);
+R710=rfl_img(iR710,:,:);
+R720=rfl_img(iR720,:,:);
+R740=rfl_img(iR740,:,:);
+R750=rfl_img(iR750,:,:);
+R760=rfl_img(iR760,:,:);
+R780=rfl_img(iR780,:,:);
+R790=rfl_img(iR790,:,:);
+
+R800=rfl_img(iR800,:,:);
+
+R900=rfl_img(iR900,:,:);
+R970=rfl_img(iR970,:,:);
+
+
+
+
+
+// sanity check for wavelength coord  check min ,max, mode 
+if( fabs(wavelength(iR445)-4.45e-7) > 0.01e-7d )
+  print("wavelength R445 not in wavelength coord\n");  
+
+if( fabs(wavelength(iR970)-9.70e-7) > 0.01e-7d )
+  print("wavelength R970 not in wavelength coord\n");  
+
+if( fabs(wavelength(iR700)-7e-7) > 0.01e-7d )
+  print("wavelength R700 not in wavelength coord\");  
+
+
+NDVI= ( R900 -R680) / (R900+R680 );
+NDVI@long_name="Normalized Difference Vegetation Index";
+
+SR=R900 / R680;
+SR@long_name="Simple ratio";
+
+OSAVI=1.16f*( (R800-R670) ) /  ( R800+R670+0.16f);
+OSAVI@long_name="Optimized Soil-Adjusted Vegetation index";
+
+WI=R900-R970;
+WI@long_name="water index";
+
+CHL=R750 / R550;
+CHL@long_name="Chlorophyll index";
+
+msR705= (R750-R445) / (R705-R445);
+msR705@long_name="Modified simple ratio 705";
+
+
+TCARI=3.0f*(  (R700-R670)-0.2f * (R700-R550) * (R700/R670)  );
+TCARI@long_name="Transformed chlorophyll absorption in reflectance index";
+
+CarChap=R760/R500;
+CarChap@long_name="Carotenoid index (Chappelle)";
+
+Car1Black=R800/R470;
+Car1Black@long_name="Carotenoid index (BlackBurn)";
+
+
+Car2Black= ( R800 - R470 ) / (R800 + R470);
+Car2Black@long_name="Carotenoid index 2 (BlackBurn)";
+
+PRI570 = (R531 - R570) / (R531+R570);
+PRI570@long_name="Photochemical reflectance index (570)";
+
+
+SIPI =( R800 - R450) / (R800 + R650);
+SIPI@long_name="Structure intensive pigment index";
+
+
+antGamon=R650/R550;
+antGamon@long_name="Anthocyanin (Gamon)";
+
+antGitelson=( 1.0f/R550 - 1.0f/R700)*R780;
+antGitelson@long_name="Anthocyanin (Gitelson)";
+
+CHLDela=( R540-R590 ) / ( R540 + R590);
+CHLDela@long_name="Chlorophyll content";
+
+CI=( R750-R705 ) / ( R750 + R705);
+CI@long_name="Chlorophyll index";
+
+PRI586=( R531-R586) / ( R531 + R586);
+PRI586@long_name="Photochemical reflectance index (586)";
+
+PRI512=( R531-R512) / ( R531 + R512);
+PRI512@long_name="Photochemical reflectance index (512)";
+
+FRI1=R690 / R600;
+FRI1@long_name="Fluorescence ratio index1";
+
+FRI2=R740 / R800;
+FRI2@long_name="Fluorescence ratio iindices 2";
+
+NDVI1=(R800-R670)/ (R800+R670);
+NDVI1@long_name="Normalized Difference Vegetation Index1";
+
+RDVI=NDVI1*0.5f;
+RDVI@long_name="Renormalized Difference Vegetation Index";
+
+RERI=R700/R670;
+RERI@long_name="Red edge ratio index";
+
+
+ZM= R750 / R710;
+ZM@long_name="Red edge";
+
+REP=700.0f +40.0f*(((R670+R780)/2-R700) /(R740-R700));
+REP@long_name="Red edge position";
+
+NDRE=(R790-R720)/(R790+R720);
+NDRE@long_name="Normalized difference vegetation index";
+
+TVI=0.5f* (120.0f*(R750-R550)-200.0f*(R670-R550));
+TVI@long_name="Triangular Vegetation Index";
