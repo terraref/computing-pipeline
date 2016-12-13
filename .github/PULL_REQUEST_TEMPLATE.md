@@ -1,5 +1,7 @@
 <!--- Provide a general summary of your changes in the Title above -->
 
+_please edit this template before submitting a new pull request_
+
 ## Description
 <!--- 
 Describe your changes, for example:
