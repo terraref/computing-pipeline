@@ -1,24 +1,35 @@
-<!--- Thanks for contributing your input! Instructions are in comments, like this -->
+<!--- 
+Thanks for contributing your input! Instructions are in comments, like this 
+-->
 
-<!--- Title: Please provide a general summary of the issue written as an action item 
-      e.g.  'add 2 tablespoons of sugar'  -->
+<!--- 
+Title: Please summarize the issue / question / what is to be done;
+-->
 
 ### Description
-<!--- How can we help? 
-          * Is there an analysis or tool that you would like to use?
-          * Do you have a change to propose? 
-          * Did you find something that doesn't work as expected (or that is broken? sorry!) ? -->
+<!--- 
+Is there something you want to do? Is this a bug? Feature request? Discussion? 
+  * Question: ask away!
+  * New feature / analysis : 
+  * Bug: what were you trying to do? What did you expect to happen? What happened? 
+-->
 
-### Context
-<!--- How would this change help? (you, the project, the user community? 
-      How would it be used? 
+<!--- 
+### Details
+How would this change help? (you, the project, the user community? 
+How would it be used? 
       Are there any examples (existing software / utilities)? Please provide links, screenshots, etc-->
 
-### Further Suggestions / Request for Feedback   
+### Completion Criteria   
 
-<!--- Optional --->
-<!--- Do you have further suggestions for 
-     how to implement this?
-     who specifically can implement this ?
-     who would you like to read and / or provide feedback on this?  
-         If you know them, you can use github ids so that the user is emailed, e.g. @dlebauer to -->
+<!--- How will we know when this is done?
+please use boxes like
+for a bug:
+* [ ] Now I can [topic of question / bug]
+for a discussion:
+* [ ] Discuss and develop requirements docs; create issues for next steps
+for a new feature
+* [ ] create algorithm
+* [ ] write test
+* [ ] add to pipeline
+--->
