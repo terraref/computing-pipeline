@@ -747,12 +747,12 @@ def initializeGlobusTransfer():
                         # Clean up dest path to new folder structure
                         # ua-mac/raw_data/LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
                         # ua-mac/raw_data/LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
-                        # ua-mac/raw_data/LemnaTec/3DScannerRawDataTmp/scanner3DTop/2016-01-01/2016-08-02__09-42-51-195/file.json
+                        # ua-mac/raw_data/LemnaTec/3DScannerRawDataTopTmp/scanner3DTop/2016-01-01/2016-08-02__09-42-51-195/file.json
                         # ua-mac/raw_data/MAC/lightning/2016-01-01/weather_2016_06_29.dat
                         dest_path = dest_path.replace("LemnaTec/", "")
                         dest_path = dest_path.replace("MovingSensor/", "")
                         dest_path = dest_path.replace("MAC/", "")
-                        dest_path = dest_path.replace("3DScannerRawDataTmp/", "")
+                        dest_path = dest_path.replace("3DScannerRawDataTopTmp/", "")
                         dest_path = dest_path.replace("3DScannerRawDataLowerOnEastSideTmp/", "")
                         dest_path = dest_path.replace("3DScannerRawDataLowerOnWestSideTmp/", "")
                         # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.png
@@ -990,7 +990,7 @@ def globusCleanupLoop():
                                         else:
                                             # TODO: This can go away once transitional xfers are handled
                                             cp = fobj['path']
-                                            if cp.find("/EnvironmentLogger")>-1 or cp.find("/3DScannerRawDataTmp")>-1:
+                                            if cp.find("/EnvironmentLogger")>-1 or cp.find("/3DScannerRawDataTopTmp")>-1:
                                                 cp = cp.replace("/ua-mac/raw_data", "/LemnaTec")
                                             elif cp.find("/lightning")>-1 or cp.find("/weather")>-1 or cp.find("/irrigation")>-1:
                                                 cp = cp.replace("/ua-mac/raw_data", "/MAC")
