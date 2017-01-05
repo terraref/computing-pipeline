@@ -2,8 +2,10 @@
 Thanks for contributing your input! Instructions are in comments, like this 
 -->
 
+_please edit this template before submitting a new pull request_
+
 <!--- 
-Title: Please summarize the issue / question / what is to be done;
+Title: Provide a general summary of your feature / question / issue in the title above. 
 -->
 
 <!---
