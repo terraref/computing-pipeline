@@ -6,6 +6,10 @@ Thanks for contributing your input! Instructions are in comments, like this
 Title: Please summarize the issue / question / what is to be done;
 -->
 
+<!---
+Tags: please select one or more relevant tags
+--->
+
 ### Description
 <!--- 
 Is there something you want to do? Is this a bug? Feature request? Discussion? 
