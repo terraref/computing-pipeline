@@ -1,7 +1,7 @@
 _please edit this template before submitting a new pull request_
 
 <!--- 
-Title: Provide a general summary of your feature / question / issue in the Title above. 
+Title: Provide a summarize changes in the pull request title above. 
 -->
 
 <!---
