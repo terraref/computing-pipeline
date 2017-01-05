@@ -1,6 +1,12 @@
-<!--- Provide a general summary of your changes in the Title above -->
-
 _please edit this template before submitting a new pull request_
+
+<!--- 
+Title: Provide a general summary of your feature / question / issue in the Title above. 
+-->
+
+<!---
+Tags: please select one or more relevant tags
+--->
 
 ## Description
 <!--- 
