@@ -477,6 +477,13 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	echo "HINT: To prevent inadvertent data loss, ${spt_nm} insists that Input file and Output filenames differ"
 	exit 1
     fi # !basename
+    
+    # bomb out if filesize more than 65G                                                                                                                                          
+    fs=$( stat --format "%s" ${in_fl} )
+    if [[ "$fs" -gt   $((65*2**30)) ]]   ; then
+        echo "ERROR: Input file  $( basename ${in_fl} ) greater than 65G"
+        exit 1
+    fi # !basename                                                                                                                                                                
 
     # Convert raster to netCDF
     # Raw data stored in ENVI hyperspectral image format in file "test_raw" with accompanying header file "test_raw.hdr"
