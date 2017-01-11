@@ -68,7 +68,7 @@ def pixel2Geographic(jsonFileLocation, headerFileLocation, cameraOption):
             overall = fileHandler.readlines()
 
             for members in overall:
-                if "width" in members:
+                if "samples" in members:
                     x_pixel_num = int(members.split("=")[-1].strip("\n"))
                 elif "lines" in members:
                     y_pixel_num = int(members.split("=")[-1].strip("\n"))

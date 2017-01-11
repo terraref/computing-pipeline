@@ -553,16 +553,20 @@ def file_dependency_check(filePath):
     '''
     Check if the input location has all 
     '''
-    filename_pattern = r'^(\S+)_(\w{3,10})[.](\w{3,4})$'
-    key = str()
-    illegalFileRegex = re.compile(filename_pattern)
+    filename_base = os.path.basename(filePath)
+    
+    all_files = {filename_base       : False,
+                 filename_base+".hdr": False,
+
+                 filename_base[:-4]+"_metadata.json" : False,
+                 filename_base[:-4]+"_frameIndex.txt": False}
+
     for roots, directorys, files in os.walk(filePath.rstrip(os.path.split(filePath)[-1])):
         for file in files:
-            if re.match(filename_pattern, file):
-                key = illegalFileRegex.match(file).group(1)
-                return {"".join((key,"_frameIndex.txt")), "".join((key,"_metadata.json")), "".join((key,"_raw.hdr"))} -\
-                        set([matchFile for matchFile in files if matchFile.startswith(illegalFileRegex.match(file).group(1))])
-    return set()
+            if file in all_files:
+                all_files[file] = True
+
+    return [missing_file for missing_file in all_files if not all_files[missing_file]]
 
 def jsonCheck(fileHandler):
     cache = list()
