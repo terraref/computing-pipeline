@@ -218,14 +218,14 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
     #     self.assertEqual(len(self.x), 1600, msg="The width of the image should always be 1600 pxl")
     #     self.assertEqual(self.x.units, "meter", msg="The unit for x should always be meter")
 
-    def testYHaveCorrectValuesAndAttributes(self):
-        '''
-        Check if the georeferencing data are correct (for x and y)
-        CHANGE the msg.
-        '''
-        self.y = self.masterNetCDFHandler.variables["y"]
-        self.assertEqual(len(self.y), 169,  msg="The height of the image should always be 169 pxl")
-        self.assertEqual(self.y.units, "meter", msg="The unit for y should always be meter")
+    # def testYHaveCorrectValuesAndAttributes(self):
+    #     '''
+    #     Check if the georeferencing data are correct (for x and y)
+    #     CHANGE the msg.
+    #     '''
+    #     self.y = self.masterNetCDFHandler.variables["y"]
+    #     self.assertEqual(len(self.y), 169,  msg="The height of the image should always be 169 pxl")
+    #     self.assertEqual(self.y.units, "meter", msg="The unit for y should always be meter")
 
     # def testPositionVariablesAreCorrectlyFormatted(self):
     #     self.variable_metadata = self.groups["gantry_system_variable_metadata"].variables
