@@ -478,12 +478,13 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	exit 1
     fi # !basename
     
-    # bomb out if filesize more than 65G                                                                                                                                          
-    fs=$( stat --format "%s" ${in_fl} )
-    if [[ "$fs" -gt   $((65*2**30)) ]]   ; then
-        echo "ERROR: Input file  $( basename ${in_fl} ) greater than 65G"
+    # Die if raw filesize exceeds maximum allowed
+    let fl_sz_max=65*2**30
+    fl_sz=$(stat --format "%s" ${in_fl})
+    if [ "${fl_sz}" -gt "${fl_sz_max}" ]; then
+        echo "ERROR: Input file size ${fl_sz}B exceeds maximum allowed ${fl_sz_max}B for $(basename ${in_fl})"
         exit 1
-    fi # !basename                                                                                                                                                                
+    fi # !fl_sz
 
     # Convert raster to netCDF
     # Raw data stored in ENVI hyperspectral image format in file "test_raw" with accompanying header file "test_raw.hdr"
@@ -516,14 +517,14 @@ for ((fl_idx=0;fl_idx<${fl_nbr};fl_idx++)); do
 	ntl_in=$(grep '^interleave' ${hdr_fl} | cut -d ' ' -f 3 | tr -d '\015')
 	typ_in_ENVI=$(grep '^data type' ${hdr_fl} | cut -d ' ' -f 4 | tr -d '\015')
 	xps_tm=$(grep 'current setting exposure' ${mtd_fl} | cut -d ':' -f 2 | tr -d '" ,\015' )
+	sns_nm=$(grep 'sensor product name' ${mtd_fl} | cut -d ':' -f 2 | tr -d '" ,\015' )
 	fl_clb="${drc_spt}/calibration_vnir_${xps_tm}ms.nc"
-	if [ "${wvl_nbr}" -eq 272 ]; then 
+	if [ "${sns_nm}" = 'SWIR' ]; then 
 	    flg_swir='Yes' # [flg] SWIR camera
-	elif [ "${wvl_nbr}" -eq 955 ]; then 
+	elif [ "${sns_nm}" = 'VNIR' ]; then 
 	    flg_vnir='Yes' # [flg] VNIR camera
 	else
-	    echo "ERROR: Unable to identify camera type (SWIR or VNIR?)"
-	    echo "HINT: ${spt_nm} requires header file ${fl_hdr} to report either 272 (SWIR) or 955 (VNIR) or wavelengths. Actual number reported = wvl_nbr = ${wvl_nbr}."
+	    echo "ERROR: metadata file ${fl_mtd} reports unknown camera type ${sns_nm} (not SWIR or VNIR)"
 	    exit 1
 	fi # !wvl_nbr
 	case "${typ_in_ENVI}" in
