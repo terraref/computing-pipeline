@@ -7,6 +7,8 @@ from urllib3.filepost import encode_multipart_formdata
 # RUN AS USER UBUNTU
 ###
 
+# TODO: Update pipeline to use new nested dataset structure
+
 def main():
     with open(inputfile, 'r') as inp:
         curr_group = {
@@ -17,58 +19,64 @@ def main():
             "snapshot": None        # e.g. "snapshot299661", used for Danforth data
         }
         curr_group_files = []
-        
+
+        lastLineFound = True if lastLine == "" else False
         for line in inp:
             full_path = line.rstrip()
-            full_path = full_path.replace("/gpfs/largeblockFS/projects/arpae/terraref/", "/home/clowder/")
-            if full_path == "": continue
-            curr_info = {"sensor": None, "date": None, "timestamp": None, "metadata": None, "snapshot": None}
-            
-            # RAW_DATA
-            if full_path.find("raw_data") > -1:
-                # Extract metadata properties from json if found
-                if full_path.endswith("metadata.json"):
-                    if full_path.find("/danforth/") > -1:
-                        curr_info = getDanforthInfoFromJson(full_path)
-                        if curr_group['sensor'] == None:
-                            curr_group = curr_info
-                    else:
-                        curr_info = getGantryInfoFromPath(full_path)
-                        curr_info['metadata'] = getGantryMetadata(full_path)
-                        if curr_group['sensor'] == None:
-                            curr_group = curr_info
-                # For other files we just need to compare if we're looking at same dataset
-                else:
-                    if full_path.find("/danforth/") > -1:
-                        curr_info['snapshot'] = getDanforthSnapshotFromPath(full_path)
-                    else:
-                        curr_info = getGantryInfoFromPath(full_path)
-            # LEVEL_1 DATA
-
-            # If the properties don't match, submit this group and start a new group
-            submit = False
-            if full_path.find("/danforth/") > -1:
-                if curr_info['snapshot'] != curr_group['snapshot']:
-                    submit = True
-                elif curr_info['metadata'] is not None:
-                    curr_group['metadata'] = curr_info['metadata']
+            if not lastLineFound:
+                if lastLine == full_path:
+                    print("Found last line; resuming uploads.")
+                    lastLineFound = True
             else:
-                if (curr_info["sensor"] != curr_group["sensor"] or
-                        curr_info["date"] != curr_group["date"] or
-                        curr_info["timestamp"] != curr_group["timestamp"]):
-                    submit = True
-                elif curr_info['metadata'] is not None:
-                    curr_group['metadata'] = curr_info['metadata']
+                full_path = full_path.replace("/gpfs/largeblockFS/projects/arpae/terraref/", "/home/clowder/")
+                if full_path == "": continue
+                curr_info = {"sensor": None, "date": None, "timestamp": None, "metadata": None, "snapshot": None}
 
-            # We have reached a new dataset, so submit the current one as a batch before continuing
-            if submit:
-                if curr_group['sensor'] is not None:
-                    curr_group['files'] = curr_group_files
-                    submitGroupToClowder(curr_group)
-                curr_group = curr_info
-                curr_group_files = []
-            if not full_path.endswith("metadata.json"):
-                curr_group_files.append(full_path)
+                # RAW_DATA
+                if full_path.find("raw_data") > -1:
+                    # Extract metadata properties from json if found
+                    if full_path.endswith("metadata.json"):
+                        if full_path.find("/danforth/") > -1:
+                            curr_info = getDanforthInfoFromJson(full_path)
+                            if curr_group['sensor'] == None:
+                                curr_group = curr_info
+                        else:
+                            curr_info = getGantryInfoFromPath(full_path)
+                            curr_info['metadata'] = getGantryMetadata(full_path)
+                            if curr_group['sensor'] == None:
+                                curr_group = curr_info
+                    # For other files we just need to compare if we're looking at same dataset
+                    else:
+                        if full_path.find("/danforth/") > -1:
+                            curr_info['snapshot'] = getDanforthSnapshotFromPath(full_path)
+                        else:
+                            curr_info = getGantryInfoFromPath(full_path)
+                # LEVEL_1 DATA
+
+                # If the properties don't match, submit this group and start a new group
+                submit = False
+                if full_path.find("/danforth/") > -1:
+                    if curr_info['snapshot'] != curr_group['snapshot']:
+                        submit = True
+                    elif curr_info['metadata'] is not None:
+                        curr_group['metadata'] = curr_info['metadata']
+                else:
+                    if (curr_info["sensor"] != curr_group["sensor"] or
+                            curr_info["date"] != curr_group["date"] or
+                            curr_info["timestamp"] != curr_group["timestamp"]):
+                        submit = True
+                    elif curr_info['metadata'] is not None:
+                        curr_group['metadata'] = curr_info['metadata']
+
+                # We have reached a new dataset, so submit the current one as a batch before continuing
+                if submit:
+                    if curr_group['sensor'] is not None:
+                        curr_group['files'] = curr_group_files
+                        submitGroupToClowder(curr_group)
+                    curr_group = curr_info
+                    curr_group_files = []
+                if not full_path.endswith("metadata.json"):
+                    curr_group_files.append(full_path)
 
         # Finally handle any leftovers
         curr_group['files'] = curr_group_files
@@ -355,9 +363,9 @@ def submitGroupToClowder(group):
                                        data=content)
         print("++++ added files to %s (%s)" % (c_dataset, id_dataset))
 
-
 inputfile = sys.argv[1]
 clowderURL = "https://terraref.ncsa.illinois.edu/clowder"
+lastLine = "/gpfs/largeblockFS/projects/arpae/terraref/sites/ua-mac/raw_data/flirIrCamera/2016-05-29/2016-05-29__11-49-20-752/12d4f14a-cea1-4e20-8615-e178da4b549e_ir.bin"
 
 # Dictionaries that map Clowder name -> Clowder ID
 collectionMap = {}
