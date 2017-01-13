@@ -103,8 +103,8 @@ class HyperspectralWorkflowTest(unittest.TestCase, HyperspectralWorkflowTestWidg
         '''
         self.assertEqual(len(self.dimensions), EXPECTED_NUMBER_OF_DIMENSIONS, msg="There should be four dimensions total")
 
-    def testTheXDimensionsHaveCorrectValues(self):
-        self.assertEqual(len(self.dimensions["x"]),    1600, msg="The dimension for x should be 1600")
+    # def testTheXDimensionsHaveCorrectValues(self):
+    #     self.assertEqual(len(self.dimensions["x"]),    1600, msg="The dimension for x should be 1600")
 
     def testTheYDimensionsMatchesTimeDimension(self):
         self.assertEqual(len(self.dimensions["y"]), len(self.dimensions["time"]),  msg="The dimension for y should be the same as for time")
