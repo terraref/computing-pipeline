@@ -122,20 +122,45 @@ def loadJsonFile(filename):
         return {}
 
 """Find dataset id if dataset exists, creating if necessary"""
-def fetchDatasetByName(datasetName, requestsSession, spaceOverrideId=None):
-    if datasetName not in datasetMap:
-        # Fetch collection & space IDs (creating collections if necessary) to post with the new dataset
+def fetchDatasetByName(datasetName, sess, spaceOverrideId=None):
+    if datasetName in datasetMap:
+        return datasetMap[datasetName]
+    else:
+        # Get names of collection hierarchy
         if datasetName.find(" - ") > -1:
-            sensorName = datasetName.split(" - ")[0]
-            timestamp = datasetName.split(" - ")[1].split("__")[0]
-            sensCollId = fetchCollectionByName(sensorName, requestsSession)
-            timeCollId = fetchCollectionByName(timestamp, requestsSession)
+            # e.g. "co2Sensor - 2016-12-25" or "VNIR - 2016-12-25__12-32-42-123"
+            c_sensor = datasetName.split(" - ")[0]
+            c_date = datasetName.split(" - ")[1]
+            c_year = c_sensor + " - " + c_date.split('-')[0]
+            c_month = c_year+"-"+c_date.split('-')[1]
+            if c_date.find("__") == -1:
+                # If we only have a date and not a timestamp, don't create date collection
+                c_date = None
+            else:
+                c_date = c_sensor + " - " + c_date
+        else:
+            c_sensor, c_date, c_year, c_month = None, None, None, None
+
+        id_sensor = fetchCollectionByName(c_sensor, sess, spaceOverrideId) if c_sensor else None
+        id_date = fetchCollectionByName(c_date, sess, spaceOverrideId) if c_date else None
+        id_year = fetchCollectionByName(c_year, sess, spaceOverrideId) if c_year else None
+        id_month = fetchCollectionByName(c_month, sess, spaceOverrideId) if c_month else None
+        if id_year and id_year['created']:
+            associateChildCollection(id_sensor['id'], id_year['id'], sess)
+        if id_month and id_month['created']:
+            associateChildCollection(id_year['id'], id_month['id'], sess)
+        if id_date and id_date['created']:
+            associateChildCollection(id_month['id'], id_date['id'], sess)
+
         if not spaceOverrideId and config['clowder']['primary_space'] != "":
             spaceOverrideId = config['clowder']['primary_space']
         spaceId = ', "space": ["%s"]' % spaceOverrideId if spaceOverrideId else ''
 
-        dataObj = '{"name": "%s", "collection": ["%s","%s"]%s}' % (datasetName, sensCollId, timeCollId, spaceId)
-        ds = requestsSession.post(config['clowder']['host']+"/api/datasets/createempty",
+        if id_date:
+            dataObj = '{"name": "%s", "collection": ["%s"]%s}' % (datasetName, id_date, spaceId)
+        else:
+            dataObj = '{"name": "%s", "collection": ["%s"]%s}' % (datasetName, id_month, spaceId)
+        ds = sess.post(config['clowder']['host']+"/api/datasets/createempty",
                                   headers={"Content-Type": "application/json"},
                                   data=dataObj)
 
@@ -153,34 +178,6 @@ def fetchDatasetByName(datasetName, requestsSession, spaceOverrideId=None):
             logger.error("- cannot create dataset (%s: %s)" % (ds.status_code, ds.text))
             return None
 
-    else:
-        # We have a record of it, but check that it still exists before returning the ID
-        dsid = datasetMap[datasetName]
-        return dsid
-
-        # TODO: re-enable this check once backlog is caught up
-        ds = requestsSession.get(config['clowder']['host']+"/api/datasets/"+dsid)
-        if ds.status_code == 200:
-            logger.info("- dataset %s already exists (%s)" % (datasetName, dsid))
-            return dsid
-        else:
-            # Query the database just in case, before giving up and creating a new dataset
-            dstitlequery = requestsSession.get(config['clowder']['host']+"/api/datasets?title="+datasetName)
-            if dstitlequery.status_code == 200:
-                results = dstitlequery.json()
-                if len(results) > 0:
-                    return results[0]['id']
-                else:
-                    logger.error("- cannot find dataset %s; creating new dataset %s" % (dsid, datasetName))
-                    # Could not find dataset so we'll just delete the record and create a new one
-                    del datasetMap[datasetName]
-                    return fetchDatasetByName(datasetName, requestsSession, spaceOverride)
-            else:
-                logger.error("- cannot find dataset %s; creating new dataset %s" % (dsid, datasetName))
-                # Could not find dataset so we'll just delete the record and create a new one
-                del datasetMap[datasetName]
-                return fetchDatasetByName(datasetName, requestsSession, spaceOverride)
-
 """Find list of file objects in a given dataset"""
 def fetchDatasetFileList(datasetId, requestsSession):
     clowkey = config['clowder']['secret_key']
@@ -194,7 +191,12 @@ def fetchDatasetFileList(datasetId, requestsSession):
         return []
 
 """Find dataset id if dataset exists, creating if necessary"""
-def fetchCollectionByName(collectionName, requestsSession):
+def fetchCollectionByName(collectionName, requestsSession, spaceOverrideId=None):
+    if collectionName in collectionMap:
+        return {
+            "id": collectionMap[collectionName],
+            "created": False
+        }
     if collectionName not in collectionMap:
         coll = requestsSession.post(config['clowder']['host']+"/api/collections",
                                     headers={"Content-Type": "application/json"},
@@ -211,41 +213,24 @@ def fetchCollectionByName(collectionName, requestsSession):
                 "action": "CREATED COLLECTION"
             })
             # Add new collection to primary space if defined
-            if config['clowder']['primary_space'] != "":
+            if not spaceOverrideId and config['clowder']['primary_space'] != "":
+                spaceOverrideId = config['clowder']['primary_space']
+
+            if spaceOverrideId:
                 requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addCollectionToSpace/%s" %
-                                     (config['clowder']['primary_space'], collid))
-            return collid
+                                     (spaceOverrideId, collid))
+            return {
+                "id": collid,
+                "created": True
+            }
         else:
             logger.error("- cannot create collection (%s: %s)" % (coll.status_code, coll.text))
             return None
 
-    else:
-        # We have a record of it, but check that it still exists before returning the ID
-        collid = collectionMap[collectionName]
-        return collid
-
-        # TODO: re-enable this check once backlog is caught up
-        coll = requestsSession.get(config['clowder']['host']+"/api/collections/"+collid)
-        if coll.status_code == 200:
-            logger.info("- collection %s already exists (%s)" % (collectionName, collid))
-            return collid
-        else:
-            # Query the database just in case, before giving up and creating a new dataset
-            colltitlequery = requestsSession.get(config['clowder']['host']+"/api/collections?title="+collectionName)
-            if colltitlequery.status_code == 200:
-                results = colltitlequery.json()
-                if len(results) > 0:
-                    return results[0]['id']
-                else:
-                    logger.error("- cannot find collection %s; creating new collection %s" % (collid, collectionName))
-                    # Could not find collection so we'll just delete the record and create a new one
-                    del collectionMap[collectionName]
-                    return fetchCollectionByName(collectionName, requestsSession)
-            else:
-                logger.error("- cannot find collection %s; creating new collection %s" % (collid, collectionName))
-                # Could not find collection so we'll just delete the record and create a new one
-                del collectionMap[collectionName]
-                return fetchCollectionByName(collectionName, requestsSession)
+"""Add child collection to parent collection"""
+def associateChildCollection(parentId, childId, requestsSession):
+    requestsSession.post(config['clowder']['host']+"/api/collections/%s/addSubCollection/%s" %
+                         (parentId, childId))
 
 
 # ----------------------------------------------------------
