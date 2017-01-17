@@ -157,9 +157,9 @@ def fetchDatasetByName(datasetName, sess, spaceOverrideId=None):
         spaceId = ', "space": ["%s"]' % spaceOverrideId if spaceOverrideId else ''
 
         if id_date:
-            dataObj = '{"name": "%s", "collection": ["%s"]%s}' % (datasetName, id_date, spaceId)
+            dataObj = '{"name": "%s", "collection": ["%s"]%s}' % (datasetName, id_date['id'], spaceId)
         else:
-            dataObj = '{"name": "%s", "collection": ["%s"]%s}' % (datasetName, id_month, spaceId)
+            dataObj = '{"name": "%s", "collection": ["%s"]%s}' % (datasetName, id_month['id'], spaceId)
         ds = sess.post(config['clowder']['host']+"/api/datasets/createempty",
                                   headers={"Content-Type": "application/json"},
                                   data=dataObj)
