@@ -52,6 +52,60 @@ def main():
                         else:
                             curr_info = getGantryInfoFromPath(full_path)
                 # LEVEL_1 DATA
+                if full_path.find("Level_1") > -1:
+                    if full_path.find("ddpscIndoorSuite") > -1:
+                        timeinfo = full_path.split("/")[-2].replace("ddpscIndoorSuite - ", "")
+                        date = timeinfo.split("__")[0]
+                        curr_info = {
+                            "sensor": "ddpscIndoorSuite",
+                            "date": date,
+                            "timestamp": timeinfo,
+                            "snapshot": timeinfo,
+                            "metadata": {
+                                "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld"],
+                                "content": {"status": "COMPLETED"},
+                                "agent": {
+                                    "@type": "cat:extractor",
+                                    "extractor_id": clowderURL + "/api/extractors/terra.plantcv"
+                                }
+                            }
+                        }
+                    elif full_path.find("demosaic"):
+                        # /projects/arpae/terraref/sites/ua-mac/Level_1/demosaic/2016-11-18/2016-11-18__08-48-36-847/0b8908ca-4c1a-44aa-a72e-e5ec0aa3ec4d_left.jpg
+                        timeinfo = full_path.split("/")[-2]
+                        date = timeinfo.split("__")[0]
+                        curr_info = {
+                            "sensor": "stereoTop",
+                            "date": date,
+                            "timestamp": timeinfo,
+                            "metadata": {
+                                "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld"],
+                                "content": {"status": "COMPLETED"},
+                                "agent": {
+                                    "@type": "cat:extractor",
+                                    "extractor_id": clowderURL + "/api/extractors/terra.demosaic"
+                                }
+                            }
+                        }
+                    elif full_path.find("EnvironmentLogger"):
+                        # /projects/arpae/terraref/sites/ua-mac/Level_1/EnvironmentLogger/2016-09-21/2016-09-21_00-27-10_environmentlogger.nc
+                        date = full_path.split("/")[-2]
+                        curr_info = {
+                            "sensor": "EnvironmentLogger",
+                            "date": date,
+                            "timestamp": None,
+                            "metadata": None
+                        }
+                    elif full_path.find("scanner3DTop"):
+                        # /projects/arpae/terraref/sites/ua-mac/Level_1/scanner3DTop/2016-12-01/2016-12-01__11-30-45-448/4880b4f9-abd5-4a19-b38e-5308c2926d1e__Top-heading-east_0.ply
+                        timeinfo = full_path.split("/")[-2]
+                        date = timeinfo.split("__")[0]
+                        curr_info = {
+                            "sensor": "scanner3DTop",
+                            "date": date,
+                            "timestamp": timeinfo,
+                            "metadata": None
+                        }
 
                 # If the properties don't match, submit this group and start a new group
                 submit = False
@@ -247,7 +301,7 @@ def fetchCollectionByName(collectionName, parentSpace, requestsSession):
 
 def associateChildCollection(parentId, childId, requestsSession):
     requestsSession.post(clowderURL+"/api/collections/%s/addSubCollection/%s" % (parentId, childId))
-    
+
 """Write dataset (name -> clowder_id) mapping to PostgreSQL database"""
 def writeDatasetRecordToDatabase(dataset_name, dataset_id):
 
