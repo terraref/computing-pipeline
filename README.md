@@ -27,6 +27,4 @@ Project wide - if any code or data do not have clear terms of reuse, please requ
     <span>TERRA-REF Computing Pipeline</span> by <a href="terraref.org"
     rel="cc:attributionURL">TERRA Reference Team</a> is licensed under a
     <a href="http://creativecommons.org/licenses/by/4.0/" rel=
-    "license">Creative Commons Attribution 4.0 International License</a>.<br>
-    Based on a work at <a href="github.com/terraref/==REPOSITORY==" rel=
-    "dct:source">github.com/terraref/computing-pipeline</a>
+    "license">Creative Commons Attribution 4.0 International License</a>.

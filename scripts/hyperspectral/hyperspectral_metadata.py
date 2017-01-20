@@ -85,21 +85,24 @@ from datetime import date, datetime
 from netCDF4 import Dataset, stringtochar
 from hyperspectral_calculation import pixel2Geographic, REFERENCE_POINT
 
-_UNIT_DICTIONARY = {
-                    'm':   'meter',
+_UNIT_DICTIONARY = {'m':   'meter',
                     's':   'second', 
                     'm/s': 'meter second-1', 
-                    '':    ''
-                   }
+                    '':    ''}
 
-_VELOCITY_DICTIONARY = {
-                        'x': 'u', 
+_VELOCITY_DICTIONARY = {'x': 'u', 
                         'y': 'v', 
-                        'z': 'w'
-                       }
+                        'z': 'w'}
 
-DATATYPE = {'1': ('H', 2), '2': ('i', 4), '3': ('l', 4), '4': ('f', 4), '5': (
-    'd', 8), '12': ('H', 4), '13': ('L', 4), '14': ('q', 8), '15': ('Q', 8)}
+DATATYPE = {'1' : ('H', 2), 
+            '2' : ('i', 4), 
+            '3' : ('l', 4), 
+            '4' : ('f', 4), 
+            '5' : ('d', 8), 
+            '12': ('H', 4), 
+            '13': ('L', 4), 
+            '14': ('q', 8), 
+            '15': ('Q', 8)}
 
 _IS_DIGIT         = lambda fakeNum: set([member.isdigit() for member in fakeNum.split(".")]) == {True}
 _TIMESTAMP        = lambda: time.strftime("%a %b %d %H:%M:%S %Y",  time.localtime(int(time.time())))
@@ -134,7 +137,7 @@ class DataContainer(object):
         netCDFHandler = _file_existence_check(outputFilePath, format, self)
         delattr(self, "header_info")
 
-        #### Replace the original isdigit function
+        #### default camera is SWIR, but will see based on the number of wavelengths
         camera_opt = "SWIR"
 
         ##### Write the data from metadata to netCDF #####
@@ -142,6 +145,8 @@ class DataContainer(object):
             tempGroup = netCDFHandler.createGroup(key) if not flatten else netCDFHandler
             for subkey, subdata in data.items():
                 if not _IS_DIGIT(subdata): #Case for letter variables
+
+                    ##### For date variables #####
                     if 'date' in subkey and subkey != "date of installation" and subkey != "date of handover":
                         assert subdata != "todo", '"todo" is not a legal value for the keys'
 
@@ -174,8 +179,7 @@ class DataContainer(object):
 
         camera_opt = 'VNIR' if len(wavelength) == 955 else 'SWIR' # Choose appropriate camera by counting the number of wavelengths.
 
-        tempWavelength = netCDFHandler.createVariable(
-            "wavelength", 'f8', 'wavelength')
+        tempWavelength = netCDFHandler.createVariable("wavelength", 'f8', 'wavelength')
         setattr(tempWavelength, 'long_name', 'Hyperspectral Wavelength')
         setattr(tempWavelength, 'units', 'nanometers')
         tempWavelength[...] = wavelength
@@ -188,7 +192,7 @@ class DataContainer(object):
         # Check if the frame time information is correctly collected
         assert len(tempFrameTime), "ERROR: Failed to collect frame time information from " + ''.join((inputFilePath.strip("raw"), "frameIndex.txt")) + ". Please check the file."
        
-        frameTime    = netCDFHandler.createVariable("frametime", "f8", ("time",))
+        frameTime      = netCDFHandler.createVariable("frametime", "f8", ("time",))
         frameTime[...] = tempFrameTime
         setattr(frameTime, "units",    "days since 1970-01-01 00:00:00")
         setattr(frameTime, "calender", "gregorian")
@@ -354,6 +358,7 @@ class DataContainer(object):
             x_pxl_sz[...] = 1.025e-3
             setattr(netCDFHandler.variables["x_pxl_sz"], "units", "meters")
             setattr(netCDFHandler.variables["x_pxl_sz"], "notes", "x coordinate length of a single pixel in SWIR images")
+
         else:
             x_pxl_sz = netCDFHandler.createVariable("x_pxl_sz", "f8")
             x_pxl_sz[...] = 1.930615052e-3
@@ -382,7 +387,10 @@ def getDimension(fileName, _debug=True):
                 wavelength = members[members.find("=") + 1:len(members)]
 
         try:
-            return int(wavelength), int(x), int(y)
+            return int(wavelength),\
+                   int(x),\
+                   int(y)
+
         except:
             if _debug:
                 print >> sys.stderr, _WARN_MSG.format(msg='ERROR: sample, lines and bands variables in header file are broken. Header information will not be written into the netCDF')
@@ -545,16 +553,20 @@ def file_dependency_check(filePath):
     '''
     Check if the input location has all 
     '''
-    filename_pattern = r'^(\S+)_(\w{3,10})[.](\w{3,4})$'
-    key = str()
-    illegalFileRegex = re.compile(filename_pattern)
+    filename_base = os.path.basename(filePath)
+    
+    all_files = {filename_base       : False,
+                 filename_base+".hdr": False,
+
+                 filename_base[:-4]+"_metadata.json" : False,
+                 filename_base[:-4]+"_frameIndex.txt": False}
+
     for roots, directorys, files in os.walk(filePath.rstrip(os.path.split(filePath)[-1])):
         for file in files:
-            if re.match(filename_pattern, file):
-                key = illegalFileRegex.match(file).group(1)
-                return {"".join((key,"_frameIndex.txt")), "".join((key,"_metadata.json")), "".join((key,"_raw.hdr"))} -\
-                        set([matchFile for matchFile in files if matchFile.startswith(illegalFileRegex.match(file).group(1))])
-    return set()
+            if file in all_files:
+                all_files[file] = True
+
+    return [missing_file for missing_file in all_files if not all_files[missing_file]]
 
 def jsonCheck(fileHandler):
     cache = list()

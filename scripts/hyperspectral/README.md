@@ -80,9 +80,31 @@ In terminal, use the following command line (assume the hyperspectral files are 
 `ls -R /projects/arpae/terraref/raw_data/ua-mac/MovingSensor/VNIR/2016-04-07/*/*_raw | hyperspectral_workflow.sh -d 1 -O /gpfs_scratch/arpae/imaging_spectrometer > ~/terraref.out 2>&1 &`
 
 
+# Hyperspectral Indices Extractor
 
+* hyperspectral_indices_make.nco
 
+The above script calculates the hyperspectral indices as defined in :
+https://github.com/terraref/documentation/blob/master/spectral_indices.md
 
+In terminal use a command line of the form: 
+
+    ncap2 -v -O -S hyperspectral_indices_make.nco  <hyperspectral_netcdf_file> <ouptut_netcdf_file> 
+
+The bands used are those nearest the required wavelength. for example:
+    
+    R445 band used is 4.45121e-07 m
+    R700 band used is 6.99953e-07 m
+    R970 band,used is 9.70152e-07 m
+    
+ Each index is given attributes long_name and units for example:
+ 
+    TCARI=3.0f*(  (R700-R670)-0.2f * (R700-R550) * (R700/R670)  );
+    TCARI@long_name="Transformed chlorophyll absorption in reflectance index";
+    TCARI@units="1";
+
+ In the netcdf output file are the intermediate variables iR445,R445, iR450, R450 etc. These may turn out to be superfluous.
+    
 
 
 
