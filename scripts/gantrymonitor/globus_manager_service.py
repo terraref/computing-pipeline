@@ -1,17 +1,12 @@
 #!/usr/bin/env python
 
-""" GANTRY MONITOR SERVICE
-    This will load parameters from the configFile defined below,
-    and begin monitoring the specified gantry file directory for
-    new files.
+""" GLOBUS MANAGER SERVICE
+    This will continually check Globus transfers from Postgres for completion
+    status.
 
-    Several channels for appending to the pending transfer queue:
-    - scanning module for "xferlog" files, walking back in time if necessary
-    - SQL database monitor module
-    - folder "modified in the last n minutes" scanning module
-
-    After each scan, if any files are queued, Globus transfers will be started
-    until the queue is empty or maximum number of active transfers reached.
+    The service will check with Globus directly to mark the transfers as complete
+    and purge them from the active list, and check with NCSA to make sure Clowder
+    is made aware of each transfer (whether complete or not).
 """
 
 import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip, pwd
@@ -1298,8 +1293,8 @@ if __name__ == '__main__':
     # Create thread for service to begin monitoring log file & transfer queue
     logger.info("*** Service now monitoring gantry transfer queue ***")
     thread.start_new_thread(globusMonitorLoop, ())
-    logger.info("*** Service now checking for new files via FTP logs/folder monitoring ***")
-    thread.start_new_thread(gantryMonitorLoop, ())
+    logger.info("*** Service now monitoring existing Globus transfers ***")
+    thread.start_new_thread(globusCleanupLoop, ())
 
     # Create thread for API to begin listening - requires valid Globus user/pass
     apiPort = os.getenv('MONITOR_API_PORT', config['api']['port'])
