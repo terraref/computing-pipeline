@@ -83,8 +83,10 @@ def loadJsonFile(filename):
         logger.error("- unable to open or parse JSON from %s" % filename)
         return {}
 
-"""Write active or pending tasks from memory into file"""
-def writeTasksToDisk(filePath, taskObj):
+"""Write monitor_status from memory into file"""
+def writeStatus(filePath, taskObj):
+    filePath = os.path.join(config["log_path"], "monitor_status.json")
+
     # Write current file to backup location before writing current file
     logger.debug("- writing %s" % os.path.basename(filePath))
 
@@ -98,7 +100,7 @@ def writeTasksToDisk(filePath, taskObj):
 
     f = open(filePath, 'w')
     lockFile(f)
-    f.write(json.dumps(taskObj))
+    f.write(json.dumps(getStatus()))
     f.close()
 
 """Make entry for pendingTransfers"""
@@ -338,27 +340,6 @@ def writeTaskToDatabase(task):
     psql_conn.commit()
     curs.close()
 
-"""Fetch all Globus tasks with a particular status"""
-def getNextUnnotifiedTask():
-    q_fetch = "SELECT * FROM globus_tasks WHERE status = 'SUCCEEDED' OR status = 'CREATED' order by completed ASC limit 1"
-    nextTask = None
-
-    curs = psql_conn.cursor()
-    logger.debug("Fetching next unnotified task from PostgreSQL...")
-    curs.execute(q_fetch)
-    for result in curs:
-        nextTask = {
-            "globus_id": result[0],
-            "status": result[1],
-            "received": result[2],
-            "completed": result[3],
-            "user": result[4],
-            "contents": result[5]
-        }
-    curs.close()
-
-    return nextTask
-
 """Get at most 100 Globus batches that haven't been sent yet"""
 def readPendingTasks():
     """PENDING (have group of files; not yet created Globus transfer)"""
@@ -383,51 +364,6 @@ def removePendingTask(task_id):
     curs = psql_conn.cursor()
     curs.execute(q_fetch)
     curs.close()
-
-"""Fetch all Globus tasks with a particular status"""
-def readTasksByStatus(status, id_only=False):
-    """
-
-        CREATED (initialized transfer; not yet notified NCSA side)
-    IN PROGRESS (notified of transfer; but not yet verified complete)
-      SUCCEEDED (verified complete; not yet notified NCSA side)
-       NOTIFIED (verified complete; not yet uploaded into Clowder)
-      PROCESSED (complete & uploaded into Clowder)
-         FAILED (Globus could not complete; no longer attempting to complete)
-        DELETED (manually via api below)
-    """
-    if id_only:
-        q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s'" % status
-        results = []
-    else:
-        q_fetch = "SELECT globus_id, status, started, completed, globus_user, " \
-                  "file_count, bytes, contents FROM globus_tasks WHERE status = '%s'" % status
-        results = {}
-
-
-    curs = psql_conn.cursor()
-    #logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
-    curs.execute(q_fetch)
-    for result in curs:
-        if id_only:
-            # Just add globus ID to list
-            results.append(result[0])
-        else:
-            # Add record to dictionary, with globus ID as key
-            gid = result[0]
-            results[gid] = {
-                "globus_id": gid,
-                "status": result[1],
-                "started": result[2],
-                "completed": result[3],
-                "user": result[4],
-                "file_count": result[5],
-                "bytes": result[6],
-                "contents": result[7]
-            }
-    curs.close()
-
-    return results
 
 """Get all active Globus transfers that haven't been verified complete from Globus yet"""
 def getPendingTransferCount():
@@ -919,7 +855,7 @@ def initializeGlobusTransfer(globus_batch_obj):
                 "globus_id": globusID,
                 "contents": globus_batch,
                 "started": str(datetime.datetime.now()),
-                "status": "IN PROGRESS"
+                "status": "CREATED"
             }
             writeTaskToDatabase(created_task)
             removePendingTask(globus_batch_id)
@@ -949,7 +885,7 @@ def globusInitializerLoop():
 
             # Reset wait to check gantry incoming directory again
             globusWait = config['gantry']['globus_transfer_frequency_secs']
-            writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
+            writeStatus()
 
         # Refresh Globus auth tokens
         if authWait <= 0:
@@ -967,10 +903,10 @@ def gantryMonitorLoop():
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if gantryWait <= 0:
             queueGantryFilesIntoPending()
-            writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
-
+            writeStatus()
             # Reset wait to check gantry incoming directory again
             gantryWait = config['gantry']['file_check_frequency_secs']
+
 
 if __name__ == '__main__':
     # Try to load custom config file, falling back to default values where not overridden
