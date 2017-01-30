@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-""" GANTRY MONITOR SERVICE
+""" GANTRY SCANNER SERVICE
     This will load parameters from the configFile defined below,
     and begin monitoring the specified gantry file directory for
     new files.
@@ -984,7 +984,7 @@ if __name__ == '__main__':
     # Initialize logger handlers
     with open(os.path.join(rootPath,"config_logging.json"), 'r') as f:
         log_config = json.load(f)
-        main_log_file = os.path.join(config["log_path"], "log.txt")
+        main_log_file = os.path.join(config["log_path"], "log_scanner.txt")
         log_config['handlers']['file']['filename'] = main_log_file
         if not os.path.exists(config["log_path"]):
             os.makedirs(config["log_path"])
