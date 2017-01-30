@@ -29,37 +29,6 @@ config = {}
 # Used by the FTP log reader to track progress
 status_lastFTPLogLine = ""
 status_lastNasLogLine = ""
-status_numPending = 0
-status_numActive = 0
-
-"""pendingTransfers tracks files prepped for transfer, by dataset:
-{
-    "dataset": {
-        "files": {
-            "filename1": {
-                "name": "filename1",
-                "md": {},
-                "md_name": "name_of_metadata_file"
-                "md_path": "folder_containing_metadata_file"},
-            "filename2": {...},
-            ...
-        },
-        "md": {},
-        "md_path": "folder_containing_metadata.json"
-    },
-    "dataset2": {...},
-...}"""
-pendingTransfers = {}
-
-"""activeTasks tracks Globus transfers is of the format:
-{"globus_id": {
-    "globus_id":                globus job ID of upload
-    "contents": {...},          a pendingTransfers object that was sent (see above)
-    "started":                  timestamp when task was sent to Globus
-    "completed":                timestamp when task was completed (including errors and cancelled tasks)
-    "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
-}, {...}, {...}, ...}"""
-activeTasks = {}
 
 app = Flask(__name__)
 api = restful.Api(app)
@@ -78,20 +47,6 @@ def lockFile(f):
             # Try again in 1/10th of a second
             time.sleep(0.1)
 
-"""Create copy of dict in safe manner for multi-thread access (won't change during copy iteration)"""
-def safeCopy(obj):
-    # Iterate across a copy since we'll be changing object
-    copied = False
-    while not copied:
-        try:
-            newObj = copy.deepcopy(obj)
-            copied = True
-        except RuntimeError:
-            # This can occur on the deepcopy step if another thread is accessing object
-            time.sleep(0.1)
-
-    return newObj
-
 """Nested update of python dictionaries for config parsing"""
 def updateNestedDict(existing, new):
     # Adapted from http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
@@ -108,15 +63,11 @@ def updateNestedDict(existing, new):
 
 """Return small JSON object with information about monitor health"""
 def getStatus():
-    # TODO: Find a more efficient solution here, or only update periodically
-    #completedTasks = 0
-    #for root, dirs, filelist in os.walk(config['completed_tasks_path']):
-    #    completedTasks += len(filelist)
+    global status_lastFTPLogLine, status_lastNasLogLine
 
     return {
-        "pending_file_transfers": status_numPending,
-        "active_globus_tasks": status_numActive,
-        #"completed_globus_tasks": completedTasks,
+        "pending_file_transfers": getPendingTransferCount(),
+        "active_globus_tasks": getActiveTransferCount(),
         "last_ftp_log_line_read": status_lastFTPLogLine,
         "last_nas_log_line_read": status_lastNasLogLine
     }
@@ -131,23 +82,6 @@ def loadJsonFile(filename):
     except IOError:
         logger.error("- unable to open or parse JSON from %s" % filename)
         return {}
-
-"""Load active or pending tasks from file into memory"""
-def loadTasksFromDisk(filePath, emptyVal="{}"):
-    # Prefer to load from primary file, try to use backup if primary is missing
-    if not os.path.exists(filePath):
-        if os.path.exists(filePath+".backup"):
-            logger.info("- loading data from %s.backup" % filePath)
-            shutil.copyfile(filePath+".backup", filePath)
-        else:
-            # Create an empty file if primary+backup don't exist
-            f = open(filePath, 'w')
-            f.write(emptyVal)
-            f.close()
-    else:
-        logger.info("- loading data from %s" % filePath)
-
-    return loadJsonFile(filePath)
 
 """Write active or pending tasks from memory into file"""
 def writeTasksToDisk(filePath, taskObj):
@@ -167,79 +101,9 @@ def writeTasksToDisk(filePath, taskObj):
     f.write(json.dumps(taskObj))
     f.close()
 
-"""Write a completed task onto disk in appropriate folder hierarchy"""
-def writeCompletedTransferToDisk(transfer):
-    completedPath = config['completed_tasks_path']
-    taskID = transfer['globus_id']
-
-    # e.g. TaskID "eaca1f1a-d400-11e5-975b-22000b9da45e"
-    #   = <completedPath>/ea/ca/1f/1a/eaca1f1a-d400-11e5-975b-22000b9da45e.json
-
-    # Create path if necessary
-    logPath = os.path.join(completedPath, taskID[:2], taskID[2:4], taskID[4:6], taskID[6:8])
-    if not os.path.exists(logPath):
-        os.makedirs(logPath)
-
-    # Write to json file with task ID as filename
-    dest = os.path.join(logPath, taskID+".json")
-    logger.info("%s complete (%s)" % (taskID, dest), extra={
-        "globus_id": taskID,
-        "action": "WRITING TO COMPLETED (GANTRY)"
-    })
-    f = open(dest, 'w')
-    f.write(json.dumps(transfer))
-    f.close()
-
-"""Create symlink to src file in destPath"""
-def createLocalSymlink(srcPath, destPath):
-    try:
-        dest_dirs = destPath.replace(os.path.basename(destPath), "")
-        if not os.path.isdir(dest_dirs):
-            os.makedirs(dest_dirs)
-
-        #logger.info("- creating symlink to %s in %s" % (srcPath, destPath))
-        os.symlink(srcPath, destPath)
-
-        # Change original file to make it immutable
-        srcPath = srcPath.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])
-        #logger.debug("- chattr for %s" % srcPath)
-        #subprocess.call(["chattr", "-i", srcPath])
-    except OSError as e:
-        if e.errno != 17:
-            logger.error("- error on symlink to %s (%s - %s)" % (destPath, e.errno, e.strerror))
-        return
-
-"""Clear out any datasets from pendingTransfers without files or metadata"""
-def cleanPendingTransfers():
-    global pendingTransfers
-    global status_numPending
-
-    logger.debug("- tidying up pending transfer queue")
-
-    status_numPending = 0
-    allPendingTransfers = safeCopy(pendingTransfers)
-
-    for ds in allPendingTransfers:
-        dsobj = allPendingTransfers[ds]
-        if 'files' in dsobj:
-            status_numPending += len(dsobj['files'])
-            if len(dsobj['files']) == 0:
-                del pendingTransfers[ds]['files']
-
-        if 'md' in dsobj and len(dsobj['md']) == 0:
-            del pendingTransfers[ds]['md']
-            if 'md_path' in dsobj:
-                del pendingTransfers[ds]['md_path']
-
-        if 'files' not in pendingTransfers[ds] and 'md' not in pendingTransfers[ds]:
-            del pendingTransfers[ds]
-
 """Make entry for pendingTransfers"""
 def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None, filemetadata={},
                               manual=False):
-    global pendingTransfers
-    global status_numPending
-
     # Strip portions of paths that differ between <true source path> and <internal Docker path>
     gantryDir = config['gantry']['incoming_files_path']
     dockerDir = config['globus']['source_path']
@@ -276,11 +140,9 @@ def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=
 
     # Filename is always last
     filename = pathParts[-1]
-
     # Timestamp is one level up from filename
     if not timestamp:
         timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
-
     # Sensor name varies based on folder structure
     if not sensorname:
         if timestamp.find("__") > -1 and len(pathParts) > 3:
@@ -289,7 +151,7 @@ def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=
             sensorname = pathParts[-3].replace("EnviromentLogger", "EnvironmentLogger")
         else:
             sensorname = "unknown_sensor"
-
+    # Dataset typically is "sensorName - YYYY-MM-DD__hh-mm-ss-mms"
     if not datasetname:
         datasetname = sensorname +" - "+timestamp
 
@@ -310,7 +172,6 @@ def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=
         newTransfer[datasetname]["files"][filename]["md"] = filemetadata
 
     return newTransfer
-    pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), newTransfer)
 
 """Take line of FTP transfer log and parse a datetime object from it"""
 def parseDateFromFTPLogLine(line):
@@ -368,6 +229,7 @@ def connectToPostgres():
 """Create PostgreSQL database tables"""
 def initializeDatabase(db_connection):
     # Table creation queries
+    ct_pending = "CREATE TABLE pending_tasks (id SERIAL, contents JSON);"
     ct_tasks = "CREATE TABLE globus_tasks (globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL, " \
                "started TEXT NOT NULL, completed TEXT, " \
                "file_count INT, bytes BIGINT, globus_user TEXT, contents JSON);"
@@ -378,6 +240,7 @@ def initializeDatabase(db_connection):
     # Execute each query
     curs = db_connection.cursor()
     logger.info("Creating PostgreSQL tables...")
+    curs.execute(ct_pending)
     curs.execute(ct_tasks)
     logger.info("Creating PostgreSQL indexes...")
     curs.execute(ix_tasks)
@@ -412,13 +275,52 @@ def readTaskFromDatabase(globus_id):
         logger.debug("Task %s not found in PostgreSQL" % globus_id)
         return None
 
+"""Write a pending Globus task into PostgreSQL"""
+def writePendingTaskToDatabase(task):
+    """pendingTransfers tracks files prepped for transfer, by dataset:
+    {
+        "dataset": {
+            "files": {
+                "filename1": {
+                    "name": "filename1",
+                    "md": {},
+                    "md_name": "name_of_metadata_file"
+                    "md_path": "folder_containing_metadata_file"},
+                "filename2": {...},
+                ...
+            },
+            "md": {},
+            "md_path": "folder_containing_metadata.json"
+        },
+        "dataset2": {...},
+    ...}"""
+    jbody = json.dumps(task['contents'])
+
+    # Attempt to insert, update if globus ID already exists
+    q_insert = "INSERT INTO pending_tasks (contents) VALUES ('%s')" % jbody
+
+    curs = psql_conn.cursor()
+    #logger.debug("Writing task %s to PostgreSQL..." % gid)
+    curs.execute(q_insert)
+    psql_conn.commit()
+    curs.close()
+
 """Write a Globus task into PostgreSQL, insert/update as needed"""
 def writeTaskToDatabase(task):
+    """activeTasks tracks Globus transfers is of the format:
+    {"globus_id": {
+        "globus_id":                globus job ID of upload
+        "contents": {...},          a pendingTransfers object that was sent (see above)
+        "started":                  timestamp when task was sent to Globus
+        "completed":                timestamp when task was completed (including errors and cancelled tasks)
+        "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
+    }, {...}, {...}, ...}"""
+
     gid = task['globus_id']
     stat = task['status']
     start = task['started']
-    comp = task['completed']
-    guser = task['user']
+    comp = task['completed'] if 'completed' in task else ''
+    guser = task['user'] if 'user' in task else ''
     filecount = int(task['file_count']) if 'file_count' in task else -1
     bytecount = int(task['bytes']) if 'bytes' in task else -1
     jbody = json.dumps(task['contents'])
@@ -457,16 +359,42 @@ def getNextUnnotifiedTask():
 
     return nextTask
 
+"""Get at most 100 Globus batches that haven't been sent yet"""
+def readPendingTasks():
+    """PENDING (have group of files; not yet created Globus transfer)"""
+    q_fetch = "SELECT TOP(100) id, contents FROM pending_tasks"
+    results = []
+
+    curs = psql_conn.cursor()
+    curs.execute(q_fetch)
+    for result in curs:
+        results.append({
+            "id": result[0],
+            "contents": result[1]
+        })
+    curs.close()
+
+    return results
+
+"""Drop pending task from database once sent"""
+def removePendingTask(task_id):
+    """PENDING (have group of files; not yet created Globus transfer)"""
+    q_fetch = "DELETE FROM pending_tasks WHERE id='%s'" % task_id
+    curs = psql_conn.cursor()
+    curs.execute(q_fetch)
+    curs.close()
+
 """Fetch all Globus tasks with a particular status"""
 def readTasksByStatus(status, id_only=False):
     """
+
         CREATED (initialized transfer; not yet notified NCSA side)
     IN PROGRESS (notified of transfer; but not yet verified complete)
-         FAILED (Globus could not complete; no longer attempting to complete)
-        DELETED (manually via api below)
       SUCCEEDED (verified complete; not yet notified NCSA side)
        NOTIFIED (verified complete; not yet uploaded into Clowder)
       PROCESSED (complete & uploaded into Clowder)
+         FAILED (Globus could not complete; no longer attempting to complete)
+        DELETED (manually via api below)
     """
     if id_only:
         q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s'" % status
@@ -501,30 +429,35 @@ def readTasksByStatus(status, id_only=False):
 
     return results
 
-"""Save object into a log file from memory, moving existing file to .backup if it exists"""
-def writeStatusToDisk():
-    logPath = config["status_log_path"]
-    logData = getStatus()
-    logger.debug("- writing %s" % os.path.basename(logPath))
+"""Get all active Globus transfers that haven't been verified complete from Globus yet"""
+def getPendingTransferCount():
+    pending_count = 0
 
-    # Create directories if necessary
-    dirs = logPath.replace(os.path.basename(logPath), "")
-    if not os.path.exists(dirs):
-        os.makedirs(dirs)
+    # Get list of running tasks, whether NCSA notified or not
+    q_fetch = "SELECT COUNT(id) FROM pending_tasks"
 
-    # Move existing copy to .backup if it exists
-    if os.path.exists(logPath):
-        shutil.move(logPath, logPath+".backup")
+    curs = psql_conn.cursor()
+    curs.execute(q_fetch)
+    for result in curs:
+        pending_count = result[0]
+    curs.close()
 
-    f = open(logPath, 'w')
-    lockFile(f)
-    f.write(json.dumps(logData))
-    f.close()
+    return pending_count
 
+"""Get all active Globus transfers that haven't been verified complete from Globus yet"""
+def getActiveTransferCount():
+    active_count = 0
 
+    # Get list of running tasks, whether NCSA notified or not
+    q_fetch = "SELECT COUNT(globus_id) FROM globus_tasks WHERE (status = 'CREATED' OR status = 'IN PROGRESS')"
 
+    curs = psql_conn.cursor()
+    curs.execute(q_fetch)
+    for result in curs:
+        active_count = result[0]
+    curs.close()
 
-
+    return active_count
 
 # ----------------------------------------------------------
 # API COMPONENTS
@@ -564,7 +497,7 @@ class TransferQueue(restful.Resource):
 
         To associate metadata with the given dataset, include a "metadata.json" file.
         """
-        global pendingTransfers
+        new_xfers = {}
 
         req = request.get_json(force=True)
         srcpath = config['globus']['source_path']
@@ -584,14 +517,13 @@ class TransferQueue(restful.Resource):
             newTransfer = prepFileForPendingTransfers(p, sensorname, timestamp, datasetname, filemetadata, True)
             if spaceid:
                 newTransfer['space_id'] = spaceid
-            pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), newTransfer)
+            new_xfers[datasetname] = newTransfer
             logger.info("- file queued via API: %s" % p)
 
         # Multiple file path entries under 'paths'
         if 'paths' in req:
-            allNewTransfers = {}
             if spaceid:
-                allNewTransfers['space_id'] = spaceid
+                new_xfers['space_id'] = spaceid
             for p in req['paths']:
                 if p.find(srcpath) == -1:
                     p = os.path.join(srcpath, p)
@@ -608,13 +540,11 @@ class TransferQueue(restful.Resource):
                 newTransfer = prepFileForPendingTransfers(p, sensorname, timestamp, datasetname, filemetadata, True)
                 if spaceid:
                     newTransfer['space_id'] = spaceid
-                allNewTransfers = updateNestedDict(allNewTransfers, newTransfer)
+                new_xfers = updateNestedDict(new_xfers, newTransfer)
                 logger.info("- file queued via API: %s" % p)
 
-            pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), allNewTransfers)
-
-        cleanPendingTransfers()
-        writeTasksToDisk(os.path.join(config['log_path'], "pending_transfers.json"), pendingTransfers)
+        new_xfer_record = buildGlobusBundle(new_xfers)
+        writePendingTaskToDatabase(new_xfer_record)
         return 201
 
 """ / status
@@ -680,69 +610,130 @@ def generateGlobusSubmissionID():
         return None
 
 """Check for files ready for transmission and queue them"""
-def queueGantryFilesForTransfer():
-    global pendingTransfers
-
-    foundFiles = []
-    maxPending = config["gantry"]["max_pending_files"]
+def queueGantryFilesIntoPending():
+    logger.debug("- scanning for new files to transfer")
+    max_xfer_size = config['globus']['max_transfer_file_count']
 
     # Get list of files from FTP log, if log is specified
-    if status_numPending < maxPending:
-        foundFiles = getNewFilesFromFTPLogs()
+    foundFiles = getNewFilesFromFTPLogs()
 
     # Get list of files from watched folders, if folders are specified  (and de-duplicate from FTP list)
-    if status_numPending+len(foundFiles) < maxPending:
-        fileList = getNewFilesFromWatchedFolders(len(foundFiles))
-        for found in fileList:
-            if found not in foundFiles:
-                foundFiles.append(found)
+    fileList = getNewFilesFromWatchedFolders()
+    for found in fileList:
+        if found not in foundFiles:
+            foundFiles.append(found)
 
-    logger.debug("- adding %s found files into pending queue" % len(foundFiles))
+    logger.debug("- adding %s found files into pending tasks" % len(foundFiles))
+    new_xfer_count = 0
     try:
-        newXfers = {}
+        new_xfers = {}
+        queue_size = 0
         for f in foundFiles:
             # Skip hidden/system files
             if f == "" or f.split("/")[-1][0] == ".":
                 continue
-            newTransfer = prepFileForPendingTransfers(f)
-            newXfers = updateNestedDict(newXfers, newTransfer)
-        pendingTransfers = updateNestedDict(safeCopy(pendingTransfers), newXfers)
+            new_xfers = updateNestedDict(new_xfers, prepFileForPendingTransfers(f))
+            queue_size += 1
+
+            # Create pending Globus xfers every n files for database entry
+            if queue_size >= max_xfer_size:
+                new_xfer_record = buildGlobusBundle(new_xfers)
+                writePendingTaskToDatabase(new_xfer_record)
+                new_xfers = {}
+                queue_size = 0
+                new_xfer_count += 1
+
     except Exception as e:
         logger.error("problem adding files: %s" % str(e))
-    logger.debug("- additions to pending queue complete")
+    logger.debug("- added %s entries to pending tasks" % new_xfer_count)
+
+"""Create object for the globus_tasks table, even before transmission"""
+def buildGlobusBundle(queued_files):
+    new_bundle = {}
+
+    for ds in queued_files:
+        if "files" in queued_files[ds]:
+            # Add dataset if this is first file from it
+            if ds not in new_bundle:
+                new_bundle[ds] = {}
+                new_bundle[ds]['files'] = {}
+            # Add files from each dataset
+            for f in queued_files[ds]['files']:
+                fobj = queued_files[ds]['files'][f]
+                if fobj["path"].find(config['globus']['source_path']) > -1:
+                    src_path = os.path.join(fobj["path"], fobj["name"])
+                    dest_path = os.path.join(config['globus']['destination_path'],
+                                             fobj["path"].replace(config['globus']['source_path'], ""),
+                                             fobj["name"])
+                else:
+                    src_path = os.path.join(config['globus']['source_path'], fobj["path"], fobj["name"])
+                    dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
+
+                # Clean up dest path to new folder structure
+                # ua-mac/raw_data/LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
+                # ua-mac/raw_data/LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
+                # ua-mac/raw_data/LemnaTec/3DScannerRawDataTopTmp/scanner3DTop/2016-01-01/2016-08-02__09-42-51-195/file.json
+                # ua-mac/raw_data/MAC/lightning/2016-01-01/weather_2016_06_29.dat
+                dest_path = dest_path.replace("LemnaTec/", "")
+                dest_path = dest_path.replace("MovingSensor/", "")
+                dest_path = dest_path.replace("MAC/", "")
+                dest_path = dest_path.replace("3DScannerRawDataTopTmp/", "")
+                dest_path = dest_path.replace("3DScannerRawDataLowerOnEastSideTmp/", "")
+                dest_path = dest_path.replace("3DScannerRawDataLowerOnWestSideTmp/", "")
+                # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.png
+                # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
+                if dest_path.endswith(".ply") and (dest_path.find("scanner3DTop") or
+                                                       dest_path.find("scanner3DLowerOnEastSide") or
+                                                       dest_path.find("scanner3DLowerOnWestSide")) > -1:
+                    dest_path = dest_path.replace("raw_data", "Level_1")
+                if dest_path.find("MovingSensor.reproc") > -1:
+                    new_dest_path = ""
+                    dirs = dest_path.split("/")
+                    for dir_part in dirs:
+                        if dir_part.find("MovingSensor.reproc") == -1:
+                            new_dest_path = os.path.join(new_dest_path, dir_part)
+                    dest_path = new_dest_path
+
+                fobj["orig_path"] = fobj["path"]
+                fobj["path"] = dest_path
+                fobj['src_path'] = src_path
+                new_bundle[ds]['files'][f] = fobj
+
+            # Clean up any placeholder entries
+            if new_bundle[ds]['files'] == {}:
+                del new_bundle[ds]['files']
+            if new_bundle[ds] == {}:
+                del new_bundle[ds]
+
+    return new_bundle
 
 """Check folders in config for files older than the configured age, and queue for transfer"""
-def getNewFilesFromWatchedFolders(alreadyFound):
+def getNewFilesFromWatchedFolders():
     foundFiles = []
 
     # Get list of files last modified more than X minutes ago
     watchDirs = config['gantry']['file_age_monitor_paths']
     fileAge = config['gantry']['min_file_age_for_transfer_mins']
-    maxPending = config["gantry"]["max_pending_files"]
 
-    for currDir in watchDirs:
-        # TODO: Check for hidden files beginning with "." or just allow them?
-        foundList = subprocess.check_output(["find", currDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
-        if len(foundList)+len(foundFiles)+alreadyFound+status_numPending > maxPending:
-            break
-        else:
+    if len(watchDirs) > 0:
+        for currDir in watchDirs:
+            # TODO: Check for hidden files beginning with "." or just allow them?
+            foundList = subprocess.check_output(["find", currDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
             for f in foundList:
                 foundFiles.append(f)
+        logger.info("- found %s files from watched folders" % len(foundFiles))
 
-    logger.info("- found %s files from watched folders" % len(foundFiles))
     return foundFiles
 
 """Check FTP log files to determine new files that were successfully moved to staging area"""
 def getNewFilesFromFTPLogs():
     global status_lastFTPLogLine, status_lastNasLogLine
-
     current_lastFTPLogLine = status_lastFTPLogLine
     current_lastNasLogLine = status_lastNasLogLine
-    maxPending = config["gantry"]["max_pending_files"]
-    logDir = config["gantry"]["ftp_log_path"]
+
     foundFiles = []
+    logDir = config["gantry"]["ftp_log_path"]
     if logDir == "":
-        # Don't perform a scan if no log file is defined
         return foundFiles
 
     # NASLOG - handle first as it will have fewer files/less frequent updates -----------------------------
@@ -775,111 +766,99 @@ def getNewFilesFromFTPLogs():
                         nasfound += 1
                     else:
                         logger.info("Skipping missing file from naslog: "+line)
-
-                if status_numPending+len(foundFiles) >= maxPending:
-                    break
         if nasfound > 0:
             logger.info(" - found %s lines from naslog" % nasfound)
 
     # XFERLOG -  archived files are by date, e.g. "xferlog-20160501", "xferlog-20160502" --------------------------
     # Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
-    if status_numPending+len(foundFiles) < maxPending:
-        logger.info("- reading xfer logs from: "+status_lastFTPLogLine)
-        def isOldXferLog(fname):
-            return fname.find("xferlog-") > -1
-        lognames = filter(isOldXferLog, os.listdir(logDir))
-        lognames.sort()
+    logger.info("- reading xfer logs from: "+status_lastFTPLogLine)
+    def isOldXferLog(fname):
+        return fname.find("xferlog-") > -1
+    lognames = filter(isOldXferLog, os.listdir(logDir))
+    lognames.sort()
 
-        lastLine = copy.copy(status_lastFTPLogLine)
-        lastReadTime = parseDateFromFTPLogLine(lastLine)
+    lastLine = copy.copy(status_lastFTPLogLine)
+    lastReadTime = parseDateFromFTPLogLine(lastLine)
 
-        currLog = os.path.join(logDir, "xferlog")
-        backLog = 0
-        foundResumePoint = False
-        handledBackLog = True
-        while not (foundResumePoint and handledBackLog):
-            with (open(currLog, 'r+') if currLog.find(".gz")==-1 else gzip.open(currLog, 'r+')) as f:
-                logger.info("- scanning "+currLog)
-                # If no most recent scanned line available, just start from beginning of current log file
-                if lastLine == "":
-                    initialLine = False
-                    foundResumePoint = True
-                else:
-                    initialLine = True
+    currLog = os.path.join(logDir, "xferlog")
+    backLog = 0
+    foundResumePoint = False
+    handledBackLog = True
+    while not (foundResumePoint and handledBackLog):
+        with (open(currLog, 'r+') if currLog.find(".gz")==-1 else gzip.open(currLog, 'r+')) as f:
+            logger.info("- scanning "+currLog)
+            # If no most recent scanned line available, just start from beginning of current log file
+            if lastLine == "":
+                initialLine = False
+                foundResumePoint = True
+            else:
+                initialLine = True
 
-                for line in f:
-                    line = line.rstrip()
-                    if initialLine and handledBackLog:
-                        firstLineTime = parseDateFromFTPLogLine(line)
-                        if firstLineTime <= lastReadTime:
-                            # File begins before most recent line - should be scanned
-                            initialLine = False
-                        elif firstLineTime > lastReadTime:
-                            # File begins after most recent line - need to go back 1 file at least
-                            break
-
-                    if line == lastLine:
-                        logger.debug("- found the resume point")
-                        foundResumePoint = True
-
-                    elif foundResumePoint:
-                        if line != "":
-                            current_lastFTPLogLine = line
-
-                        # We're past the last scanned line, so capture these lines if complete & ending in 'c'
-                        if re.search('ftp \d \* c', line.rstrip()):
-                            # Extract filename from log entry, after an IP address and a number (byte count?)
-                            fnameRegex = '::ffff:\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \d+ ((\/?.)+) +\w _'
-                            fname = re.search(fnameRegex, line)
-                            if fname:
-                                fullname = fname.group(1).rstrip()
-                                # Check if file still exists before queuing for Globus
-                                if os.path.exists(fullname.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])):
-                                    fullname = fullname.replace(config['globus']['source_path'],"")
-                                    foundFiles.append(fullname)
-                                else:
-                                    logger.info("Skipping missing file from FTP log: "+fullname)
-
-                    if status_numPending+len(foundFiles) >= maxPending:
+            for line in f:
+                line = line.rstrip()
+                if initialLine and handledBackLog:
+                    firstLineTime = parseDateFromFTPLogLine(line)
+                    if firstLineTime <= lastReadTime:
+                        # File begins before most recent line - should be scanned
+                        initialLine = False
+                    elif firstLineTime > lastReadTime:
+                        # File begins after most recent line - need to go back 1 file at least
                         break
 
-            # If we didn't find last line in this file, look into the previous file
-            if not foundResumePoint:
-                handledBackLog = False
-                backLog += 1
-
-                if abs(backLog) > len(lognames):
-                    # No previous logs, so just start with current one
-                    currLog = os.path.join(logDir, "xferlog")
+                if line == lastLine:
+                    logger.debug("- found the resume point")
                     foundResumePoint = True
-                    backLog = 0
 
-                    logger.error("LAST READ LINE NOT FOUND! Will search again next cycle.")
-                    handledBackLog = True
-                else:
-                    currLog = os.path.join(logDir, lognames[-backLog])
+                elif foundResumePoint:
+                    if line != "":
+                        current_lastFTPLogLine = line
 
-                logger.debug("- walking back to %s" % currLog)
+                    # We're past the last scanned line, so capture these lines if complete & ending in 'c'
+                    if re.search('ftp \d \* c', line.rstrip()):
+                        # Extract filename from log entry, after an IP address and a number (byte count?)
+                        fnameRegex = '::ffff:\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \d+ ((\/?.)+) +\w _'
+                        fname = re.search(fnameRegex, line)
+                        if fname:
+                            fullname = fname.group(1).rstrip()
+                            # Check if file still exists before queuing for Globus
+                            if os.path.exists(fullname.replace(config['globus']['source_path'], config['gantry']['incoming_files_path'])):
+                                fullname = fullname.replace(config['globus']['source_path'],"")
+                                foundFiles.append(fullname)
+                            else:
+                                logger.info("Skipping missing file from FTP log: "+fullname)
 
-            # If we filled up the pending queue handling backlog, don't move onto newer files yet
-            elif len(foundFiles)+status_numPending >= maxPending:
-                logger.debug("- maximum number of pending files reached")
+        # If we didn't find last line in this file, look into the previous file
+        if not foundResumePoint:
+            handledBackLog = False
+            backLog += 1
+
+            if abs(backLog) > len(lognames):
+                # No previous logs, so just start with current one
+                currLog = os.path.join(logDir, "xferlog")
+                foundResumePoint = True
+                backLog = 0
+
+                logger.error("LAST READ LINE NOT FOUND!")
                 handledBackLog = True
-
-            # If we found last line in a previous file, climb back up to current file and get its contents too
-            elif backLog > 0:
-                backLog -= 1
-                if backLog != 0:
-                    currLogName = lognames[-backLog]
-                    #currLogName = "xferlog-"+str(backLog) if backLog > 0 else "xferlog"
-                else:
-                    currLogName = "xferlog"
-                currLog = os.path.join(logDir, currLogName)
-                logger.debug("- walking up to %s" % currLog)
-
-            # If we found the line and handled all backlogged files, we're ready to go
             else:
-                handledBackLog = True
+                currLog = os.path.join(logDir, lognames[-backLog])
+
+            logger.debug("- walking back to %s" % currLog)
+
+        # If we found last line in a previous file, climb back up to current file and get its contents too
+        elif backLog > 0:
+            backLog -= 1
+            if backLog != 0:
+                currLogName = lognames[-backLog]
+                #currLogName = "xferlog-"+str(backLog) if backLog > 0 else "xferlog"
+            else:
+                currLogName = "xferlog"
+            currLog = os.path.join(logDir, currLogName)
+            logger.debug("- walking up to %s" % currLog)
+
+        # If we found the line and handled all backlogged files, we're ready to go
+        else:
+            handledBackLog = True
 
     status_lastFTPLogLine = current_lastFTPLogLine
     status_lastNasLogLine = current_lastNasLogLine
@@ -887,13 +866,10 @@ def getNewFilesFromFTPLogs():
     return foundFiles
 
 """Initiate Globus transfer with batch of files and add to activeTasks - recurse until max xfers reached or pending empty """
-def initializeGlobusTransfer():
-    global pendingTransfers
-    global activeTasks
-    global status_numActive
-    global status_numPending
+def initializeGlobusTransfer(globus_batch_obj):
+    globus_batch = globus_batch_obj['contents']
+    globus_batch_id = globus_batch_obj['id']
 
-    maxQueue = config['globus']['max_transfer_file_count']
 
     api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
     submissionID = generateGlobusSubmissionID()
@@ -904,329 +880,81 @@ def initializeGlobusTransfer():
                                config['globus']['source_endpoint_id'],
                                config['globus']['destination_endpoint_id'],
                                verify_checksum=True)
+        queue_length = 0
+        for ds in globus_batch:
+            if 'files' in globus_batch[ds]:
+                for f in globus_batch[ds]['files']:
+                    transferObj.add_item(f['src_path'], f['path'])
+                    queue_length += 1
 
-        queueLength = 0
-
-        # Loop over a copy of the list instead of actual thing - other thread will be appending to actual thing
-        loopingTransfers = safeCopy(pendingTransfers)
-        currentTransferBatch = {}
-
-        logger.debug("- building transfer %s from pending queue" % submissionID)
-        for ds in loopingTransfers:
-            if "files" in loopingTransfers[ds]:
-                if ds not in currentTransferBatch:
-                    currentTransferBatch[ds] = {}
-                    currentTransferBatch[ds]['files'] = {}
-                # Add files from each dataset
-                for f in loopingTransfers[ds]['files']:
-                    if queueLength < maxQueue:
-                        fobj = loopingTransfers[ds]['files'][f]
-                        if fobj["path"].find(config['globus']['source_path']) > -1:
-                            src_path = os.path.join(fobj["path"], fobj["name"])
-                            dest_path = os.path.join(config['globus']['destination_path'],
-                                                     fobj["path"].replace(config['globus']['source_path'], ""),
-                                                     fobj["name"])
-                        else:
-                            src_path = os.path.join(config['globus']['source_path'], fobj["path"], fobj["name"])
-                            dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
-
-                        # Clean up dest path to new folder structure
-                        # ua-mac/raw_data/LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
-                        # ua-mac/raw_data/LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
-                        # ua-mac/raw_data/LemnaTec/3DScannerRawDataTopTmp/scanner3DTop/2016-01-01/2016-08-02__09-42-51-195/file.json
-                        # ua-mac/raw_data/MAC/lightning/2016-01-01/weather_2016_06_29.dat
-                        dest_path = dest_path.replace("LemnaTec/", "")
-                        dest_path = dest_path.replace("MovingSensor/", "")
-                        dest_path = dest_path.replace("MAC/", "")
-                        dest_path = dest_path.replace("3DScannerRawDataTopTmp/", "")
-                        dest_path = dest_path.replace("3DScannerRawDataLowerOnEastSideTmp/", "")
-                        dest_path = dest_path.replace("3DScannerRawDataLowerOnWestSideTmp/", "")
-                        # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.png
-                        # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
-                        if dest_path.endswith(".ply") and (dest_path.find("scanner3DTop") or
-                                                               dest_path.find("scanner3DLowerOnEastSide") or
-                                                               dest_path.find("scanner3DLowerOnWestSide")) > -1:
-                            dest_path = dest_path.replace("raw_data", "Level_1")
-                        if dest_path.find("MovingSensor.reproc") > -1:
-                            new_dest_path = ""
-                            dirs = dest_path.split("/")
-                            for dir_part in dirs:
-                                if dir_part.find("MovingSensor.reproc") == -1:
-                                    new_dest_path = os.path.join(new_dest_path, dir_part)
-                            dest_path = new_dest_path
-                        # danforth/raw_data/sorghum_pilot_dataset/snapshot123456/file.png
-
-                        transferObj.add_item(src_path, dest_path)
-
-                        # remainingTransfers will have leftover data once max Globus transfer size is met
-                        queueLength += 1
-                        fobj["orig_path"] = fobj["path"]
-                        fobj["path"] = dest_path
-                        currentTransferBatch[ds]['files'][f] = fobj
-                    else:
-                        break
-
-                # Clean up placeholder entries once queue length is exceeded
-                if currentTransferBatch[ds]['files'] == {}:
-                    del currentTransferBatch[ds]['files']
-                if currentTransferBatch[ds] == {}:
-                    del currentTransferBatch[ds]
-
-            if queueLength >= maxQueue:
-                break
-
-        if queueLength > 0:
-            # Send transfer to Globus
+        # Send transfer to Globus
+        try:
+            logger.debug("- attempting to send new transfer")
+            status_code, status_message, transfer_data = api.transfer(transferObj)
+        except (APIError, ClientError) as e:
             try:
-                logger.debug("- attempting to send new transfer")
+                # Try refreshing endpoints and retrying
+                activateEndpoints()
+                api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
                 status_code, status_message, transfer_data = api.transfer(transferObj)
             except (APIError, ClientError) as e:
-                try:
-                    # Try refreshing endpoints and retrying
-                    activateEndpoints()
-                    api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-                    status_code, status_message, transfer_data = api.transfer(transferObj)
-                except (APIError, ClientError) as e:
-                    logger.error("- problem initializing Globus transfer")
-                    status_code = 503
-                    status_message = e
-                except:
-                    logger.error("- unexpected problem initializing Globus transfer")
-                    status_code = 503
-                    status_message = e
+                logger.error("- problem initializing Globus transfer")
+                status_code = 503
+                status_message = e
+            except:
+                logger.error("- unexpected problem initializing Globus transfer")
+                status_code = 503
+                status_message = e
 
-            if status_code == 200 or status_code == 202:
-                # Notify NCSA monitor of new task, and add to activeTasks for logging
-                globusID = transfer_data['task_id']
-                logger.info("%s new Globus transfer task started (%s files)" % (globusID, queueLength), extra={
-                    "globus_id": globusID,
-                    "action": "TRANSFER STARTED",
-                    "contents": currentTransferBatch
-                })
-
-                activeTasks[globusID] = {
-                    "globus_id": globusID,
-                    "contents": currentTransferBatch,
-                    "started": str(datetime.datetime.now()),
-                    "status": "IN PROGRESS"
-                }
-                writeTasksToDisk(os.path.join(config['log_path'], "active_tasks.json"), activeTasks)
-
-                # Now that we've safely sent the pending transfers, remove them
-                for ds in currentTransferBatch:
-                    if ds in pendingTransfers:
-                        for f in currentTransferBatch[ds]['files']:
-                            if f in pendingTransfers[ds]['files']:
-                                del pendingTransfers[ds]['files'][f]
-
-                notifyMonitorOfNewTransfer(globusID, currentTransferBatch)
-                writeTasksToDisk(os.path.join(config['log_path'], "pending_transfers.json"), pendingTransfers)
-            else:
-                # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
-                logger.error("- Globus transfer initialization failed for %s (%s: %s)" % (ds, status_code, status_message))
-                return
-
-        status_numActive = len(activeTasks)
-        cleanPendingTransfers()
-
-"""Send message to NCSA Globus monitor API that a new task has begun"""
-def notifyMonitorOfNewTransfer(globusID, contents):
-    sess = requests.Session()
-    sess.auth = (config['globus']['username'], config['globus']['password'])
-
-    logger.info("%s being sent to NCSA Globus monitor" % globusID, extra={
-        "globus_id": globusID,
-        "action": "NOTIFY NCSA MONITOR"
-    })
-    try:
-        status = sess.post(config['ncsa_api']['host']+"/tasks", data=json.dumps({
-            "user": config['globus']['username'],
-            "globus_id": globusID,
-            "contents": contents
-        }))
-        return status
-    except requests.ConnectionError as e:
-        logger.error("- cannot connect to NCSA API")
-        return {'status_code':503}
-
-"""Contact NCSA Globus monitor API to check whether task was completed successfully"""
-def getTransferStatusFromMonitor(globusID):
-    sess = requests.Session()
-    sess.auth = (config['globus']['username'], config['globus']['password'])
-
-    # Check with Globus monitor rather than Globus itself, to make sure file was handled properly before deleting from src
-    try:
-        st = sess.get(config['ncsa_api']['host']+"/tasks/"+globusID)
-        if st.status_code == 200:
-            return json.loads(st.text)['status']
-        elif st.status_code == 404:
-            return "NOT FOUND"
-        else:
-            logger.error("%s monitor status check failed (%s: %s)" % (globusID, st.status_code, st.text), extra={
-                "globus_id": globusID
+        if status_code == 200 or status_code == 202:
+            # Notify NCSA monitor of new task, and add to activeTasks for logging
+            globusID = transfer_data['task_id']
+            logger.info("%s new Globus transfer task started (%s files)" % (globusID, queue_length), extra={
+                "globus_id": globusID,
+                "action": "TRANSFER STARTED",
+                "contents": globus_batch
             })
-            return "UNKNOWN"
-    except requests.ConnectionError as e:
-        logger.error("- cannot connect to NCSA API")
-        return None
+
+            created_task = {
+                "globus_id": globusID,
+                "contents": globus_batch,
+                "started": str(datetime.datetime.now()),
+                "status": "IN PROGRESS"
+            }
+            writeTaskToDatabase(created_task)
+            removePendingTask(globus_batch_id)
+        else:
+            # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
+            logger.error("- Globus transfer initialization failed for %s (%s: %s)" % (ds, status_code, status_message))
+            return
 
 """Continually initiate transfers from pending queue and contact NCSA API for status updates"""
-def globusMonitorLoop():
-    global activeTasks
-    global status_numActive
-
+def globusInitializerLoop():
     # Prepare timers for tracking how often different refreshes are executed
     globusWait = config['gantry']['globus_transfer_frequency_secs'] # bundle pending files and transfer
-    apiWait = config['ncsa_api']['api_check_frequency_secs'] # check status of sent files
     authWait = config['globus']['authentication_refresh_frequency_secs'] # renew globus auth
 
     while True:
         time.sleep(1)
         globusWait -= 1
-        apiWait -= 1
         authWait -= 1
 
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if globusWait <= 0:
-            logger.debug("- GLOBUS THREAD: %s/%s active tasks" % (status_numActive, config["globus"]["max_active_tasks"]))
-
-            if status_numActive < config["globus"]["max_active_tasks"]:
-                logger.debug("- checking pending file list...")
-                # Clean up the pending object of straggling keys, then initialize Globus transfers
-                cleanPendingTransfers()
-                while status_numPending > 0 and status_numActive < config['globus']['max_active_tasks']:
-                    logger.info("- pending files found. initializing Globus transfer.")
-                    writeTasksToDisk(os.path.join(config['log_path'], "pending_transfers.json"), pendingTransfers)
-                    initializeGlobusTransfer()
+            active_count = getActiveTransferCount()
+            if active_count < config["globus"]["max_active_tasks"]:
+                pending_tasks = readPendingTasks()
+                for p in pending_tasks:
+                    initializeGlobusTransfer(p)
 
             # Reset wait to check gantry incoming directory again
             globusWait = config['gantry']['globus_transfer_frequency_secs']
             writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
 
-        # Check with NCSA Globus monitor API for completed transfers
-        if apiWait <= 0:
-            # First, try to notify NCSA about tasks it isn't aware of
-            logger.debug("- attempting to notify NCSA of created Globus tasks")
-            currentlyActive = readTasksByStatus("CREATED")
-            for task in currentlyActive:
-                # ON SUCCESS, UPDATE TO IN PROGRESS
-                notifyMonitorOfNewTransfer(task['globus_id'], task['contents'])
-            currentlyActive = readTasksByStatus("SUCCEEDED")
-            for task in currentlyActive:
-                # ON SUCCESS, UPDATE TO NOTIFIED
-                notifyMonitorOfNewTransfer(task['globus_id'], task['contents'])
-
-            # Next, check In Progress xfers with Globus to mark as completed
-            currentlyActive = readTasksByStatus("CREATED")
-            for task in currentlyActive:
-                # ON COMPLETE, UPDATE TO SUCCEEDED
-                checkWithGlobus(task)
-            currentlyActive = readTasksByStatus("IN PROGRESS")
-            for task in currentlyActive:
-                # ON COMPLETE, UPDATE TO NOTIFIED
-                checkWithGlobus(task)
-
-            # Finally, check with NCSA about whether it has processed others
-            logger.debug("- GLOBUS THREAD: checking status of %s active tasks with NCSA Globus monitor" % len(activeTasks))
-            currentlyActive = readTasksByStatus("NOTIFIED")
-                # ON COMPLETE, UPDATE TO PROCESSED
-
-
-            for globusID in currentActiveTasks:
-                task = activeTasks[globusID]
-
-                globusStatus = getTransferStatusFromMonitor(globusID)
-                if globusStatus in ["SUCCEEDED", "PROCESSED", "FAILED"]:
-                    logger.info("%s status update received: %s" % (globusID, globusStatus), extra={
-                        "globus_id": globusID,
-                        "action": "STATUS UPDATE",
-                        "status": globusStatus
-                    })
-                    task['status'] = globusStatus
-                    task['completed'] = str(datetime.datetime.now())
-
-                    # Write out results log
-                    writeCompletedTransferToDisk(task)
-
-                # If the Globus monitor isn't even aware of this transfer, try to notify it!
-                elif globusStatus == "NOT FOUND":
-                    notifyMonitorOfNewTransfer(globusID, task['contents'])
-
-                else:
-                    # Couldn't connect to NCSA API, wait for next loop to try again
-                    break
-
-            apiWait = config['ncsa_api']['api_check_frequency_secs']
-            writeTasksToDisk(os.path.join(config['log_path'], "active_tasks.json"), activeTasks)
-
         # Refresh Globus auth tokens
         if authWait <= 0:
         #    generateAuthToken()
             authWait = config['globus']['authentication_refresh_frequency_secs']
-
-"""Continually contact NCSA API for status updates"""
-def globusCleanupLoop():
-    global activeTasks
-    global status_numActive
-
-    # Prepare timers for tracking how often different refreshes are executed
-    cleanWait = config['ncsa_api']['api_check_frequency_secs'] # check status of sent files
-
-    while True:
-        time.sleep(1)
-        cleanWait -= 1
-
-        # Check with NCSA Globus monitor API for completed transfers
-        if cleanWait <= 0:
-            # TODO: Can symlinks go away entirely now?
-            logger.debug("- CLEANUP THREAD: creating symlinks for completed tasks")
-            cleanedCount = 0
-            # Use copy of task list so it doesn't change during iteration
-            currentlyActiveTasks = safeCopy(activeTasks)
-            for gid in currentlyActiveTasks:
-                task = activeTasks[gid]
-
-                if task['status'] in ["SUCCEEDED", "PROCESSED", "FAILED"]:
-                    # Move files to staging area for deletion
-                    if task['status'] == "SUCCEEDED" or task['status'] == "PROCESSED":
-                        logger.info("%s creating symlinks" % gid)
-                        deleteDir = config['gantry']['deletion_queue']
-                        if deleteDir != "":
-                            for ds in task['contents']:
-                                if 'files' in task['contents'][ds]:
-                                    for f in task['contents'][ds]['files']:
-                                        fobj = task['contents'][ds]['files'][f]
-                                        if 'orig_path' in fobj:
-                                            srcPath = os.path.join(config['globus']['source_path'], fobj['orig_path'])
-                                        else:
-                                            # TODO: This can go away once transitional xfers are handled
-                                            cp = fobj['path']
-                                            if cp.find("/EnvironmentLogger")>-1 or cp.find("/3DScannerRawDataTopTmp")>-1:
-                                                cp = cp.replace("/ua-mac/raw_data", "/LemnaTec")
-                                            elif cp.find("/lightning")>-1 or cp.find("/weather")>-1 or cp.find("/irrigation")>-1:
-                                                cp = cp.replace("/ua-mac/raw_data", "/MAC")
-                                            else: # MovingSensors
-                                                cp = cp.replace("/ua-mac/raw_data", "/LemnaTec/MovingSensors")
-                                            srcPath = os.path.join(config['globus']['source_path'], cp)
-                                        if fobj['name'] not in srcPath:
-                                            srcPath = os.path.join(srcPath, fobj['name'])
-                                        createLocalSymlink(srcPath, srcPath.replace(config['globus']['source_path'], deleteDir))
-
-                                        # Crawl and remove empty directories
-                                        # logger.info("- removing empty directories in "+config['gantry']['incoming_files_path'])
-                                        # subprocess.call(["find", config['gantry']['incoming_files_path'], "-type", "d", "-empty", "-delete"])
-
-                    cleanedCount += 1
-                    if gid in activeTasks:
-                        del activeTasks[gid]
-                        writeTasksToDisk(os.path.join(config['log_path'], "active_tasks.json"), activeTasks)
-
-            status_numActive = len(activeTasks)
-            logger.debug("- CLEANUP THREAD: cleaned %s tasks" % cleanedCount)
-
-            # Reset timer to check NCSA api for transfer updates again
-            cleanWait = config['ncsa_api']['api_check_frequency_secs']
-            writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
 
 """Continually monitor FTP log for new files to transmit and add them to pendingTransfers"""
 def gantryMonitorLoop():
@@ -1238,14 +966,8 @@ def gantryMonitorLoop():
 
         # Check for new files in incoming gantry directory and initiate transfers if ready
         if gantryWait <= 0:
-            logger.debug("LOG SCAN THREAD: %s/%s files pending" % (status_numPending, config["gantry"]["max_pending_files"]))
-            if status_numPending < config["gantry"]["max_pending_files"]:
-                queueGantryFilesForTransfer()
-                cleanPendingTransfers()
-                logger.debug("LOG SCAN THREAD: now %s pending transfers" % status_numPending)
-                if status_numPending > 0:
-                    writeTasksToDisk(os.path.join(config['log_path'], "pending_transfers.json"), pendingTransfers)
-                writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
+            queueGantryFilesIntoPending()
+            writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
 
             # Reset wait to check gantry incoming directory again
             gantryWait = config['gantry']['file_check_frequency_secs']
@@ -1282,22 +1004,11 @@ if __name__ == '__main__':
 
     # Load any previous active/pending transfers
     psql_conn = connectToPostgres()
-
-    activeTasks = loadTasksFromDisk(os.path.join(config['log_path'], "active_tasks.json"))
-
-    status_numActive = len(activeTasks)
-    pendingTransfers = loadTasksFromDisk(os.path.join(config['log_path'], "pending_transfers.json"))
-    cleanPendingTransfers()
-
-    logger.info("- loaded data from active and pending log files")
-    logger.info("- %s pending files" % status_numPending)
-    logger.info("- %s active Globus tasks" % status_numActive)
-
     activateEndpoints()
 
     # Create thread for service to begin monitoring log file & transfer queue
-    logger.info("*** Service now monitoring gantry transfer queue ***")
-    thread.start_new_thread(globusMonitorLoop, ())
+    logger.info("*** Service now monitoring pending transfer queue ***")
+    thread.start_new_thread(globusInitializerLoop, ())
     logger.info("*** Service now checking for new files via FTP logs/folder monitoring ***")
     thread.start_new_thread(gantryMonitorLoop, ())
 

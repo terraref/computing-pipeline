@@ -1081,23 +1081,6 @@ def globusMonitorLoop():
         apiWait -= 1
         authWait -= 1
 
-        # Check for new files in incoming gantry directory and initiate transfers if ready
-        if globusWait <= 0:
-            logger.debug("- GLOBUS THREAD: %s/%s active tasks" % (status_numActive, config["globus"]["max_active_tasks"]))
-
-            if status_numActive < config["globus"]["max_active_tasks"]:
-                logger.debug("- checking pending file list...")
-                # Clean up the pending object of straggling keys, then initialize Globus transfers
-                cleanPendingTransfers()
-                while status_numPending > 0 and status_numActive < config['globus']['max_active_tasks']:
-                    logger.info("- pending files found. initializing Globus transfer.")
-                    writeTasksToDisk(os.path.join(config['log_path'], "pending_transfers.json"), pendingTransfers)
-                    initializeGlobusTransfer()
-
-            # Reset wait to check gantry incoming directory again
-            globusWait = config['gantry']['globus_transfer_frequency_secs']
-            writeTasksToDisk(os.path.join(config["log_path"], "monitor_status.json"), getStatus())
-
         # Check with NCSA Globus monitor API for completed transfers
         if apiWait <= 0:
             # First, try to notify NCSA about tasks it isn't aware of
@@ -1290,9 +1273,6 @@ if __name__ == '__main__':
 
     activateEndpoints()
 
-    # Create thread for service to begin monitoring log file & transfer queue
-    logger.info("*** Service now monitoring gantry transfer queue ***")
-    thread.start_new_thread(globusMonitorLoop, ())
     logger.info("*** Service now monitoring existing Globus transfers ***")
     thread.start_new_thread(globusCleanupLoop, ())
 
