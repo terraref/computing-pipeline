@@ -16,10 +16,11 @@
 
 import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip, pwd
 import logging, logging.config, logstash
-import requests
 from io import BlockingIOError
+
 from flask import Flask, request, Response
 from flask.ext import restful
+
 from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIError, ClientError, goauth
 
 rootPath = "/home/gantry"
@@ -34,7 +35,7 @@ app = Flask(__name__)
 api = restful.Api(app)
 
 # ----------------------------------------------------------
-# SHARED UTILS
+# OS & GLOBUS
 # ----------------------------------------------------------
 """Attempt to lock a file so API and monitor don't write at once, and wait if unable"""
 def lockFile(f):
@@ -60,17 +61,6 @@ def updateNestedDict(existing, new):
         else:
             existing = {k: new[k]}
     return existing
-
-"""Return small JSON object with information about monitor health"""
-def getStatus():
-    global status_lastFTPLogLine, status_lastNasLogLine
-
-    return {
-        "pending_file_transfers": getPendingTransferCount(),
-        "active_globus_tasks": getActiveTransferCount(),
-        "last_ftp_log_line_read": status_lastFTPLogLine,
-        "last_nas_log_line_read": status_lastNasLogLine
-    }
 
 """Load contents of .json file into a JSON object"""
 def loadJsonFile(filename):
@@ -103,104 +93,57 @@ def writeStatus(filePath, taskObj):
     f.write(json.dumps(getStatus()))
     f.close()
 
-"""Make entry for pendingTransfers"""
-def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None, filemetadata={},
-                              manual=False):
-    # Strip portions of paths that differ between <true source path> and <internal Docker path>
-    gantryDir = config['gantry']['incoming_files_path']
-    dockerDir = config['globus']['source_path']
-    whitelist = config['gantry']["directory_whitelist"]
+"""Use globus goauth tool to get access token for config account"""
+def generateAuthToken():
+    logger.info("- generating auth token for "+config['globus']['username'])
+    t = goauth.get_access_token(
+            username=config['globus']['username'],
+            password=config['globus']['password']
+    ).token
+    config['globus']['auth_token'] = t
+    logger.debug("- generated: "+t)
 
-    # Only check whitelist if scanning from FTP, not if manually submitted
-    if not manual:
-        whitelisted = False
-        for w in whitelist:
-            if f.find(w) == 0 or f.find(w.replace(dockerDir,"")) == 0:
-                whitelisted = True
-        if not whitelisted:
-            logger.error("path %s is not whitelisted; skipping" % f)
-            return
+"""Refresh auth token and send autoactivate message to source and destination Globus endpoints"""
+def activateEndpoints():
+    src = config['globus']["source_endpoint_id"]
+    dest = config['globus']["destination_endpoint_id"]
 
-    # Get path starting at the site level (e.g. LemnaTec, MAC)
-    if f.find(gantryDir) > -1:
-        # try with and without leading /
-        gantryDirPath = f.replace(gantryDir, "")
-        gantryDirPath = gantryDirPath.replace(gantryDir[1:], "")
+    generateAuthToken()
+    api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+    # TODO: Can't use autoactivate; must populate credentials
+    """try:
+        actList = api.endpoint_activation_requirements(src)[2]
+        actList.set_requirement_value('myproxy', 'username', 'data_mover')
+        actList.set_requirement_value('myproxy', 'passphrase', 'terraref2016')
+        actList.set_requirement_value('delegate_proxy', 'proxy_chain', 'some PEM cert w public key')
+    except:"""
+    api.endpoint_autoactivate(src)
+    api.endpoint_autoactivate(dest)
+
+"""Generate a submission ID that can be used to avoid double-submitting"""
+def generateGlobusSubmissionID():
+    try:
+        api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+        status_code, status_message, submission_id = api.submission_id()
+    except:
+        try:
+            # Try activating endpoints and retrying
+            activateEndpoints()
+            api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+            status_code, status_message, submission_id = api.submission_id()
+        except:
+            logger.error("- exception generating submission ID for Globus transfer")
+            return None
+
+    if status_code == 200:
+        logger.debug("- generated new Globus submission ID %s" % submission_id['value'])
+        return submission_id['value']
     else:
-        # try with and without leading /
-        gantryDirPath = f.replace(dockerDir, "")
-        gantryDirPath = gantryDirPath.replace(dockerDir[1:], "")
-
-    # Get meta info from file path
-    # /LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
-    # /LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
-    # /MAC/lightning/2016-01-01/weather_2016_06_29.dat
-    # /LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.png
-    # /LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
-    # /Users/mburnette/globus/sorghum_pilot_dataset/snapshot123456/file.png
-    pathParts = gantryDirPath.split("/")
-
-    # Filename is always last
-    filename = pathParts[-1]
-    # Timestamp is one level up from filename
-    if not timestamp:
-        timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
-    # Sensor name varies based on folder structure
-    if not sensorname:
-        if timestamp.find("__") > -1 and len(pathParts) > 3:
-            sensorname = pathParts[-4]
-        elif len(pathParts) > 2:
-            sensorname = pathParts[-3].replace("EnviromentLogger", "EnvironmentLogger")
-        else:
-            sensorname = "unknown_sensor"
-    # Dataset typically is "sensorName - YYYY-MM-DD__hh-mm-ss-mms"
-    if not datasetname:
-        datasetname = sensorname +" - "+timestamp
-
-    gantryDirPath = gantryDirPath.replace(filename, "")
-
-    newTransfer = {
-        datasetname: {
-            "files": {
-                filename: {
-                    "name": filename,
-                    "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath,
-                    "orig_path": f
-                }
-            }
-        }
-    }
-    if filemetadata and filemetadata != {}:
-        newTransfer[datasetname]["files"][filename]["md"] = filemetadata
-
-    return newTransfer
-
-"""Take line of FTP transfer log and parse a datetime object from it"""
-def parseDateFromFTPLogLine(line):
-    # Example log line:
-    #Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
-
-    months = {
-        "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
-        "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12
-    }
-
-    l = line.split()
-    if len(l) > 6:
-        YY = int(l[4])      # year, e.g. 2016
-        MM = months[l[1]]   # month, e.g. 4
-        DD = int(l[2])      # day of month, e.g. 5
-        hh = int(l[3].split(':')[0])  # hours, e.g. 12
-        mm = int(l[3].split(':')[1])  # minutes, e.g. 35
-        ss = int(l[3].split(':')[2])  # seconds, e.g. 58
-
-        return datetime.datetime(YY, MM, DD, hh, mm, ss)
-    else:
-        # TODO: How to handle unparseable log line?
-        return datetime.datetime(1900, 1, 1, 1, 1, 1)
+        logger.error("- could not generate new Globus submission ID (%s: %s)" % (status_code, status_message))
+        return None
 
 # ----------------------------------------------------------
-# POSTGRES LOGGING COMPONENTS
+# POSTGRES LOGGING
 # ----------------------------------------------------------
 """Return a connection to the PostgreSQL database"""
 def connectToPostgres():
@@ -223,13 +166,13 @@ def connectToPostgres():
         conn.close()
 
         conn = psycopg2.connect(dbname='globusmonitor')
-        initializeDatabase(conn)
+        initializePostgresDatabase(conn)
 
     logger.info("Connected to Postgres")
     return conn
 
 """Create PostgreSQL database tables"""
-def initializeDatabase(db_connection):
+def initializePostgresDatabase(db_connection):
     # Table creation queries
     ct_pending = "CREATE TABLE pending_tasks (id SERIAL, contents JSON);"
     ct_tasks = "CREATE TABLE globus_tasks (globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL, " \
@@ -237,6 +180,7 @@ def initializeDatabase(db_connection):
                "file_count INT, bytes BIGINT, globus_user TEXT, contents JSON);"
 
     # Index creation queries
+    ix_pending = "CREATE UNIQUE INDEX pending_idx ON pending_tasks (id);"
     ix_tasks = "CREATE UNIQUE INDEX globus_idx ON globus_tasks (globus_id);"
 
     # Execute each query
@@ -245,37 +189,29 @@ def initializeDatabase(db_connection):
     curs.execute(ct_pending)
     curs.execute(ct_tasks)
     logger.info("Creating PostgreSQL indexes...")
+    curs.execute(ix_pending)
     curs.execute(ix_tasks)
     curs.close()
     db_connection.commit()
 
     logger.info("PostgreSQL initialization complete.")
 
-"""Fetch a Globus task from PostgreSQL"""
-def readTaskFromDatabase(globus_id):
-    q_fetch = "SELECT globus_id, status, started, completed, globus_user, " \
-              "file_count, bytes, contents FROM globus_tasks WHERE globus_id = '%s'" % globus_id
+"""Get at most 100 Globus batches that haven't been sent yet"""
+def readPendingTasks():
+    """PENDING (have group of files; not yet created Globus transfer)"""
+    q_fetch = "SELECT TOP(100) id, contents FROM pending_tasks"
+    results = []
 
     curs = psql_conn.cursor()
-    logger.debug("Fetching task %s from PostgreSQL..." % globus_id)
     curs.execute(q_fetch)
-    result = curs.fetchone()
+    for result in curs:
+        results.append({
+            "id": result[0],
+            "contents": result[1]
+        })
     curs.close()
 
-    if result:
-        return {
-            "globus_id": result[0],
-            "status": result[1],
-            "started": result[2],
-            "completed": result[3],
-            "user": result[4],
-            "file_count": result[5],
-            "bytes": result[6],
-            "contents": result[7]
-        }
-    else:
-        logger.debug("Task %s not found in PostgreSQL" % globus_id)
-        return None
+    return results
 
 """Write a pending Globus task into PostgreSQL"""
 def writePendingTaskToDatabase(task):
@@ -339,23 +275,6 @@ def writeTaskToDatabase(task):
     curs.execute(q_insert)
     psql_conn.commit()
     curs.close()
-
-"""Get at most 100 Globus batches that haven't been sent yet"""
-def readPendingTasks():
-    """PENDING (have group of files; not yet created Globus transfer)"""
-    q_fetch = "SELECT TOP(100) id, contents FROM pending_tasks"
-    results = []
-
-    curs = psql_conn.cursor()
-    curs.execute(q_fetch)
-    for result in curs:
-        results.append({
-            "id": result[0],
-            "contents": result[1]
-        })
-    curs.close()
-
-    return results
 
 """Drop pending task from database once sent"""
 def removePendingTask(task_id):
@@ -483,7 +402,7 @@ class TransferQueue(restful.Resource):
         writePendingTaskToDatabase(new_xfer_record)
         return 201
 
-""" / status
+""" /status
 Return basic information about monitor for health checking"""
 class MonitorStatus(restful.Resource):
 
@@ -496,170 +415,16 @@ api.add_resource(MonitorStatus, '/status')
 # ----------------------------------------------------------
 # SERVICE COMPONENTS
 # ----------------------------------------------------------
-"""Use globus goauth tool to get access token for config account"""
-def generateAuthToken():
-    logger.info("- generating auth token for "+config['globus']['username'])
-    t = goauth.get_access_token(
-            username=config['globus']['username'],
-            password=config['globus']['password']
-    ).token
-    config['globus']['auth_token'] = t
-    logger.debug("- generated: "+t)
+"""Return small JSON object with information about monitor health"""
+def getStatus():
+    global status_lastFTPLogLine, status_lastNasLogLine
 
-"""Refresh auth token and send autoactivate message to source and destination Globus endpoints"""
-def activateEndpoints():
-    src = config['globus']["source_endpoint_id"]
-    dest = config['globus']["destination_endpoint_id"]
-
-    generateAuthToken()
-    api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-    # TODO: Can't use autoactivate; must populate credentials
-    """try:
-        actList = api.endpoint_activation_requirements(src)[2]
-        actList.set_requirement_value('myproxy', 'username', 'data_mover')
-        actList.set_requirement_value('myproxy', 'passphrase', 'terraref2016')
-        actList.set_requirement_value('delegate_proxy', 'proxy_chain', 'some PEM cert w public key')
-    except:"""
-    api.endpoint_autoactivate(src)
-    api.endpoint_autoactivate(dest)
-
-"""Generate a submission ID that can be used to avoid double-submitting"""
-def generateGlobusSubmissionID():
-    try:
-        api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-        status_code, status_message, submission_id = api.submission_id()
-    except:
-        try:
-            # Try activating endpoints and retrying
-            activateEndpoints()
-            api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-            status_code, status_message, submission_id = api.submission_id()
-        except:
-            logger.error("- exception generating submission ID for Globus transfer")
-            return None
-
-    if status_code == 200:
-        logger.debug("- generated new Globus submission ID %s" % submission_id['value'])
-        return submission_id['value']
-    else:
-        logger.error("- could not generate new Globus submission ID (%s: %s)" % (status_code, status_message))
-        return None
-
-"""Check for files ready for transmission and queue them"""
-def queueGantryFilesIntoPending():
-    logger.debug("- scanning for new files to transfer")
-    max_xfer_size = config['globus']['max_transfer_file_count']
-
-    # Get list of files from FTP log, if log is specified
-    foundFiles = getNewFilesFromFTPLogs()
-
-    # Get list of files from watched folders, if folders are specified  (and de-duplicate from FTP list)
-    fileList = getNewFilesFromWatchedFolders()
-    for found in fileList:
-        if found not in foundFiles:
-            foundFiles.append(found)
-
-    logger.debug("- adding %s found files into pending tasks" % len(foundFiles))
-    new_xfer_count = 0
-    try:
-        new_xfers = {}
-        queue_size = 0
-        for f in foundFiles:
-            # Skip hidden/system files
-            if f == "" or f.split("/")[-1][0] == ".":
-                continue
-            new_xfers = updateNestedDict(new_xfers, prepFileForPendingTransfers(f))
-            queue_size += 1
-
-            # Create pending Globus xfers every n files for database entry
-            if queue_size >= max_xfer_size:
-                new_xfer_record = buildGlobusBundle(new_xfers)
-                writePendingTaskToDatabase(new_xfer_record)
-                new_xfers = {}
-                queue_size = 0
-                new_xfer_count += 1
-
-    except Exception as e:
-        logger.error("problem adding files: %s" % str(e))
-    logger.debug("- added %s entries to pending tasks" % new_xfer_count)
-
-"""Create object for the globus_tasks table, even before transmission"""
-def buildGlobusBundle(queued_files):
-    new_bundle = {}
-
-    for ds in queued_files:
-        if "files" in queued_files[ds]:
-            # Add dataset if this is first file from it
-            if ds not in new_bundle:
-                new_bundle[ds] = {}
-                new_bundle[ds]['files'] = {}
-            # Add files from each dataset
-            for f in queued_files[ds]['files']:
-                fobj = queued_files[ds]['files'][f]
-                if fobj["path"].find(config['globus']['source_path']) > -1:
-                    src_path = os.path.join(fobj["path"], fobj["name"])
-                    dest_path = os.path.join(config['globus']['destination_path'],
-                                             fobj["path"].replace(config['globus']['source_path'], ""),
-                                             fobj["name"])
-                else:
-                    src_path = os.path.join(config['globus']['source_path'], fobj["path"], fobj["name"])
-                    dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
-
-                # Clean up dest path to new folder structure
-                # ua-mac/raw_data/LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
-                # ua-mac/raw_data/LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
-                # ua-mac/raw_data/LemnaTec/3DScannerRawDataTopTmp/scanner3DTop/2016-01-01/2016-08-02__09-42-51-195/file.json
-                # ua-mac/raw_data/MAC/lightning/2016-01-01/weather_2016_06_29.dat
-                dest_path = dest_path.replace("LemnaTec/", "")
-                dest_path = dest_path.replace("MovingSensor/", "")
-                dest_path = dest_path.replace("MAC/", "")
-                dest_path = dest_path.replace("3DScannerRawDataTopTmp/", "")
-                dest_path = dest_path.replace("3DScannerRawDataLowerOnEastSideTmp/", "")
-                dest_path = dest_path.replace("3DScannerRawDataLowerOnWestSideTmp/", "")
-                # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.png
-                # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
-                if dest_path.endswith(".ply") and (dest_path.find("scanner3DTop") or
-                                                       dest_path.find("scanner3DLowerOnEastSide") or
-                                                       dest_path.find("scanner3DLowerOnWestSide")) > -1:
-                    dest_path = dest_path.replace("raw_data", "Level_1")
-                if dest_path.find("MovingSensor.reproc") > -1:
-                    new_dest_path = ""
-                    dirs = dest_path.split("/")
-                    for dir_part in dirs:
-                        if dir_part.find("MovingSensor.reproc") == -1:
-                            new_dest_path = os.path.join(new_dest_path, dir_part)
-                    dest_path = new_dest_path
-
-                fobj["orig_path"] = fobj["path"]
-                fobj["path"] = dest_path
-                fobj['src_path'] = src_path
-                new_bundle[ds]['files'][f] = fobj
-
-            # Clean up any placeholder entries
-            if new_bundle[ds]['files'] == {}:
-                del new_bundle[ds]['files']
-            if new_bundle[ds] == {}:
-                del new_bundle[ds]
-
-    return new_bundle
-
-"""Check folders in config for files older than the configured age, and queue for transfer"""
-def getNewFilesFromWatchedFolders():
-    foundFiles = []
-
-    # Get list of files last modified more than X minutes ago
-    watchDirs = config['gantry']['file_age_monitor_paths']
-    fileAge = config['gantry']['min_file_age_for_transfer_mins']
-
-    if len(watchDirs) > 0:
-        for currDir in watchDirs:
-            # TODO: Check for hidden files beginning with "." or just allow them?
-            foundList = subprocess.check_output(["find", currDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
-            for f in foundList:
-                foundFiles.append(f)
-        logger.info("- found %s files from watched folders" % len(foundFiles))
-
-    return foundFiles
+    return {
+        "pending_file_transfers": getPendingTransferCount(),
+        "active_globus_tasks": getActiveTransferCount(),
+        "last_ftp_log_line_read": status_lastFTPLogLine,
+        "last_nas_log_line_read": status_lastNasLogLine
+    }
 
 """Check FTP log files to determine new files that were successfully moved to staging area"""
 def getNewFilesFromFTPLogs():
@@ -801,6 +566,221 @@ def getNewFilesFromFTPLogs():
     logger.debug("- found %s files from logs" % len(foundFiles))
     return foundFiles
 
+"""Take line of FTP transfer log and parse a datetime object from it"""
+def parseDateFromFTPLogLine(line):
+    # Example log line:
+    #Tue Apr  5 12:35:58 2016 1 ::ffff:150.135.84.81 4061858 /gantry_data/LemnaTec/EnvironmentLogger/2016-04-05/2016-04-05_12-34-58_enviromentlogger.json b _ i r lemnatec ftp 0 * c
+
+    months = {
+        "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+        "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12
+    }
+
+    l = line.split()
+    if len(l) > 6:
+        YY = int(l[4])      # year, e.g. 2016
+        MM = months[l[1]]   # month, e.g. 4
+        DD = int(l[2])      # day of month, e.g. 5
+        hh = int(l[3].split(':')[0])  # hours, e.g. 12
+        mm = int(l[3].split(':')[1])  # minutes, e.g. 35
+        ss = int(l[3].split(':')[2])  # seconds, e.g. 58
+
+        return datetime.datetime(YY, MM, DD, hh, mm, ss)
+    else:
+        # TODO: How to handle unparseable log line?
+        return datetime.datetime(1900, 1, 1, 1, 1, 1)
+
+"""Check folders in config for files older than the configured age, and queue for transfer"""
+def getNewFilesFromWatchedFolders():
+    foundFiles = []
+
+    # Get list of files last modified more than X minutes ago
+    watchDirs = config['gantry']['file_age_monitor_paths']
+    fileAge = config['gantry']['min_file_age_for_transfer_mins']
+
+    if len(watchDirs) > 0:
+        for currDir in watchDirs:
+            # TODO: Check for hidden files beginning with "." or just allow them?
+            foundList = subprocess.check_output(["find", currDir, "-mmin", "+"+fileAge, "-type", "f", "-print"]).split("\n")
+            for f in foundList:
+                foundFiles.append(f)
+        logger.info("- found %s files from watched folders" % len(foundFiles))
+
+    return foundFiles
+
+"""Query SQL database for new records"""
+def getNewFilesFromSQLDatabase():
+    pass
+
+"""Create object for the globus_tasks table, even before transmission"""
+def buildGlobusBundle(queued_files):
+    new_bundle = {}
+
+    for ds in queued_files:
+        if "files" in queued_files[ds]:
+            # Add dataset if this is first file from it
+            if ds not in new_bundle:
+                new_bundle[ds] = {}
+                new_bundle[ds]['files'] = {}
+            # Add files from each dataset
+            for f in queued_files[ds]['files']:
+                fobj = queued_files[ds]['files'][f]
+                if fobj["path"].find(config['globus']['source_path']) > -1:
+                    src_path = os.path.join(fobj["path"], fobj["name"])
+                    dest_path = os.path.join(config['globus']['destination_path'],
+                                             fobj["path"].replace(config['globus']['source_path'], ""),
+                                             fobj["name"])
+                else:
+                    src_path = os.path.join(config['globus']['source_path'], fobj["path"], fobj["name"])
+                    dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
+
+                # Clean up dest path to new folder structure
+                # ua-mac/raw_data/LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
+                # ua-mac/raw_data/LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
+                # ua-mac/raw_data/LemnaTec/3DScannerRawDataTopTmp/scanner3DTop/2016-01-01/2016-08-02__09-42-51-195/file.json
+                # ua-mac/raw_data/MAC/lightning/2016-01-01/weather_2016_06_29.dat
+                dest_path = dest_path.replace("LemnaTec/", "")
+                dest_path = dest_path.replace("MovingSensor/", "")
+                dest_path = dest_path.replace("MAC/", "")
+                dest_path = dest_path.replace("3DScannerRawDataTopTmp/", "")
+                dest_path = dest_path.replace("3DScannerRawDataLowerOnEastSideTmp/", "")
+                dest_path = dest_path.replace("3DScannerRawDataLowerOnWestSideTmp/", "")
+                # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.png
+                # /ua-mac/raw_data/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
+                if dest_path.endswith(".ply") and (dest_path.find("scanner3DTop") or
+                                                       dest_path.find("scanner3DLowerOnEastSide") or
+                                                       dest_path.find("scanner3DLowerOnWestSide")) > -1:
+                    dest_path = dest_path.replace("raw_data", "Level_1")
+                if dest_path.find("MovingSensor.reproc") > -1:
+                    new_dest_path = ""
+                    dirs = dest_path.split("/")
+                    for dir_part in dirs:
+                        if dir_part.find("MovingSensor.reproc") == -1:
+                            new_dest_path = os.path.join(new_dest_path, dir_part)
+                    dest_path = new_dest_path
+
+                fobj["orig_path"] = fobj["path"]
+                fobj["path"] = dest_path
+                fobj['src_path'] = src_path
+                new_bundle[ds]['files'][f] = fobj
+
+            # Clean up any placeholder entries
+            if new_bundle[ds]['files'] == {}:
+                del new_bundle[ds]['files']
+            if new_bundle[ds] == {}:
+                del new_bundle[ds]
+
+    return new_bundle
+
+"""Make entry for pendingTransfers"""
+def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=None, filemetadata={}, manual=False):
+    # Strip portions of paths that differ between <true source path> and <internal Docker path>
+    gantryDir = config['gantry']['incoming_files_path']
+    dockerDir = config['globus']['source_path']
+    whitelist = config['gantry']["directory_whitelist"]
+
+    # Only check whitelist if scanning from FTP, not if manually submitted
+    if not manual:
+        whitelisted = False
+        for w in whitelist:
+            if f.find(w) == 0 or f.find(w.replace(dockerDir,"")) == 0:
+                whitelisted = True
+        if not whitelisted:
+            logger.error("path %s is not whitelisted; skipping" % f)
+            return
+
+    # Get path starting at the site level (e.g. LemnaTec, MAC)
+    if f.find(gantryDir) > -1:
+        # try with and without leading /
+        gantryDirPath = f.replace(gantryDir, "")
+        gantryDirPath = gantryDirPath.replace(gantryDir[1:], "")
+    else:
+        # try with and without leading /
+        gantryDirPath = f.replace(dockerDir, "")
+        gantryDirPath = gantryDirPath.replace(dockerDir[1:], "")
+
+    # Get meta info from file path
+    # /LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
+    # /LemnaTec/MovingSensor/co2Sensor/2016-01-01/2016-08-02__09-42-51-195/file.json
+    # /MAC/lightning/2016-01-01/weather_2016_06_29.dat
+    # /LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.png
+    # /LemnaTec/MovingSensor.reproc2016-8-18/scanner3DTop/2016-08-22/2016-08-22__15-13-01-672/6af8d63b-b5bb-49b2-8e0e-c26e719f5d72__Top-heading-east_0.ply
+    # /Users/mburnette/globus/sorghum_pilot_dataset/snapshot123456/file.png
+    pathParts = gantryDirPath.split("/")
+
+    # Filename is always last
+    filename = pathParts[-1]
+    # Timestamp is one level up from filename
+    if not timestamp:
+        timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
+    # Sensor name varies based on folder structure
+    if not sensorname:
+        if timestamp.find("__") > -1 and len(pathParts) > 3:
+            sensorname = pathParts[-4]
+        elif len(pathParts) > 2:
+            sensorname = pathParts[-3].replace("EnviromentLogger", "EnvironmentLogger")
+        else:
+            sensorname = "unknown_sensor"
+    # Dataset typically is "sensorName - YYYY-MM-DD__hh-mm-ss-mms"
+    if not datasetname:
+        datasetname = sensorname +" - "+timestamp
+
+    gantryDirPath = gantryDirPath.replace(filename, "")
+
+    newTransfer = {
+        datasetname: {
+            "files": {
+                filename: {
+                    "name": filename,
+                    "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath,
+                    "orig_path": f
+                }
+            }
+        }
+    }
+    if filemetadata and filemetadata != {}:
+        newTransfer[datasetname]["files"][filename]["md"] = filemetadata
+
+    return newTransfer
+
+"""Check for files ready for transmission and queue them"""
+def queueGantryFilesIntoPending():
+    logger.debug("- scanning for new files to transfer")
+    max_xfer_size = config['globus']['max_transfer_file_count']
+
+    # Get list of files from FTP log, if log is specified
+    foundFiles = getNewFilesFromFTPLogs()
+
+    # Get list of files from watched folders, if folders are specified  (and de-duplicate from FTP list)
+    fileList = getNewFilesFromWatchedFolders()
+    for found in fileList:
+        if found not in foundFiles:
+            foundFiles.append(found)
+
+    logger.debug("- adding %s found files into pending tasks" % len(foundFiles))
+    new_xfer_count = 0
+    try:
+        new_xfers = {}
+        queue_size = 0
+        for f in foundFiles:
+            # Skip hidden/system files
+            if f == "" or f.split("/")[-1][0] == ".":
+                continue
+            new_xfers = updateNestedDict(new_xfers, prepFileForPendingTransfers(f))
+            queue_size += 1
+
+            # Create pending Globus xfers every n files for database entry
+            if queue_size >= max_xfer_size:
+                new_xfer_record = buildGlobusBundle(new_xfers)
+                writePendingTaskToDatabase(new_xfer_record)
+                new_xfers = {}
+                queue_size = 0
+                new_xfer_count += 1
+
+    except Exception as e:
+        logger.error("problem adding files: %s" % str(e))
+    logger.debug("- added %s entries to pending tasks" % new_xfer_count)
+
 """Initiate Globus transfer with batch of files and add to activeTasks - recurse until max xfers reached or pending empty """
 def initializeGlobusTransfer(globus_batch_obj):
     globus_batch = globus_batch_obj['contents']
@@ -842,8 +822,6 @@ def initializeGlobusTransfer(globus_batch_obj):
                 status_code = 503
                 status_message = e
 
-        # TODO: GLOBUS WILL REJECT PAST 100
-
         if status_code == 200 or status_code == 202:
             # Notify NCSA monitor of new task, and add to activeTasks for logging
             globusID = transfer_data['task_id']
@@ -877,13 +855,19 @@ def globusInitializerLoop():
         globusWait -= 1
         authWait -= 1
 
-        # Check for new files in incoming gantry directory and initiate transfers if ready
+        # Check pending queue and initiate transfers if ready
         if globusWait <= 0:
             active_count = getActiveTransferCount()
             if active_count < config["globus"]["max_active_tasks"]:
+                logger.debug("- currently %s active tasks; starting more from pending queue" % active_count)
+
                 pending_tasks = readPendingTasks()
                 for p in pending_tasks:
-                    initializeGlobusTransfer(p)
+                    if active_count < config["globus"]["max_active_tasks"]:
+                        initializeGlobusTransfer(p)
+                        active_count += 1
+                    else:
+                        break
 
             # Reset wait to check gantry incoming directory again
             globusWait = config['gantry']['globus_transfer_frequency_secs']
@@ -891,7 +875,7 @@ def globusInitializerLoop():
 
         # Refresh Globus auth tokens
         if authWait <= 0:
-        #    generateAuthToken()
+            generateAuthToken()
             authWait = config['globus']['authentication_refresh_frequency_secs']
 
 """Continually monitor FTP log for new files to transmit and add them to pendingTransfers"""

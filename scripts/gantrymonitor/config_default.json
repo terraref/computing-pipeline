@@ -27,6 +27,14 @@
     "max_active_tasks": 100
   },
 
+  "influx": {
+    "host": "terra-logging.ncsa.illinois.edu",
+    "port": 8086,
+    "username": "terra",
+    "password": "",
+    "dbname": "transfer_db"
+  },
+
   "ncsa_api": {
     "host": "http://localhost:5454",
     "api_check_frequency_secs": 180

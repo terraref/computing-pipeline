@@ -12,14 +12,14 @@
 import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip, pwd
 import logging, logging.config, logstash
 import requests
-from io import BlockingIOError
 
 from flask import Flask, request, Response
 from flask.ext import restful
 
 from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIError, ClientError, goauth
 
-from influxdb import InfluxDBClient
+from influxdb import InfluxDBClient, SeriesHelper
+
 
 rootPath = "/home/gantry"
 
@@ -29,7 +29,7 @@ app = Flask(__name__)
 api = restful.Api(app)
 
 # ----------------------------------------------------------
-# SHARED UTILS
+# OS & GLOBUS
 # ----------------------------------------------------------
 """Nested update of python dictionaries for config parsing"""
 def updateNestedDict(existing, new):
@@ -56,8 +56,57 @@ def loadJsonFile(filename):
         logger.error("- unable to open or parse JSON from %s" % filename)
         return {}
 
+"""Use globus goauth tool to get access tokens for valid accounts"""
+def generateAuthTokens():
+    for validUser in config['globus']['valid_users']:
+        logger.info("- generating auth token for %s" % validUser)
+        config['globus']['valid_users'][validUser]['auth_token'] = goauth.get_access_token(
+                username=validUser,
+                password=config['globus']['valid_users'][validUser]['password']
+        ).token
+
+"""Refresh auth token and send autoactivate message to source and destination Globus endpoints"""
+def activateEndpoints():
+    src = config['globus']["source_endpoint_id"]
+    dest = config['globus']["destination_endpoint_id"]
+
+    generateAuthTokens()
+    api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+    # TODO: Can't use autoactivate; must populate credentials
+    """try:
+        actList = api.endpoint_activation_requirements(src)[2]
+        actList.set_requirement_value('myproxy', 'username', 'data_mover')
+        actList.set_requirement_value('myproxy', 'passphrase', 'terraref2016')
+        actList.set_requirement_value('delegate_proxy', 'proxy_chain', 'some PEM cert w public key')
+    except:"""
+    api.endpoint_autoactivate(src)
+    api.endpoint_autoactivate(dest)
+
+"""Query Globus API to get current transfer status of a given task"""
+def getGlobusTaskData(task):
+    authToken = config['globus']['valid_users'][task['user']]['auth_token']
+    api = TransferAPIClient(username=task['user'], goauth=authToken)
+    try:
+        logger.debug("%s requesting task data from Globus" % task['globus_id'])
+        status_code, status_message, task_data = api.task(task['globus_id'])
+    except (APIError, ClientError) as e:
+        try:
+            # Refreshing auth tokens and retry
+            generateAuthTokens()
+            authToken = config['globus']['valid_users'][task['user']]['auth_token']
+            api = TransferAPIClient(username=task['user'], goauth=authToken)
+            status_code, status_message, task_data = api.task(task['globus_id'])
+        except (APIError, ClientError) as e:
+            logger.error("%s error checking with Globus for transfer status" % task['globus_id'])
+            status_code = 503
+
+    if status_code == 200:
+        return task_data
+    else:
+        return None
+
 # ----------------------------------------------------------
-# POSTGRES & INFLUXDB LOGGING COMPONENTS
+# POSTGRES & INFLUXDB LOGGING
 # ----------------------------------------------------------
 """Return a connection to the PostgreSQL database"""
 def connectToPostgres():
@@ -68,43 +117,54 @@ def connectToPostgres():
         $   createdb globusmonitor
     """
     try:
-        conn = psycopg2.connect(dbname='globusmonitor')
+        return psycopg2.connect(dbname='globusmonitor')
     except:
-        # Attempt to create database if not found
-        conn = psycopg2.connect(dbname='postgres')
-        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        curs = conn.cursor()
-        curs.execute('CREATE DATABASE globusmonitor;')
-        curs.close()
-        conn.commit()
-        conn.close()
+        logger.info("Could not connect to globusmonitor Postgres database.")
+        return None
 
-        conn = psycopg2.connect(dbname='globusmonitor')
-        initializePostgresDatabase(conn)
+"""Fetch all Globus tasks with a particular status"""
+def readTasksByStatus(status, id_only=False):
+    """
+        CREATED (initialized transfer; not yet notified NCSA side)
+    IN PROGRESS (notified of transfer; but not yet verified complete)
+         FAILED (Globus could not complete; no longer attempting to complete)
+        DELETED (manually via api)
+      SUCCEEDED (verified complete; not yet notified NCSA side)
+       NOTIFIED (verified complete; not yet uploaded into Clowder)
+      PROCESSED (complete & uploaded into Clowder)
+    """
+    if id_only:
+        q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s'" % status
+        results = []
+    else:
+        q_fetch = "SELECT globus_id, status, started, completed, globus_user, " \
+                  "file_count, bytes, contents FROM globus_tasks WHERE status = '%s'" % status
+        results = {}
 
-    logger.info("Connected to Postgres")
-    return conn
 
-"""Create PostgreSQL database tables"""
-def initializePostgresDatabase(db_connection):
-    # Table creation queries
-    ct_tasks = "CREATE TABLE globus_tasks (globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL, " \
-               "started TEXT NOT NULL, completed TEXT, " \
-               "file_count INT, bytes BIGINT, globus_user TEXT, contents JSON);"
-
-    # Index creation queries
-    ix_tasks = "CREATE UNIQUE INDEX globus_idx ON globus_tasks (globus_id);"
-
-    # Execute each query
-    curs = db_connection.cursor()
-    logger.info("Creating PostgreSQL tables...")
-    curs.execute(ct_tasks)
-    logger.info("Creating PostgreSQL indexes...")
-    curs.execute(ix_tasks)
+    curs = psql_conn.cursor()
+    #logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
+    curs.execute(q_fetch)
+    for result in curs:
+        if id_only:
+            # Just add globus ID to list
+            results.append(result[0])
+        else:
+            # Add record to dictionary, with globus ID as key
+            gid = result[0]
+            results[gid] = {
+                "globus_id": gid,
+                "status": result[1],
+                "started": result[2],
+                "completed": result[3],
+                "user": result[4],
+                "file_count": result[5],
+                "bytes": result[6],
+                "contents": result[7]
+            }
     curs.close()
-    db_connection.commit()
 
-    logger.info("PostgreSQL initialization complete.")
+    return results
 
 """Write a Globus task into PostgreSQL, insert/update as needed"""
 def writeTaskToPostgres(task):
@@ -159,50 +219,6 @@ def writeTaskToPostgres(task):
     psql_conn.commit()
     curs.close()
 
-"""Fetch all Globus tasks with a particular status"""
-def readTasksByStatus(status, id_only=False):
-    """
-        CREATED (initialized transfer; not yet notified NCSA side)
-    IN PROGRESS (notified of transfer; but not yet verified complete)
-         FAILED (Globus could not complete; no longer attempting to complete)
-        DELETED (manually via api)
-      SUCCEEDED (verified complete; not yet notified NCSA side)
-       NOTIFIED (verified complete; not yet uploaded into Clowder)
-      PROCESSED (complete & uploaded into Clowder)
-    """
-    if id_only:
-        q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s'" % status
-        results = []
-    else:
-        q_fetch = "SELECT globus_id, status, started, completed, globus_user, " \
-                  "file_count, bytes, contents FROM globus_tasks WHERE status = '%s'" % status
-        results = {}
-
-
-    curs = psql_conn.cursor()
-    #logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
-    curs.execute(q_fetch)
-    for result in curs:
-        if id_only:
-            # Just add globus ID to list
-            results.append(result[0])
-        else:
-            # Add record to dictionary, with globus ID as key
-            gid = result[0]
-            results[gid] = {
-                "globus_id": gid,
-                "status": result[1],
-                "started": result[2],
-                "completed": result[3],
-                "user": result[4],
-                "file_count": result[5],
-                "bytes": result[6],
-                "contents": result[7]
-            }
-    curs.close()
-
-    return results
-
 """Iterate through files in a task and write them to InfluxDB"""
 def writeTaskToInflux(task):
     """Following columns in InfluxDB:
@@ -219,6 +235,7 @@ def writeTaskToInflux(task):
 
     influxPoints = []
 
+    # Walk transfer object and determine data on each file
     dataset_by_date = False
     for ds in task['contents']:
         fsensor = ds.split(" - ")[0]
@@ -246,48 +263,42 @@ def writeTaskToInflux(task):
                         # These should be weatherStation files
                         ftime = "12-00-00-000"
 
+                # TODO: Format created/transferred timestamps appropriately
+                f_created_ts = fdate+"_"+ftime
+                f_transferred_ts = comp
+
                 influxPoints.append({
-                    "filename": fname,
-                    "bytes": fsize,
-                    "sensor": fsensor,
-                    "date": fdate,
-                    "timestamp": ftime,
-                    "gid": gid,
-                    "completed": comp
+                    "measurement": "file_create",
+                    "time": f_created_ts,
+                    "fields": {"sensor": fsensor, "type": "bytes", "count": fsize}
+                })
+                influxPoints.append({
+                    "measurement": "file_create",
+                    "time": f_created_ts,
+                    "fields": {"sensor": fsensor, "type": "filecount", "count": 1}
+                })
+                influxPoints.append({
+                    "measurement": "file_transfer",
+                    "time": f_transferred_ts,
+                    "fields": {"sensor": fsensor, "type": "bytes", "count": fsize}
+                })
+                influxPoints.append({
+                    "measurement": "file_transfer",
+                    "time": f_transferred_ts,
+                    "fields": {"sensor": fsensor, "type": "filecount", "count": 1}
                 })
 
-    client = InfluxDBClient('localhost', 8086, 'root', 'root', 'example')
+    # Post points to Influx database
+    client = InfluxDBClient(config['influx']['host'],
+                            config['influx']['port'],
+                            config['influx']['username'],
+                            config['influx']['password'],
+                            config['influx']['dbname'])
     client.write_points(influxPoints)
 
 # ----------------------------------------------------------
 # SERVICE COMPONENTS
 # ----------------------------------------------------------
-"""Use globus goauth tool to get access tokens for valid accounts"""
-def generateAuthTokens():
-    for validUser in config['globus']['valid_users']:
-        logger.info("- generating auth token for %s" % validUser)
-        config['globus']['valid_users'][validUser]['auth_token'] = goauth.get_access_token(
-                username=validUser,
-                password=config['globus']['valid_users'][validUser]['password']
-        ).token
-
-"""Refresh auth token and send autoactivate message to source and destination Globus endpoints"""
-def activateEndpoints():
-    src = config['globus']["source_endpoint_id"]
-    dest = config['globus']["destination_endpoint_id"]
-
-    generateAuthTokens()
-    api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-    # TODO: Can't use autoactivate; must populate credentials
-    """try:
-        actList = api.endpoint_activation_requirements(src)[2]
-        actList.set_requirement_value('myproxy', 'username', 'data_mover')
-        actList.set_requirement_value('myproxy', 'passphrase', 'terraref2016')
-        actList.set_requirement_value('delegate_proxy', 'proxy_chain', 'some PEM cert w public key')
-    except:"""
-    api.endpoint_autoactivate(src)
-    api.endpoint_autoactivate(dest)
-
 """Send message to NCSA Globus monitor API that a new task has begun"""
 def notifyMonitorOfNewTransfer(globusID, contents, sess):
     logger.info("%s being sent to NCSA Globus monitor" % globusID, extra={
@@ -306,29 +317,6 @@ def notifyMonitorOfNewTransfer(globusID, contents, sess):
     except requests.ConnectionError as e:
         logger.error("- cannot connect to NCSA API")
         return {'status_code':503}
-
-"""Query Globus API to get current transfer status of a given task"""
-def getGlobusTaskData(task):
-    authToken = config['globus']['valid_users'][task['user']]['auth_token']
-    api = TransferAPIClient(username=task['user'], goauth=authToken)
-    try:
-        logger.debug("%s requesting task data from Globus" % task['globus_id'])
-        status_code, status_message, task_data = api.task(task['globus_id'])
-    except (APIError, ClientError) as e:
-        try:
-            # Refreshing auth tokens and retry
-            generateAuthTokens()
-            authToken = config['globus']['valid_users'][task['user']]['auth_token']
-            api = TransferAPIClient(username=task['user'], goauth=authToken)
-            status_code, status_message, task_data = api.task(task['globus_id'])
-        except (APIError, ClientError) as e:
-            logger.error("%s error checking with Globus for transfer status" % task['globus_id'])
-            status_code = 503
-
-    if status_code == 200:
-        return task_data
-    else:
-        return None
 
 """Continually initiate transfers from pending queue and contact NCSA API for status updates"""
 def globusMonitorLoop():
@@ -424,9 +412,10 @@ if __name__ == '__main__':
         logging.config.dictConfig(log_config)
     logger = logging.getLogger('gantry')
 
-    # Load any previous active/pending transfers
+    # Connect to Postgres & start processing
     psql_conn = connectToPostgres()
-    activateEndpoints()
+    if psql_conn:
+        activateEndpoints()
 
-    logger.info("*** Service now monitoring existing Globus transfers ***")
-    thread.start_new_thread(globusMonitorLoop, ())
+        logger.info("*** Service now monitoring existing Globus transfers ***")
+        globusMonitorLoop()
