@@ -13,9 +13,13 @@ import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, colle
 import logging, logging.config, logstash
 import requests
 from io import BlockingIOError
+
 from flask import Flask, request, Response
 from flask.ext import restful
+
 from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIError, ClientError, goauth
+
+from influxdb import InfluxDBClient
 
 rootPath = "/home/gantry"
 
@@ -53,7 +57,7 @@ def loadJsonFile(filename):
         return {}
 
 # ----------------------------------------------------------
-# POSTGRES LOGGING COMPONENTS
+# POSTGRES & INFLUXDB LOGGING COMPONENTS
 # ----------------------------------------------------------
 """Return a connection to the PostgreSQL database"""
 def connectToPostgres():
@@ -76,13 +80,13 @@ def connectToPostgres():
         conn.close()
 
         conn = psycopg2.connect(dbname='globusmonitor')
-        initializeDatabase(conn)
+        initializePostgresDatabase(conn)
 
     logger.info("Connected to Postgres")
     return conn
 
 """Create PostgreSQL database tables"""
-def initializeDatabase(db_connection):
+def initializePostgresDatabase(db_connection):
     # Table creation queries
     ct_tasks = "CREATE TABLE globus_tasks (globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL, " \
                "started TEXT NOT NULL, completed TEXT, " \
@@ -103,15 +107,36 @@ def initializeDatabase(db_connection):
     logger.info("PostgreSQL initialization complete.")
 
 """Write a Globus task into PostgreSQL, insert/update as needed"""
-def writeTaskToDatabase(task):
+def writeTaskToPostgres(task):
     """A task object tracks Globus transfers is of the format:
     {"globus_id": {
         "globus_id":                globus job ID of upload
-        "contents": {...},          a pendingTransfers object that was sent (see above)
+        "contents": {...},          a pendingTransfers object that was sent (see below)
         "started":                  timestamp when task was sent to Globus
         "completed":                timestamp when task was completed (including errors and cancelled tasks)
         "status":                   see readTasksByStatus for options
-    }, {...}, {...}, ...}"""
+    }, {...}, {...}, ...}
+    ---------------------------------
+    "contents" internal structure:
+    "contents": {
+        "dataset": {
+            "files": {
+                "filename1": {
+                    "name": "filename1",
+                    "path": path on NCSA destination side
+                    "orig_path": path on gantry
+                    "src_path": path on gantry, corrected for Globus mounts
+                    "md": {},
+                    "md_name": "name_of_metadata_file"
+                    "md_path": "folder_containing_metadata_file"},
+                "filename2": {...},
+                ...
+            },
+            "md": {},
+            "md_path": "folder_containing_metadata.json"
+        },
+        "dataset2": {...},
+    ...}"""
     gid = task['globus_id']
     stat = task['status']
     start = task['started']
@@ -177,6 +202,62 @@ def readTasksByStatus(status, id_only=False):
     curs.close()
 
     return results
+
+"""Iterate through files in a task and write them to InfluxDB"""
+def writeTaskToInflux(task):
+    """Following columns in InfluxDB:
+        - filename
+        - bytes (size of file)
+        - sensor
+        - date (YYYY-MM-DD of dataset)
+        - timestamp (HH-MM-SS-mms of dataset if available)
+        - gid (globus ID of transfer in which file was sent)
+        - completed (timestamp when globus transfer was completed
+    """
+    gid = task['globus_id']
+    comp = task['completed']
+
+    influxPoints = []
+
+    dataset_by_date = False
+    for ds in task['contents']:
+        fsensor = ds.split(" - ")[0]
+        fdate = ds.split(" - ")[1]
+        if fdate.find("__") > -1:
+            ftime = fdate.split("__")[1]
+            fdate = fdate.split("__")[0]
+        else:
+            dataset_by_date = True
+
+        if 'files' in task['contents'][ds]:
+            for f in task['contents'][ds]['files']:
+                fname = f['name']
+                fpath = f['orig_path']
+                fsize = os.stat(f['orig_path']).st_size
+
+                if dataset_by_date:
+                    # Dataset is date level, so get timestamp from filename if possible
+                    if fname.find("environmentlogger") > -1:
+                        ftime = fname.split("_")[1]
+                        if len(ftime) == 8:
+                            # add milliseconds
+                            ftime += "-000"
+                    elif fname.find(".dat") > -1:
+                        # These should be weatherStation files
+                        ftime = "12-00-00-000"
+
+                influxPoints.append({
+                    "filename": fname,
+                    "bytes": fsize,
+                    "sensor": fsensor,
+                    "date": fdate,
+                    "timestamp": ftime,
+                    "gid": gid,
+                    "completed": comp
+                })
+
+    client = InfluxDBClient('localhost', 8086, 'root', 'root', 'example')
+    client.write_points(influxPoints)
 
 # ----------------------------------------------------------
 # SERVICE COMPONENTS
@@ -274,7 +355,7 @@ def globusMonitorLoop():
                 notify = notifyMonitorOfNewTransfer(task['globus_id'], task['contents'], sess)
                 if notify.status_code == 200:
                     task['status'] = "IN PROGRESS"
-                    writeTaskToDatabase(task)
+                    writeTaskToPostgres(task)
 
             # SUCCEEDED -> NOTIFIED on NCSA notification
             current_tasks = readTasksByStatus("SUCCEEDED")
@@ -282,7 +363,7 @@ def globusMonitorLoop():
                 notify = notifyMonitorOfNewTransfer(task['globus_id'], task['contents'], sess)
                 if notify.status_code == 200:
                     task['status'] = "NOTIFIED"
-                    writeTaskToDatabase(task)
+                    writeTaskToPostgres(task)
 
             logger.debug("- attempting to contact Globus for transfer status updates")
 
@@ -297,7 +378,8 @@ def globusMonitorLoop():
                     task['completed'] = task_data['completion_time']
                     task['file_count'] = task_data['files']
                     task['bytes'] = task_data['bytes_transferred']
-                    writeTaskToDatabase(task)
+                    writeTaskToPostgres(task)
+                    writeTaskToInflux(task)
 
             # IN PROGRESS -> NOTIFIED on completion, NCSA already notified
             #             -> FAILED on failure
@@ -310,7 +392,8 @@ def globusMonitorLoop():
                     task['completed'] = task_data['completion_time']
                     task['file_count'] = task_data['files']
                     task['bytes'] = task_data['bytes_transferred']
-                    writeTaskToDatabase(task)
+                    writeTaskToPostgres(task)
+                    writeTaskToInflux(task)
 
             apiWait = config['ncsa_api']['api_check_frequency_secs']
 

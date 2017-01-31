@@ -842,6 +842,8 @@ def initializeGlobusTransfer(globus_batch_obj):
                 status_code = 503
                 status_message = e
 
+        # TODO: GLOBUS WILL REJECT PAST 100
+
         if status_code == 200 or status_code == 202:
             # Notify NCSA monitor of new task, and add to activeTasks for logging
             globusID = transfer_data['task_id']
