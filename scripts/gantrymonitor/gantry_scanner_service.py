@@ -178,19 +178,27 @@ def initializePostgresDatabase(db_connection):
     ct_tasks = "CREATE TABLE globus_tasks (globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL, " \
                "started TEXT NOT NULL, completed TEXT, " \
                "file_count INT, bytes BIGINT, globus_user TEXT, contents JSON);"
+    ct_datasets = "CREATE TABLE dataset_logs (name TEXT PRIMARY KEY NOT NULL, " \
+                  "filecount INT, bytecount INT, created INT, transferred INT);"
 
     # Index creation queries
     ix_pending = "CREATE UNIQUE INDEX pending_idx ON pending_tasks (id);"
     ix_tasks = "CREATE UNIQUE INDEX globus_idx ON globus_tasks (globus_id);"
+    ix_datasets = "CREATE UNIQUE INDEX dataset_idx ON dataset_logs (name);"
 
     # Execute each query
     curs = db_connection.cursor()
+
     logger.info("Creating PostgreSQL tables...")
     curs.execute(ct_pending)
     curs.execute(ct_tasks)
+    curs.execute(ct_datasets)
+
     logger.info("Creating PostgreSQL indexes...")
     curs.execute(ix_pending)
     curs.execute(ix_tasks)
+    curs.execute(ix_datasets)
+
     curs.close()
     db_connection.commit()
 

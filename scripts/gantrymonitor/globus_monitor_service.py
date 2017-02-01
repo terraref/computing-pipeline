@@ -12,6 +12,7 @@
 import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip, pwd
 import logging, logging.config, logstash
 import requests
+from dateutil.parser import parse
 
 from flask import Flask, request, Response
 from flask.ext import restful
@@ -219,6 +220,36 @@ def writeTaskToPostgres(task):
     psql_conn.commit()
     curs.close()
 
+"""Insert or update record for Influx tracking, since Influx doesn't support updates"""
+def writePointToPostgres(dsname, file_ct, byte_ct, create_time, xfer_time):
+    q_insert = "INSERT INTO dataset_logs (name, filecount, bytecount, created, transferred) " \
+               "VALUES ('%s', %s, %s, %s, %s) " \
+               "ON CONFLICT (name) DO UPDATE " \
+               "SET filecount=filecount+%s, bytecount=bytecount+%s, tranferred=MAX(transferred, %s);" % (
+                   dsname, file_ct, byte_ct, create_time, xfer_time)
+
+    curs = psql_conn.cursor()
+    #logger.debug("Writing task %s to PostgreSQL..." % gid)
+    curs.execute(q_insert)
+    psql_conn.commit()
+
+    # Get current counts
+    currPoint = None
+    q_fetch = "SELECT filecount, bytecount, created, transferred " \
+              "FROM dataset_logs WHERE name='%s'" % dsname
+    curs.execute(q_fetch)
+    for result in curs:
+        currPoint = {
+            "name": dsname,
+            "filecount": result[0],
+            "bytecount": result[1],
+            "created": result[2],
+            "transferred": result[3]
+        }
+    curs.close()
+
+    return currPoint
+
 """Iterate through files in a task and write them to InfluxDB"""
 def writeTaskToInflux(task):
     """Following columns in InfluxDB:
@@ -232,6 +263,13 @@ def writeTaskToInflux(task):
     """
     gid = task['globus_id']
     comp = task['completed']
+    site_time = config['influx']['site_time']
+
+    client = InfluxDBClient(config['influx']['host'],
+                            config['influx']['port'],
+                            config['influx']['username'],
+                            config['influx']['password'],
+                            config['influx']['dbname'])
 
     influxPoints = []
 
@@ -241,31 +279,36 @@ def writeTaskToInflux(task):
         fsensor = ds.split(" - ")[0]
         fdate = ds.split(" - ")[1]
         if fdate.find("__") > -1:
-            ftime = fdate.split("__")[1]
+            ftime = fdate.split("__")[1][:8].replace("-",":") + site_time
             fdate = fdate.split("__")[0]
         else:
             dataset_by_date = True
 
+        ds_file_count = 0
+        ds_byte_count = 0
+
         if 'files' in task['contents'][ds]:
             for f in task['contents'][ds]['files']:
                 fname = f['name']
-                fpath = f['orig_path']
                 fsize = os.stat(f['orig_path']).st_size
 
                 if dataset_by_date:
-                    # Dataset is date level, so get timestamp from filename if possible
+                    # Dataset is by DATE level, so get timestamp from filename if possible
                     if fname.find("environmentlogger") > -1:
-                        ftime = fname.split("_")[1]
-                        if len(ftime) == 8:
-                            # add milliseconds
-                            ftime += "-000"
+                        # ../2016-04-05_12-34-58_enviromentlogger.json
+                        ftime = fname.split("_")[1].replace("-",":") + site_time
                     elif fname.find(".dat") > -1:
-                        # These should be weatherStation files
-                        ftime = "12-00-00-000"
+                        # ../weather_2016_06_29.dat
+                        ftime = "12:00:00" + site_time
 
-                # TODO: Format created/transferred timestamps appropriately
-                f_created_ts = fdate+"_"+ftime
-                f_transferred_ts = comp
+                # InfluxDB accepts time in seconds from epoch
+                f_created_ts = int(parse(fdate+"T"+ftime).strftime('%s'))
+                # completion time from Globus is formatted: "2017-02-10 16:09:57+00:00"
+                f_transferred_ts = int(parse(comp.replace(" ", "T")).strftime('%s'))
+
+                # DATASET | BYTES | FILECOUNT | CREATE_TIME | COMPLETE_TIME
+                ds_file_count += 1
+                ds_byte_count += fsize
 
                 influxPoints.append({
                     "measurement": "file_create",
@@ -287,14 +330,13 @@ def writeTaskToInflux(task):
                     "time": f_transferred_ts,
                     "fields": {"sensor": fsensor, "type": "filecount", "count": 1}
                 })
+
+                pointTotal = writePointToPostgres(ds, ds_file_count, ds_byte_count, f_created_ts, f_transferred_ts)
 
     # Post points to Influx database
-    client = InfluxDBClient(config['influx']['host'],
-                            config['influx']['port'],
-                            config['influx']['username'],
-                            config['influx']['password'],
-                            config['influx']['dbname'])
-    client.write_points(influxPoints)
+    client.write_points([{
+
+    }])
 
 # ----------------------------------------------------------
 # SERVICE COMPONENTS
