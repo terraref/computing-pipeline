@@ -371,9 +371,15 @@ def submitGroupToClowder(group):
     # Nest new collections if necessary
     if id_year['created']: associateChildCollection(id_sensor['id'], id_year['id'], sess)
     if id_month['created']: associateChildCollection(id_year['id'], id_month['id'], sess)
-    
-    if group['timestamp'] is None:
-        # Danforth has the date level as the dataset, not a collection
+
+    if group['snapshot'] is not None:
+        # Danforth uses Snapshot as dataset
+        c_dataset = c_sensor + " - " + group['snapshot']
+        id_date = fetchCollectionByName(c_date, c_space, sess)
+        if id_date["created"]: associateChildCollection(id_month['id'], id_date['id'], sess)
+        id_dataset = fetchDatasetByName(c_dataset, c_space, id_sensor["id"], id_year["id"], id_month["id"], id_date["id"], sess)
+    elif group['timestamp'] is None:
+        # Some have the date level as the dataset, not a collection
         c_dataset = c_sensor + " - " + group['date']
         id_dataset = fetchDatasetByName(c_dataset, c_space, id_sensor["id"], id_year["id"], id_month["id"], None, sess)
     else:
