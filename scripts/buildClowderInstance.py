@@ -230,10 +230,14 @@ def getGantryInfoFromPath(filepath):
         j_sensor = parts[-4]
     else:
         # raw_data/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
+        # raw_data/weather/2016-08-30/WeatherStation_SecData_2016_08_30_0720.dat
         j_timestamp = None
         j_date = parts[-2]
         j_sensor = parts[-3]
-        
+
+    if j_sensor == "weather":
+        j_sensor = "Weather Station"
+
     return {
         "sensor": j_sensor,
         "date": j_date,
@@ -251,7 +255,7 @@ def fetchDatasetByName(datasetName, parentSpace, sensorId, yearId, monthId, date
         else:
             dataObj = '{"name": "%s", "collection": ["%s"], "space": ["%s"]}' % (
                 datasetName, monthId, parentSpace)
-            
+
         ds = requestsSession.post(clowderURL+"/api/datasets/createempty",
                                   headers={"Content-Type": "application/json"},
                                   data=dataObj)
@@ -359,21 +363,27 @@ def submitGroupToClowder(group):
         c_user_id = "57adcb81c0a7465986583df1"
         c_pass = ""
         c_context = "https://terraref.ncsa.illinois.edu/metadata/uamac#"
-        
+
     sess = requests.Session()
     sess.auth = (c_user, c_pass)
 
     print(c_sensor +" | "+c_year +" | "+c_month +" | "+c_date)
-    
+
     id_sensor = fetchCollectionByName(c_sensor, c_space, sess)
     id_year = fetchCollectionByName(c_year, c_space, sess)
     id_month = fetchCollectionByName(c_month, c_space, sess)
     # Nest new collections if necessary
     if id_year['created']: associateChildCollection(id_sensor['id'], id_year['id'], sess)
     if id_month['created']: associateChildCollection(id_year['id'], id_month['id'], sess)
-    
-    if group['timestamp'] is None:
-        # Danforth has the date level as the dataset, not a collection
+
+    if group['snapshot'] is not None:
+        # Danforth uses Snapshot as dataset
+        c_dataset = c_sensor + " - " + group['snapshot']
+        id_date = fetchCollectionByName(c_date, c_space, sess)
+        if id_date["created"]: associateChildCollection(id_month['id'], id_date['id'], sess)
+        id_dataset = fetchDatasetByName(c_dataset, c_space, id_sensor["id"], id_year["id"], id_month["id"], id_date["id"], sess)
+    elif group['timestamp'] is None:
+        # Some have the date level as the dataset, not a collection
         c_dataset = c_sensor + " - " + group['date']
         id_dataset = fetchDatasetByName(c_dataset, c_space, id_sensor["id"], id_year["id"], id_month["id"], None, sess)
     else:
@@ -419,7 +429,7 @@ def submitGroupToClowder(group):
 
 inputfile = sys.argv[1]
 clowderURL = "https://terraref.ncsa.illinois.edu/clowder"
-lastLine = "/gpfs/largeblockFS/projects/arpae/terraref/sites/ua-mac/raw_data/flirIrCamera/2016-05-29/2016-05-29__11-49-20-752/12d4f14a-cea1-4e20-8615-e178da4b549e_ir.bin"
+lastLine = ""
 
 # Dictionaries that map Clowder name -> Clowder ID
 collectionMap = {}
