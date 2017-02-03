@@ -19,10 +19,12 @@ def main():
             "snapshot": None        # e.g. "snapshot299661", used for Danforth data
         }
         curr_group_files = []
+        curr_group_file_metadata = {}
 
         lastLineFound = True if lastLine == "" else False
         for line in inp:
             full_path = line.rstrip()
+            file_metadata = None
             if not lastLineFound:
                 if lastLine == full_path:
                     print("Found last line; resuming uploads.")
@@ -48,7 +50,7 @@ def main():
                     # For other files we just need to compare if we're looking at same dataset
                     else:
                         if full_path.find("/danforth/") > -1:
-                            curr_info['snapshot'] = getDanforthSnapshotFromPath(full_path)
+                            (curr_info['snapshot'], file_metadata) = getDanforthSnapshotFromPath(full_path)
                         else:
                             curr_info = getGantryInfoFromPath(full_path)
                 # LEVEL_1 DATA
@@ -131,9 +133,12 @@ def main():
                     curr_group_files = []
                 if not full_path.endswith("metadata.json"):
                     curr_group_files.append(full_path)
+                    if file_metadata:
+                        curr_group_file_metadata[full_path] = file_metadata
 
         # Finally handle any leftovers
         curr_group['files'] = curr_group_files
+        curr_group['file_md'] = curr_group_file_metadata
         submitGroupToClowder(curr_group)
 
 def connectToPostgres():
@@ -171,7 +176,159 @@ def loadJsonFile(jsonfile):
     except IOError:
         print("- unable to open %s" % jsonfile)
         return {}
-    
+
+# Danforth Center barcode parser
+def barcode_parser(barcode):
+    """Parses barcodes from the DDPSC phenotyping system.
+    Args:
+        barcode: barcode string
+    Returns:
+        parsed_barcode: barcode components
+    Raises:
+    """
+
+    parsed_barcode = {}
+    parsed_barcode['species'] = barcode[0:2]
+    parsed_barcode['genotype'] = barcode[0:5]
+    parsed_barcode['treatment'] = barcode[5:7]
+    parsed_barcode['unique_id'] = barcode[7:]
+    return parsed_barcode
+
+# Danforth Center image metadata formatter
+def metadata_to_json(filename, metadata, data, fields):
+    """Parses metadata from the DDPSC phenotyping system and returns metadata in JSON.
+        For now there will be some manual reformatting of the metadata keywords.
+    Args:
+        filename: Image filename
+        metadata: Experimental metadata
+        data: List of metadata values
+        fields: Dictionary of field names mapping to list IDs
+    Returns:
+        metadata_json: JSON-formatted metadata string
+    Raises:
+        StandardError: unrecognized camera type
+        StandardError: unrecognized camera perspective
+    """
+
+    # Manual metadata reformatting (for now)
+    # Format of side-view image names: imgtype_camera_rotation_zoom_lifter_gain_exposure_imageID
+    # Format of top-view image names: imgtyp_camera_zoom_lifter_gain_exposure_imageID
+    img_meta = filename.split('_')
+
+    # Format camera_type
+    if img_meta[0] == 'VIS':
+        camera_type = 'visible/RGB'
+    elif img_meta[0] == 'NIR':
+        camera_type = 'near-infrared'
+
+    # Format camera perspective
+    if img_meta[1] == 'SV':
+        perspective = 'side-view'
+    elif img_meta[1] == 'TV':
+        perspective = 'top-view'
+
+    if len(img_meta) == 8:
+        # Is this a side-view image?
+        rotation_angle = img_meta[2]
+        zoom = (0.0008335 * int(img_meta[3].replace('z', ''))) + 0.9991665
+        stage_position = img_meta[4].replace('h', '')
+        camera_gain = img_meta[5].replace('g', '')
+        camera_exposure = img_meta[6].replace('e', '')
+        img_id = img_meta[7]
+    elif len(img_meta) == 7:
+        # Is this a top-view image?
+        rotation_angle = 0
+        zoom = (0.0008335 * int(img_meta[2].replace('z', ''))) + 0.9991665
+        stage_position = img_meta[3].replace('h', '')
+        camera_gain = img_meta[4].replace('g', '')
+        camera_exposure = img_meta[5].replace('e', '')
+        img_id = img_meta[6]
+
+    # Extract metadata from Danforth Center barcodes
+    parsed_barcode = barcode_parser(data[fields['plant barcode']])
+    if parsed_barcode['species'] in metadata['sample']['barcode']['species']:
+        species = metadata['sample']['barcode']['species'][parsed_barcode['species']]
+
+    if parsed_barcode['genotype'] in metadata['sample']['barcode']['genotypes']:
+        genotype = metadata['sample']['barcode']['genotypes'][parsed_barcode['genotype']]
+
+    if parsed_barcode['treatment'] in metadata['sample']['barcode']['treatments']:
+        treatment = metadata['sample']['barcode']['treatments'][parsed_barcode['treatment']]
+
+    file_metadata = {'snapshot_id' : data[fields['id']], 'plant_barcode' : data[fields['plantbarcode']],
+                     'camera_type' : camera_type, 'perspective' : perspective, 'rotation_angle' : rotation_angle,
+                     'zoom' : zoom, 'imager_stage_vertical_position' : stage_position, 'camera_gain' : camera_gain,
+                     'camera_exposure' : camera_exposure, 'image_id' : img_id, 'imagedate' : data[fields['timestamp']],
+                     'species' : species, 'genotype' : genotype, 'treatment' : treatment,
+                     'sample_id' : parsed_barcode['unique_id']}
+
+    #metadata_json = json.dumps(file_metadata)
+    #return metadata_json
+    return file_metadata
+
+def getImageMdFromCSV(snapshotID, imagename):
+    csvfile = open(danforthCSV, 'rU')
+    header = csvfile.readline().rstrip('\n').replace(" ", "")
+
+    exp_metadata = {
+        "experiment" : {
+            "planting_date": "2014-05-27",
+            "title": "Sorghum Pilot Experiment - Danforth Center Phenotyping Facility - 2014-05-27",
+            "author": "Noah Fahlgren",
+            "project": "TERRA-REF",
+            "location": "Donald Danforth Plant Science Center",
+            "instrument": "Bellwether Phenotyping Facility",
+            "growth_medium": "MetroMix360 potting mix with 14-14-14 Osmocote"
+        },
+        "sample" : {
+            "barcode" : {
+                "format": {
+                    "species": "0-1",
+                    "genotype": "0-4",
+                    "treatment": "5-6",
+                    "unique_id": "7-12"
+                },
+                "species": {
+                    "Fp": "Sorghum bicolor",
+                    "Fa": "Sorghum bicolor",
+                    "Fr": "Sorghum bicolor"
+                },
+                "genotypes": {
+                    "Fr001": "BTx623",
+                    "Fp001": "BTx642",
+                    "Fp002": "Tx7000",
+                    "Fa001": "Tx430"
+                },
+                "treatments": {
+                    "AA": "100%: 217 ml water (47.6% VWC)",
+                    "AB": "80%: 173.6 ml water (37.5% VWC)",
+                    "AC": "60%: 130.2 ml water (27.3% VWC)",
+                    "AD": "40%: 86.8 ml water (17.2% VWC)"
+                }
+            }
+        }
+    }
+
+    # Table column order
+    cols = header.split(',')
+    colnames = {}
+    for i, col in enumerate(cols):
+        colnames[col] = i
+
+    for row in csvfile:
+        data = row.rstrip('\n').split(',')
+
+        if data[colnames['id']] != snapshotID:
+            continue
+        else:
+            # The tiles column has the list of image names for each snapshot - remove last item b/c is trailing semicolon
+            img_list = data[colnames['tiles']][:-1]
+            imgs = img_list.split(';')
+
+            for img in imgs:
+                image_name = img + '.png'
+                img_metadata = metadata_to_json(img, exp_metadata, data, colnames)
+
 def getDanforthInfoFromJson(jsonpath):
     """
     Load dataset properties & metadata from json file.
@@ -211,7 +368,9 @@ def getDanforthSnapshotFromPath(filepath):
     """Get snapshot info from path."""
     parts = filepath.split("/")
     if parts[-2].find("snapshot") > -1:
-        return parts[-2]
+        # Get other plant information from SnapshotInfo.csv
+        img_metadata = getImageMdFromCSV(parts[-2].replace('snapshot',''), os.path.basename(filepath).replace('.png', ''))
+        return (parts[-2], img_metadata)
     else:
         return None
 
@@ -415,9 +574,11 @@ def submitGroupToClowder(group):
             # Use [1,-1] to avoid json.dumps wrapping quotes
             # Replace \" with " to avoid json.dumps escaping quotes
             #mdstr = ', "md":' + json.dumps(fobj['md'])[1:-1].replace('\\"',
-            mdstr = ""
+            fmd = group['file_md'][f] if f in group['file_md'] else None
+            mdstr = ', "md":'+json.dumps(fmd)[1:-1].replace('\\"', '"') if fmd else ""
             if f.find("/gpfs/largeblockFS/") > -1:
                 f = f.replace("/gpfs/largeblockFS/projects/arpae/terraref/", "/home/clowder/")
+
             fileFormData.append(("file",'{"path":"%s"%s}' % (f, mdstr)))
 
         if len(fileFormData) > 0:
@@ -428,6 +589,7 @@ def submitGroupToClowder(group):
         print("++++ added files to %s (%s)" % (c_dataset, id_dataset))
 
 inputfile = sys.argv[1]
+danforthCSV = "/home/clowder/sites/danforth/raw_data/sorghum_pilot_dataset/SnapshotInfo.csv"
 clowderURL = "https://terraref.ncsa.illinois.edu/clowder"
 lastLine = ""
 
