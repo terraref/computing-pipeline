@@ -50,7 +50,13 @@ def main():
                     # For other files we just need to compare if we're looking at same dataset
                     else:
                         if full_path.find("/danforth/") > -1:
-                            (curr_info['snapshot'], file_metadata) = getDanforthSnapshotFromPath(full_path)
+                            snap_info = getDanforthSnapshotFromPath(full_path)
+                            if snap_info['snapshot'] is None:
+                                continue
+                            else:
+                                curr_info['snapshot'] = snap_info["snapshot"]
+                                file_metadata = snap_info["md"]
+
                         else:
                             curr_info = getGantryInfoFromPath(full_path)
                 # LEVEL_1 DATA
@@ -128,6 +134,7 @@ def main():
                 if submit:
                     if curr_group['sensor'] is not None:
                         curr_group['files'] = curr_group_files
+                        curr_group['file_md'] = curr_group_file_metadata
                         submitGroupToClowder(curr_group)
                     curr_group = curr_info
                     curr_group_files = []
@@ -245,7 +252,7 @@ def metadata_to_json(filename, metadata, data, fields):
         img_id = img_meta[6]
 
     # Extract metadata from Danforth Center barcodes
-    parsed_barcode = barcode_parser(data[fields['plant barcode']])
+    parsed_barcode = barcode_parser(data[fields['plantbarcode']])
     if parsed_barcode['species'] in metadata['sample']['barcode']['species']:
         species = metadata['sample']['barcode']['species'][parsed_barcode['species']]
 
@@ -326,8 +333,9 @@ def getImageMdFromCSV(snapshotID, imagename):
             imgs = img_list.split(';')
 
             for img in imgs:
-                image_name = img + '.png'
-                img_metadata = metadata_to_json(img, exp_metadata, data, colnames)
+                if img == imagename:
+                    img_md = metadata_to_json(img, exp_metadata, data, colnames)
+                    return img_md
 
 def getDanforthInfoFromJson(jsonpath):
     """
@@ -360,7 +368,7 @@ def getDanforthInfoFromJson(jsonpath):
     return {"sensor": "ddpscIndoorSuite",
             "date": j_date,
             "timestamp": None,
-            "snapshot": getDanforthSnapshotFromPath(jsonpath),
+            "snapshot": getDanforthSnapshotFromPath(jsonpath)["snapshot"],
             "metadata": jsonobj
     }
 
@@ -370,9 +378,15 @@ def getDanforthSnapshotFromPath(filepath):
     if parts[-2].find("snapshot") > -1:
         # Get other plant information from SnapshotInfo.csv
         img_metadata = getImageMdFromCSV(parts[-2].replace('snapshot',''), os.path.basename(filepath).replace('.png', ''))
-        return (parts[-2], img_metadata)
+        return {
+            "snapshot": parts[-2],
+            "md": img_metadata
+        }
     else:
-        return None
+        {
+            "snapshot": None,
+            "md": None
+        }
 
 def getGantryMetadata(jsonpath):
     """Load metadata from json file."""
@@ -573,9 +587,8 @@ def submitGroupToClowder(group):
             # METADATA
             # Use [1,-1] to avoid json.dumps wrapping quotes
             # Replace \" with " to avoid json.dumps escaping quotes
-            #mdstr = ', "md":' + json.dumps(fobj['md'])[1:-1].replace('\\"',
             fmd = group['file_md'][f] if f in group['file_md'] else None
-            mdstr = ', "md":'+json.dumps(fmd)[1:-1].replace('\\"', '"') if fmd else ""
+            mdstr = ', "md":'+json.dumps(fmd).replace('\\"', '"') if fmd else ""
             if f.find("/gpfs/largeblockFS/") > -1:
                 f = f.replace("/gpfs/largeblockFS/projects/arpae/terraref/", "/home/clowder/")
 
@@ -586,7 +599,12 @@ def submitGroupToClowder(group):
             fi = sess.post(clowderURL+"/api/uploadToDataset/"+id_dataset,
                                        headers={'Content-Type':header},
                                        data=content)
-        print("++++ added files to %s (%s)" % (c_dataset, id_dataset))
+
+            if fi.status_code == 200:
+                print("++++ added files to %s (%s)" % (c_dataset, id_dataset))
+            else:
+                print(fi.status_code)
+                print(fi.status_message)
 
 inputfile = sys.argv[1]
 danforthCSV = "/home/clowder/sites/danforth/raw_data/sorghum_pilot_dataset/SnapshotInfo.csv"
