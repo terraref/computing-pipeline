@@ -812,7 +812,13 @@ def initializeGlobusTransfer(globus_batch_obj):
             if 'files' in globus_batch[ds]:
                 for f in globus_batch[ds]['files']:
                     fjson = globus_batch[ds]['files'][f]
-                    transferObj.add_item(fjson['src_path'], fjson['path'])
+                    if 'src_path' not in fjson:
+                        srcpath = fjson['orig_path']
+                        if srcpath.startswith('/LemnaTec'):
+                            srcpath = "/gantry_data"+srcpath
+                    else:
+                        srcpath = fjson['src_path']
+                    transferObj.add_item(srcpath, fjson['path'])
                     queue_length += 1
 
         # Send transfer to Globus
