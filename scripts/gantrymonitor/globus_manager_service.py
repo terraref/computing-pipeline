@@ -100,7 +100,7 @@ def getGlobusTaskData(task):
             authToken = config['globus']['auth_token']
             api = TransferAPIClient(username=task['user'], goauth=authToken)
             status_code, status_message, task_data = api.task(task['globus_id'])
-        except (APIError, ClientError) as e:
+        except:
             logger.error("%s error checking with Globus for transfer status" % task['globus_id'])
             status_code = 503
 
