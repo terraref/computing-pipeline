@@ -696,7 +696,7 @@ def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=
                 whitelisted = True
         if not whitelisted:
             logger.error("path %s is not whitelisted; skipping" % f)
-            return
+            return None
 
     # Get path starting at the site level (e.g. LemnaTec, MAC)
     if f.find(gantryDir) > -1:
@@ -775,8 +775,10 @@ def queueGantryFilesIntoPending():
             # Skip hidden/system files
             if f == "" or f.split("/")[-1][0] == ".":
                 continue
-            new_xfers = updateNestedDict(new_xfers, prepFileForPendingTransfers(f))
-            queue_size += 1
+            preppedFile = prepFileForPendingTransfers(f)
+            if preppedFile:
+                new_xfers = updateNestedDict(new_xfers, preppedFile)
+                queue_size += 1
 
             # Create pending Globus xfers every n files for database entry
             if queue_size >= max_xfer_size:
