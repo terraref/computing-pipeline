@@ -394,9 +394,7 @@ def writeTaskToInflux(task):
                 pointTotal = writePointToPostgres(ds, ds_file_count, ds_byte_count, f_created_ts, f_transferred_ts)
 
     # Post points to Influx database
-    client.write_points([{
-
-    }])
+    client.write_points(influxPoints)
 
 # ----------------------------------------------------------
 # SERVICE COMPONENTS
