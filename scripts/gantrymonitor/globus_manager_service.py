@@ -223,7 +223,7 @@ def writeTaskToPostgres(task):
 
     CREATE TEMPORARY TABLE newvals(globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL,
                 started TEXT NOT NULL, completed TEXT,
-                file_count INT, bytes BIGINT, globus_user TEXT, contents JSON);
+                file_count INT, bytes BIGINT, globus_user TEXT, contents JSON) ON COMMIT DROP;
 
     INSERT INTO newvals(globus_id, status, started, completed, globus_user, file_count, bytes, contents)
     VALUES ('%s', '%s', '%s', '%s', '%s', %s, %s, '%s');
@@ -264,7 +264,7 @@ def writePointToPostgres(dsname, file_ct, byte_ct, create_time, xfer_time):
     BEGIN;
 
     CREATE TEMPORARY TABLE pointvals(name TEXT PRIMARY KEY NOT NULL,
-                  filecount INT, bytecount INT, created INT, transferred INT);
+                  filecount INT, bytecount INT, created INT, transferred INT) ON COMMIT DROP;
 
     INSERT INTO pointvals(name, filecount, bytecount, created, transferred)
     VALUES ('%s', %s, %s, %s, %s);
