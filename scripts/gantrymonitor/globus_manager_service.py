@@ -58,21 +58,22 @@ def loadJsonFile(filename):
         logger.error("- unable to open or parse JSON from %s" % filename)
         return {}
 
-"""Use globus goauth tool to get access tokens for valid accounts"""
-def generateAuthTokens():
-    for validUser in config['globus']['valid_users']:
-        logger.info("- generating auth token for %s" % validUser)
-        config['globus']['valid_users'][validUser]['auth_token'] = goauth.get_access_token(
-                username=validUser,
-                password=config['globus']['valid_users'][validUser]['password']
-        ).token
+"""Use globus goauth tool to get access token for config account"""
+def generateAuthToken():
+    logger.info("- generating auth token for "+config['globus']['username'])
+    t = goauth.get_access_token(
+            username=config['globus']['username'],
+            password=config['globus']['password']
+    ).token
+    config['globus']['auth_token'] = t
+    logger.debug("- generated: "+t)
 
 """Refresh auth token and send autoactivate message to source and destination Globus endpoints"""
 def activateEndpoints():
     src = config['globus']["source_endpoint_id"]
     dest = config['globus']["destination_endpoint_id"]
 
-    generateAuthTokens()
+    generateAuthToken()
     api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
     # TODO: Can't use autoactivate; must populate credentials
     """try:
@@ -94,7 +95,7 @@ def getGlobusTaskData(task):
     except (APIError, ClientError) as e:
         try:
             # Refreshing auth tokens and retry
-            generateAuthTokens()
+            generateAuthToken()
             authToken = config['globus']['valid_users'][task['user']]['auth_token']
             api = TransferAPIClient(username=task['user'], goauth=authToken)
             status_code, status_message, task_data = api.task(task['globus_id'])
@@ -430,7 +431,7 @@ def globusMonitorLoop():
 
         # Refresh Globus auth tokens
         if authWait <= 0:
-            generateAuthTokens()
+            generateAuthToken()
             authWait = config['globus']['authentication_refresh_frequency_secs']
 
 
