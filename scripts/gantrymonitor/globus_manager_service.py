@@ -23,7 +23,8 @@ from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIErr
 from influxdb import InfluxDBClient, SeriesHelper
 
 
-rootPath = "/home/gantry"
+#rootPath = "/home/gantry"
+rootPath = "/home/mburnet2/computing-pipeline/scripts/gantrymonitor"
 
 config = {}
 
@@ -271,10 +272,10 @@ def writePointToPostgres(dsname, file_ct, byte_ct, create_time, xfer_time):
     LOCK TABLE dataset_logs IN EXCLUSIVE MODE;
 
     UPDATE dataset_logs
-    SET filecount=filecount+pointvals.filecount, bytecount=bytecount+pointvals.bytecount,
-        transferred=MAX(transferred,pointvals.transferred)
+    SET filecount=dataset_logs.filecount+pointvals.filecount, bytecount=dataset_logs.bytecount+pointvals.bytecount,
+        transferred=MAX(dataset_logs.transferred, pointvals.transferred)
     FROM pointvals
-    WHERE pointvals.name = pointvals.name;
+    WHERE dataset_logs.name = pointvals.name;
 
     INSERT INTO dataset_logs
     SELECT pointvals.name, pointvals.filecount, pointvals.bytecount, pointvals.created,
