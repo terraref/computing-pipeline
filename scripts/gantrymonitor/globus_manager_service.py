@@ -262,25 +262,25 @@ def writePointToPostgres(dsname, file_ct, byte_ct, create_time, xfer_time):
     q_insert_94 = """
     BEGIN;
 
-    CREATE TEMPORARY TABLE newvals(name TEXT PRIMARY KEY NOT NULL,
+    CREATE TEMPORARY TABLE pointvals(name TEXT PRIMARY KEY NOT NULL,
                   filecount INT, bytecount INT, created INT, transferred INT);
 
-    INSERT INTO newvals(name, filecount, bytecount, created, transferred)
+    INSERT INTO pointvals(name, filecount, bytecount, created, transferred)
     VALUES ('%s', %s, %s, %s, %s);
 
     LOCK TABLE dataset_logs IN EXCLUSIVE MODE;
 
     UPDATE dataset_logs
-    SET filecount=filecount+newvals.filecount, bytecount=bytecount+newvals.bytecount,
-        transferred=MAX(transferred,newvals.transferred)
-    FROM newvals
-    WHERE newvals.name = dataset_logs.name;
+    SET filecount=filecount+pointvals.filecount, bytecount=bytecount+pointvals.bytecount,
+        transferred=MAX(transferred,pointvals.transferred)
+    FROM pointvals
+    WHERE pointvals.name = pointvals.name;
 
     INSERT INTO dataset_logs
-    SELECT newvals.name, newvals.filecount, newvals.bytecount, newvals.created,
-            newvals.transferred
-    FROM newvals
-    LEFT OUTER JOIN dataset_logs ON (dataset_logs.name = newvals.name)
+    SELECT pointvals.name, pointvals.filecount, pointvals.bytecount, pointvals.created,
+            pointvals.transferred
+    FROM pointvals
+    LEFT OUTER JOIN dataset_logs ON (dataset_logs.name = pointvals.name)
     WHERE dataset_logs.name IS NULL;
 
     COMMIT;
