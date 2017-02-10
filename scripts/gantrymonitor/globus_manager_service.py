@@ -210,15 +210,44 @@ def writeTaskToPostgres(task):
     jbody = json.dumps(task['contents'])
 
     # Attempt to insert, update if globus ID already exists
-    q_insert = "INSERT INTO globus_tasks (globus_id, status, started, completed, globus_user, file_count, bytes, contents) " \
+    q_insert_95 = "INSERT INTO globus_tasks (globus_id, status, started, completed, globus_user, file_count, bytes, contents) " \
                "VALUES ('%s', '%s', '%s', '%s', '%s', %s, %s, '%s') " \
                "ON CONFLICT (globus_id) DO UPDATE " \
                "SET status='%s', started='%s', completed='%s', globus_user='%s', file_count=%s, bytes=%s, contents='%s';" % (
                    gid, stat, start, comp, guser, filecount, bytecount, jbody, stat, start, comp, guser, filecount, bytecount, jbody)
 
+    # Alternate query for < PGSQL 9.5 (no ON CONFLICT support)
+    q_insert_94 = """
+    BEGIN;
+
+    CREATE TEMPORARY TABLE newvals(globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL,
+                started TEXT NOT NULL, completed TEXT,
+                file_count INT, bytes BIGINT, globus_user TEXT, contents JSON);
+
+    INSERT INTO newvals(globus_id, status, started, completed, globus_user, file_count, bytes, contents)
+    VALUES ('%s', '%s', '%s', '%s', '%s', %s, %s, '%s');
+
+    LOCK TABLE globus_tasks IN EXCLUSIVE MODE;
+
+    UPDATE globus_tasks
+    SET status=newvals.status, started=newvals.started, completed=newvals.completed, globus_user=newvals.globus_user,
+                file_count=newvals.file_count, bytes=newvals.bytes, contents=newvals.contents
+    FROM newvals
+    WHERE newvals.globus_id = globus_tasks.globus_id;
+
+    INSERT INTO globus_tasks
+    SELECT newvals.globus_id, newvals.status, newvals.started, newvals.completed, newvals.globus_user,
+            newvals.file_count, newvals.bytes, newvals.contents
+    FROM newvals
+    LEFT OUTER JOIN globus_tasks ON (globus_tasks.globus_id = newvals.globus_id)
+    WHERE globus_tasks.id IS NULL;
+
+    COMMIT;
+    """ % (gid, stat, start, comp, guser, filecount, bytecount, jbody)
+
     curs = psql_conn.cursor()
     #logger.debug("Writing task %s to PostgreSQL..." % gid)
-    curs.execute(q_insert)
+    curs.execute(q_insert_94)
     psql_conn.commit()
     curs.close()
 

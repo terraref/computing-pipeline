@@ -272,12 +272,12 @@ def writeTaskToDatabase(task):
     bytecount = int(task['bytes']) if 'bytes' in task else -1
     jbody = json.dumps(task['contents'])
 
+
+
     # Attempt to insert, update if globus ID already exists
     q_insert = "INSERT INTO globus_tasks (globus_id, status, started, completed, globus_user, file_count, bytes, contents) " \
-               "VALUES ('%s', '%s', '%s', '%s', '%s', %s, %s, '%s') " \
-               "ON CONFLICT (globus_id) DO UPDATE " \
-               "SET status='%s', received='%s', completed='%s', globus_user='%s', file_count=%s, bytes=%s, contents='%s';" % (
-                   gid, stat, start, comp, guser, filecount, bytecount, jbody, stat, start, comp, guser, filecount, bytecount, jbody)
+               "VALUES ('%s', '%s', '%s', '%s', '%s', %s, %s, '%s');" % (
+                   gid, stat, start, comp, guser, filecount, bytecount, jbody)
 
     curs = psql_conn.cursor()
     #logger.debug("Writing task %s to PostgreSQL..." % gid)
@@ -787,6 +787,11 @@ def queueGantryFilesIntoPending():
                 new_xfers = {}
                 queue_size = 0
                 new_xfer_count += 1
+
+        if queue_size > 0:
+            new_xfer_record = buildGlobusBundle(new_xfers)
+            writePendingTaskToDatabase(new_xfer_record)
+            new_xfer_count += 1
 
     except Exception as e:
         logger.error("problem adding files: %s" % str(e))
