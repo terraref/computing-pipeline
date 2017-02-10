@@ -236,8 +236,8 @@ def writeTaskToPostgres(task):
     WHERE newvals.globus_id = globus_tasks.globus_id;
 
     INSERT INTO globus_tasks
-    SELECT newvals.globus_id, newvals.status, newvals.started, newvals.completed, newvals.globus_user,
-            newvals.file_count, newvals.bytes, newvals.contents
+    SELECT newvals.globus_id, newvals.status, newvals.started, newvals.completed,
+            newvals.file_count, newvals.bytes, newvals.globus_user, newvals.contents
     FROM newvals
     LEFT OUTER JOIN globus_tasks ON (globus_tasks.globus_id = newvals.globus_id)
     WHERE globus_tasks.globus_id IS NULL;
