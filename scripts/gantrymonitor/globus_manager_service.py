@@ -93,7 +93,7 @@ def getGlobusTaskData(task):
     try:
         logger.debug("%s requesting task data from Globus" % task['globus_id'])
         status_code, status_message, task_data = api.task(task['globus_id'])
-    except (APIError, ClientError) as e:
+    except:
         try:
             # Refreshing auth tokens and retry
             generateAuthToken()
