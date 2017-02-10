@@ -263,7 +263,7 @@ def writePointToPostgres(dsname, file_ct, byte_ct, create_time, xfer_time):
     BEGIN;
 
     CREATE TEMPORARY TABLE newvals(name TEXT PRIMARY KEY NOT NULL,
-                  "filecount INT, bytecount INT, created INT, transferred INT);
+                  filecount INT, bytecount INT, created INT, transferred INT);
 
     INSERT INTO newvals(name, filecount, bytecount, created, transferred)
     VALUES ('%s', %s, %s, %s, %s);
