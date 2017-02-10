@@ -13,6 +13,7 @@ import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, colle
 import logging, logging.config, logstash
 import requests
 from dateutil.parser import parse
+import psycopg2
 
 from flask import Flask, request, Response
 from flask.ext import restful

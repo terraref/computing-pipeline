@@ -17,6 +17,7 @@
 import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, collections, fcntl, re, gzip, pwd
 import logging, logging.config, logstash
 from io import BlockingIOError
+import psycopg2
 
 from flask import Flask, request, Response
 from flask.ext import restful
@@ -74,7 +75,7 @@ def loadJsonFile(filename):
         return {}
 
 """Write monitor_status from memory into file"""
-def writeStatus(filePath, taskObj):
+def writeStatus():
     filePath = os.path.join(config["log_path"], "monitor_status.json")
 
     # Write current file to backup location before writing current file
@@ -240,7 +241,7 @@ def writePendingTaskToDatabase(task):
         },
         "dataset2": {...},
     ...}"""
-    jbody = json.dumps(task['contents'])
+    jbody = json.dumps(task)
 
     # Attempt to insert, update if globus ID already exists
     q_insert = "INSERT INTO pending_tasks (contents) VALUES ('%s')" % jbody
