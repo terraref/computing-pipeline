@@ -208,7 +208,7 @@ def initializePostgresDatabase(db_connection):
 """Get at most 100 Globus batches that haven't been sent yet"""
 def readPendingTasks():
     """PENDING (have group of files; not yet created Globus transfer)"""
-    q_fetch = "SELECT TOP(100) id, contents FROM pending_tasks"
+    q_fetch = "SELECT id, contents FROM pending_tasks limit 100"
     results = []
 
     curs = psql_conn.cursor()
