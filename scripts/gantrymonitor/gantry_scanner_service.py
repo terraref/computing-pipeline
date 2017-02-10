@@ -811,7 +811,8 @@ def initializeGlobusTransfer(globus_batch_obj):
         for ds in globus_batch:
             if 'files' in globus_batch[ds]:
                 for f in globus_batch[ds]['files']:
-                    transferObj.add_item(f['src_path'], f['path'])
+                    fjson = globus_batch[ds]['files'][f]
+                    transferObj.add_item(fjson['src_path'], fjson['path'])
                     queue_length += 1
 
         # Send transfer to Globus
