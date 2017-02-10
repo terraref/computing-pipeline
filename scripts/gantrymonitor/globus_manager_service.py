@@ -257,7 +257,7 @@ def writePointToPostgres(dsname, file_ct, byte_ct, create_time, xfer_time):
     q_insert_95 = "INSERT INTO dataset_logs (name, filecount, bytecount, created, transferred) " \
                "VALUES ('%s', %s, %s, %s, %s) " \
                "ON CONFLICT (name) DO UPDATE " \
-               "SET filecount=filecount+%s, bytecount=bytecount+%s, tranferred=MAX(transferred, %s);" % (
+               "SET filecount=filecount+%s, bytecount=bytecount+%s, tranferred=GREATEST(transferred, %s);" % (
                    dsname, file_ct, byte_ct, create_time, xfer_time, file_ct, byte_ct, xfer_time)
 
     q_insert_94 = """
@@ -273,7 +273,7 @@ def writePointToPostgres(dsname, file_ct, byte_ct, create_time, xfer_time):
 
     UPDATE dataset_logs
     SET filecount=dataset_logs.filecount+pointvals.filecount, bytecount=dataset_logs.bytecount+pointvals.bytecount,
-        transferred=MAX(dataset_logs.transferred, pointvals.transferred)
+        transferred=GREATEST(dataset_logs.transferred, pointvals.transferred)
     FROM pointvals
     WHERE dataset_logs.name = pointvals.name;
 
