@@ -385,7 +385,9 @@ def notifyMonitorOfNewTransfer(globusID, contents, sess):
             "globus_id": globusID,
             "contents": contents
         }))
-        return status
+        return {
+            'status_code': status.status_code
+        }
 
     except requests.ConnectionError as e:
         logger.error("- cannot connect to NCSA API")
@@ -415,7 +417,7 @@ def globusMonitorLoop():
             for taskid in current_tasks:
                 task = current_tasks[taskid]
                 notify = notifyMonitorOfNewTransfer(taskid, task['contents'], sess)
-                if notify.status_code == 200:
+                if notify['status_code'] == 200:
                     task['status'] = "IN PROGRESS"
                     writeTaskToPostgres(task)
 
@@ -424,7 +426,7 @@ def globusMonitorLoop():
             for taskid in current_tasks:
                 task = current_tasks[taskid]
                 notify = notifyMonitorOfNewTransfer(taskid, task['contents'], sess)
-                if notify.status_code == 200:
+                if notify['status_code'] == 200:
                     task['status'] = "NOTIFIED"
                     writeTaskToPostgres(task)
 
