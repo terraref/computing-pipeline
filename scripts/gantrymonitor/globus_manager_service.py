@@ -396,7 +396,7 @@ def globusMonitorLoop():
     global activeTasks
 
     # Prepare timers for tracking how often different refreshes are executed
-    apiWait = config['ncsa_api']['api_check_frequency_secs'] # check status of sent files
+    apiWait = 1 # check status of sent files
     authWait = config['globus']['authentication_refresh_frequency_secs'] # renew globus auth
 
     while True:
@@ -412,16 +412,18 @@ def globusMonitorLoop():
 
             # CREATED -> IN PROGRESS on NCSA notification
             current_tasks = readTasksByStatus("CREATED")
-            for task in current_tasks:
-                notify = notifyMonitorOfNewTransfer(task['globus_id'], task['contents'], sess)
+            for taskid in current_tasks:
+                task = current_tasks[taskid]
+                notify = notifyMonitorOfNewTransfer(taskid, task['contents'], sess)
                 if notify.status_code == 200:
                     task['status'] = "IN PROGRESS"
                     writeTaskToPostgres(task)
 
             # SUCCEEDED -> NOTIFIED on NCSA notification
             current_tasks = readTasksByStatus("SUCCEEDED")
-            for task in current_tasks:
-                notify = notifyMonitorOfNewTransfer(task['globus_id'], task['contents'], sess)
+            for taskid in current_tasks:
+                task = current_tasks[taskid]
+                notify = notifyMonitorOfNewTransfer(taskid, task['contents'], sess)
                 if notify.status_code == 200:
                     task['status'] = "NOTIFIED"
                     writeTaskToPostgres(task)
@@ -431,7 +433,8 @@ def globusMonitorLoop():
             # CREATED -> SUCCEEDED on completion, NCSA not yet notified
             #         -> FAILED on failure
             current_tasks = readTasksByStatus("CREATED")
-            for task in current_tasks:
+            for taskid in current_tasks:
+                task = current_tasks[taskid]
                 task_data = getGlobusTaskData(task)
                 if task_data and task_data['status'] in ["SUCCEEDED", "FAILED"]:
                     task['status'] = task_data['status']
@@ -445,7 +448,8 @@ def globusMonitorLoop():
             # IN PROGRESS -> NOTIFIED on completion, NCSA already notified
             #             -> FAILED on failure
             current_tasks = readTasksByStatus("IN PROGRESS")
-            for task in current_tasks:
+            for taskid in current_tasks:
+                task = current_tasks[taskid]
                 task_data = getGlobusTaskData(task)
                 if task_data and task_data['status'] in ["SUCCEEDED", "FAILED"]:
                     task['status'] = "NOTIFIED" if task_data['status'] == "SUCCEEDED" else "FAILED"
