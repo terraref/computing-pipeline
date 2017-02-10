@@ -240,7 +240,7 @@ def writeTaskToPostgres(task):
             newvals.file_count, newvals.bytes, newvals.contents
     FROM newvals
     LEFT OUTER JOIN globus_tasks ON (globus_tasks.globus_id = newvals.globus_id)
-    WHERE globus_tasks.id IS NULL;
+    WHERE globus_tasks.globus_id IS NULL;
 
     COMMIT;
     """ % (gid, stat, start, comp, guser, filecount, bytecount, jbody)
