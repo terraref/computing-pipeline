@@ -87,7 +87,7 @@ def activateEndpoints():
 
 """Query Globus API to get current transfer status of a given task"""
 def getGlobusTaskData(task):
-    authToken = config['globus']['valid_users'][task['user']]['auth_token']
+    authToken = config['globus']['auth_token']
     api = TransferAPIClient(username=task['user'], goauth=authToken)
     try:
         logger.debug("%s requesting task data from Globus" % task['globus_id'])
@@ -96,7 +96,7 @@ def getGlobusTaskData(task):
         try:
             # Refreshing auth tokens and retry
             generateAuthToken()
-            authToken = config['globus']['valid_users'][task['user']]['auth_token']
+            authToken = config['globus']['auth_token']
             api = TransferAPIClient(username=task['user'], goauth=authToken)
             status_code, status_message, task_data = api.task(task['globus_id'])
         except (APIError, ClientError) as e:
