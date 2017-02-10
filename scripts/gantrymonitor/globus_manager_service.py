@@ -253,15 +253,42 @@ def writeTaskToPostgres(task):
 
 """Insert or update record for Influx tracking, since Influx doesn't support updates"""
 def writePointToPostgres(dsname, file_ct, byte_ct, create_time, xfer_time):
-    q_insert = "INSERT INTO dataset_logs (name, filecount, bytecount, created, transferred) " \
+    q_insert_95 = "INSERT INTO dataset_logs (name, filecount, bytecount, created, transferred) " \
                "VALUES ('%s', %s, %s, %s, %s) " \
                "ON CONFLICT (name) DO UPDATE " \
                "SET filecount=filecount+%s, bytecount=bytecount+%s, tranferred=MAX(transferred, %s);" % (
-                   dsname, file_ct, byte_ct, create_time, xfer_time)
+                   dsname, file_ct, byte_ct, create_time, xfer_time, file_ct, byte_ct, xfer_time)
+
+    q_insert_94 = """
+    BEGIN;
+
+    CREATE TEMPORARY TABLE newvals(name TEXT PRIMARY KEY NOT NULL,
+                  "filecount INT, bytecount INT, created INT, transferred INT);
+
+    INSERT INTO newvals(name, filecount, bytecount, created, transferred)
+    VALUES ('%s', %s, %s, %s, %s);
+
+    LOCK TABLE dataset_logs IN EXCLUSIVE MODE;
+
+    UPDATE dataset_logs
+    SET filecount=filecount+newvals.filecount, bytecount=bytecount+newvals.bytecount,
+        transferred=MAX(transferred,newvals.transferred)
+    FROM newvals
+    WHERE newvals.name = dataset_logs.name;
+
+    INSERT INTO dataset_logs
+    SELECT newvals.name, newvals.filecount, newvals.bytecount, newvals.created,
+            newvals.transferred
+    FROM newvals
+    LEFT OUTER JOIN dataset_logs ON (dataset_logs.name = newvals.name)
+    WHERE dataset_logs.name IS NULL;
+
+    COMMIT;
+    """ % (dsname, file_ct, byte_ct, create_time, xfer_time)
 
     curs = psql_conn.cursor()
     #logger.debug("Writing task %s to PostgreSQL..." % gid)
-    curs.execute(q_insert)
+    curs.execute(q_insert_94)
     psql_conn.commit()
 
     # Get current counts
