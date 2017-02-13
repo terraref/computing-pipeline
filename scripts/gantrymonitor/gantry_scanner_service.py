@@ -24,7 +24,8 @@ from flask.ext import restful
 
 from globusonline.transfer.api_client import TransferAPIClient, Transfer, APIError, ClientError, goauth
 
-rootPath = "/home/gantry"
+#rootPath = "/home/gantry"
+rootPath = "/home/mburnet2/computing-pipeline/scripts/gantrymonitor"
 
 config = {}
 
