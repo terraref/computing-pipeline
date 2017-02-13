@@ -447,6 +447,9 @@ def globusMonitorLoop():
                 if notify['status_code'] == 200:
                     task['status'] = "IN PROGRESS"
                     writeTaskToPostgres(task)
+                else:
+                    logger.debug("- skipping remaining CREATED tasks this iteration")
+                    break
 
             # SUCCEEDED -> NOTIFIED on NCSA notification
             current_tasks = readTasksByStatus("SUCCEEDED")
@@ -456,6 +459,9 @@ def globusMonitorLoop():
                 if notify['status_code'] == 200:
                     task['status'] = "NOTIFIED"
                     writeTaskToPostgres(task)
+                else:
+                    logger.debug("- skipping remaining SUCCEEDED tasks this iteration")
+                    break
 
             logger.debug("- attempting to contact Globus for transfer status updates")
 
