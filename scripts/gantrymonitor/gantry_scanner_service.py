@@ -862,10 +862,11 @@ def initializeGlobusTransfer(globus_batch_obj):
             }
             writeTaskToDatabase(created_task)
             removePendingTask(globus_batch_id)
+            return True
         else:
             # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
             logger.error("- Globus transfer initialization failed for %s (%s: %s)" % (ds, status_code, status_message))
-            return
+            return False
 
 """Continually initiate transfers from pending queue and contact NCSA API for status updates"""
 def globusInitializerLoop():
@@ -887,8 +888,12 @@ def globusInitializerLoop():
                 pending_tasks = readPendingTasks()
                 for p in pending_tasks:
                     if active_count < config["globus"]["max_active_tasks"]:
-                        initializeGlobusTransfer(p)
-                        active_count += 1
+                        xfer_start = initializeGlobusTransfer(p)
+                        if xfer_start:
+                            active_count += 1
+                        else:
+                            logger.debug("- skipping remaining pending tasks this iteration")
+                            break
                     else:
                         break
 
