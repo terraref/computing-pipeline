@@ -23,8 +23,17 @@
     "username": "globus_username",
     "password": "globus_password",
     "authentication_refresh_frequency_secs": 43200,
-    "max_transfer_file_count": 500,
+    "max_transfer_file_count": 1000,
     "max_active_tasks": 100
+  },
+
+  "influx": {
+    "host": "terra-logging.ncsa.illinois.edu",
+    "port": 8086,
+    "username": "terra",
+    "password": "",
+    "dbname": "transfer_db",
+    "site_time": "+00:00"
   },
 
   "ncsa_api": {

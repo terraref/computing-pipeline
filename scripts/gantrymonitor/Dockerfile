@@ -9,12 +9,14 @@ RUN apt-get -y update \
     && pip install globusonline-transfer-api-client \
     && mkdir /home/gantry
 
-COPY gantry_monitor_service.py /home/gantry/gantry_monitor_service.py
+COPY gantry_scanner_service.py /home/gantry/gantry_scanner_service.py
+COPY globus_manager_service.py /home/gantry/globus_manager_service.py
+COPY start_services.sh /home/gantry/start_services.sh
 COPY config_default.json /home/gantry/config_default.json
 COPY config_logging.json /home/gantry/config_logging.json
 
 ENV MONITOR_API_PORT 5455
-CMD ["python","/home/gantry/gantry_monitor_service.py"]
+CMD ["/home/gantry/start_services.sh"]
 
 # BUILD
 # docker build -f Dockerfile -t maxzilla2/terra-gantry-monitor .
