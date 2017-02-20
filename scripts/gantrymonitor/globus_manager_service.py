@@ -264,7 +264,10 @@ def writePointToPostgres(dsname, file_ct, byte_ct, create_time, xfer_time):
     BEGIN;
 
     CREATE TEMPORARY TABLE pointvals(name TEXT PRIMARY KEY NOT NULL,
-                  filecount INT, bytecount INT, created INT, transferred INT) ON COMMIT DROP;
+                  filecount DECIMAL(38,0),
+                  bytecount DECIMAL(38,0),
+                  created DECIMAL(38,0),
+                  transferred DECIMAL(38,0)) ON COMMIT DROP;
 
     INSERT INTO pointvals(name, filecount, bytecount, created, transferred)
     VALUES ('%s', %s, %s, %s, %s);
