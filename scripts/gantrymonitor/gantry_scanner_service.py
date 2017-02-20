@@ -831,7 +831,7 @@ def initializeGlobusTransfer(globus_batch_obj):
         try:
             logger.debug("- attempting to send new transfer")
             status_code, status_message, transfer_data = api.transfer(transferObj)
-        except (APIError, ClientError) as e:
+        except:
             try:
                 # Try refreshing endpoints and retrying
                 activateEndpoints()
@@ -844,7 +844,7 @@ def initializeGlobusTransfer(globus_batch_obj):
             except:
                 logger.error("- unexpected problem initializing Globus transfer")
                 status_code = 503
-                status_message = e
+                status_message = ""
 
         if status_code == 200 or status_code == 202:
             # Notify NCSA monitor of new task, and add to activeTasks for logging
