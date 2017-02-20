@@ -108,7 +108,10 @@ for f in lyr:
     plot_name = "Range "+plotid.replace("-", " Pass ")
     sensor_id = get_sensor_id(host, key, plot_name)
     if not sensor_id:
+        print("%s must be created" % plot_name)
         sensor_id = create_sensor(host, key, plot_name, {
             "type": "Point",
             "coordinates": [centroid.GetX(), centroid.GetY(), 0]
         })
+    else:
+        print("%s already exists" % plot_name)
