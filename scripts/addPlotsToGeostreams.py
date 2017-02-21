@@ -1,7 +1,6 @@
 import sys, os, json
 import requests
 from osgeo import gdal
-from osgeo import ogr
 from osgeo import osr
 
 
@@ -20,18 +19,17 @@ SENSORS
 
 
 # Get sensor ID from Clowder based on plot name
-def get_sensor_id(host, key, name):
+def get_sensor_info(host, key, name):
     if(not host.endswith("/")):
         host = host+"/"
 
     url = "%sapi/geostreams/sensors?sensor_name=%s&key=%s" % (host, name, key)
-    logging.debug("...searching for sensor : "+name)
     r = requests.get(url)
     if r.status_code == 200:
         json_data = r.json()
         for s in json_data:
             if 'name' in s and s['name'] == name:
-                return s['id']
+                return s
     else:
         print("error searching for sensor ID")
 
@@ -58,7 +56,6 @@ def create_sensor(host, key, name, geom):
     }
 
     url = "%sapi/geostreams/sensors?key=%s" % (host, key)
-    logging.info("...creating new sensor: "+name)
     r = requests.post(url,
                       data=json.dumps(body),
                       headers={'Content-type': 'application/json'})
@@ -71,6 +68,9 @@ def create_sensor(host, key, name, geom):
 
 
 shpFile = sys.argv[1]
+outFile = "coords.csv"
+out = open(outFile, 'w')
+out.write("sensor_id, current_coords, fixed_coords\n")
 
 # OPEN SHAPEFILE
 ds = gdal.OpenEx( shpFile, gdal.OF_VECTOR | gdal.OF_READONLY)
@@ -106,12 +106,20 @@ for f in lyr:
     key = ""
 
     plot_name = "Range "+plotid.replace("-", " Pass ")
-    sensor_id = get_sensor_id(host, key, plot_name)
+    sensor_data = get_sensor_info(host, key, plot_name)
     if not sensor_id:
-        print("%s must be created" % plot_name)
+        print("%s being created at: (%s, %s)" % (plot_name, centroid.GetX(), centroid.GetY()) )
         sensor_id = create_sensor(host, key, plot_name, {
             "type": "Point",
             "coordinates": [centroid.GetX(), centroid.GetY(), 0]
         })
     else:
-        print("%s already exists" % plot_name)
+        sensor_id = sensor_data['id']
+        c = sensor_data['geometry']['coordinates']
+        if c[0] == centroid.GetX() and c[1] == centroid.GetY():
+            print("%s [%s]: (%s, %s)" % (plot_name, sensor_id, c[0], c[1]))
+        else:
+            print("%s [%s]: (%s, %s) -> (%s, %s)" % (plot_name, sensor_id, c[0], c[1], centroid.GetX(), centroid.GetY()))
+        out.write('%s,"(%s,%s)","(%s,%s)"\n' % (sensor_id, c[0], c[1], centroid.GetX(), centroid.GetY()))
+
+out.close()
