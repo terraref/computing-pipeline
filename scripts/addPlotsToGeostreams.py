@@ -108,6 +108,7 @@ for f in lyr:
     plot_name = "Range "+plotid.replace("-", " Pass ")
     sensor_data = get_sensor_info(host, key, plot_name)
     if not sensor_id:
+    if not sensor_data:
         print("%s being created at: (%s, %s)" % (plot_name, centroid.GetX(), centroid.GetY()) )
         sensor_id = create_sensor(host, key, plot_name, {
             "type": "Point",
