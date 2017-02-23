@@ -70,7 +70,6 @@ def create_sensor(host, key, name, geom):
 shpFile = sys.argv[1]
 outFile = "coords.csv"
 out = open(outFile, 'w')
-out.write("sensor_id, current_coords, fixed_coords\n")
 
 # OPEN SHAPEFILE
 ds = gdal.OpenEx( shpFile, gdal.OF_VECTOR | gdal.OF_READONLY)
@@ -107,7 +106,6 @@ for f in lyr:
 
     plot_name = "Range "+plotid.replace("-", " Pass ")
     sensor_data = get_sensor_info(host, key, plot_name)
-    if not sensor_id:
     if not sensor_data:
         print("%s being created at: (%s, %s)" % (plot_name, centroid.GetX(), centroid.GetY()) )
         sensor_id = create_sensor(host, key, plot_name, {
@@ -121,6 +119,10 @@ for f in lyr:
             print("%s [%s]: (%s, %s)" % (plot_name, sensor_id, c[0], c[1]))
         else:
             print("%s [%s]: (%s, %s) -> (%s, %s)" % (plot_name, sensor_id, c[0], c[1], centroid.GetX(), centroid.GetY()))
-        out.write('%s,"(%s,%s)","(%s,%s)"\n' % (sensor_id, c[0], c[1], centroid.GetX(), centroid.GetY()))
+
+        out.write("UPDATE sensors SET geog=ST_SetSRID(ST_MakePoint(%s,%s,0), 4326) WHERE gid=%s;\n" % (
+            centroid.GetX(),
+            centroid.GetY(),
+            sensor_id))
 
 out.close()
