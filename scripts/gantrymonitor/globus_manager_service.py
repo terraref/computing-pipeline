@@ -353,7 +353,10 @@ def writeTaskToInflux(task):
             for f in task['contents'][ds]['files']:
                 fjson = task['contents'][ds]['files'][f]
                 fname = fjson['name']
-                fsize = os.stat(fjson['src_path']).st_size
+                if os.path.exists(fjson['src_path']):
+                    fsize = os.stat(fjson['src_path']).st_size
+                else:
+                    fsize = 0
 
                 if dataset_by_date:
                     # Dataset is by DATE level, so get timestamp from filename if possible
