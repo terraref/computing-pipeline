@@ -304,7 +304,7 @@ def writePointToPostgres(dsname, file_ct, byte_ct, create_time, xfer_time):
         currPoint = {
             "name": dsname,
             "filecount": result[0],
-            "bytecount": result[1],
+            "bytes": result[1],
             "created": result[2],
             "transferred": result[3]
         }
@@ -333,7 +333,8 @@ def writeTaskToInflux(task):
                             config['influx']['password'],
                             config['influx']['dbname'])
 
-    influxPoints = []
+    influxByteCounts = {}
+    influxFileCounts = {}
 
     # Walk transfer object and determine data on each file
     dataset_by_date = False
@@ -371,36 +372,44 @@ def writeTaskToInflux(task):
                 f_created_ts = int(parse(fdate+"T"+ftime).strftime('%s'))
                 # completion time from Globus is formatted: "2017-02-10 16:09:57+00:00"
                 f_transferred_ts = int(parse(comp.replace(" ", "T")).strftime('%s'))
-
-                # DATASET | BYTES | FILECOUNT | CREATE_TIME | COMPLETE_TIME
                 ds_file_count += 1
                 ds_byte_count += fsize
 
-                influxPoints.append({
-                    "measurement": "file_create",
-                    "time": f_created_ts,
-                    "fields": {"sensor": fsensor, "type": "bytes", "count": fsize}
-                })
-                influxPoints.append({
-                    "measurement": "file_create",
-                    "time": f_created_ts,
-                    "fields": {"sensor": fsensor, "type": "filecount", "count": 1}
-                })
-                influxPoints.append({
-                    "measurement": "file_transfer",
-                    "time": f_transferred_ts,
-                    "fields": {"sensor": fsensor, "type": "bytes", "count": fsize}
-                })
-                influxPoints.append({
-                    "measurement": "file_transfer",
-                    "time": f_transferred_ts,
-                    "fields": {"sensor": fsensor, "type": "filecount", "count": 1}
-                })
-
+                # Post new file/byte counts to Postgres and get running total
                 pointTotal = writePointToPostgres(ds, ds_file_count, ds_byte_count, f_created_ts, f_transferred_ts)
 
+                # Overwrite InfluxDB entry for this timestamp with latest running total
+                if fsensor not in influxByteCounts:
+                    influxByteCounts[fsensor] = []
+                if fsensor not in influxFileCounts:
+                    influxFileCounts[fsensor] = []
+
+                influxByteCounts[fsensor].append({
+                    "measurement": "file_create",
+                    "time": f_created_ts,
+                    "fields": {"value": pointTotal["bytes"]}
+                })
+                influxFileCounts[fsensor].append({
+                    "measurement": "file_create",
+                    "time": f_created_ts,
+                    "fields": {"value": pointTotal["filecount"]}
+                })
+                influxByteCounts[fsensor].append({
+                    "measurement": "file_transfer",
+                    "time": f_transferred_ts,
+                    "fields": {"value": pointTotal["bytes"]}
+                })
+                influxFileCounts[fsensor].append({
+                    "measurement": "file_transfer",
+                    "time": f_transferred_ts,
+                    "fields": {"value": pointTotal["filecount"]}
+                })
+
     # Post points to Influx database
-    client.write_points(influxPoints)
+    for fsensor in influxByteCounts:
+        client.write_points(influxByteCounts[fsensor], tags={"sensor": fsensor, "type": "bytes"})
+    for fsensor in influxFileCounts:
+        client.write_points(influxFileCounts[fsensor], tags={"sensor": fsensor, "type": "filecount"})
 
 # ----------------------------------------------------------
 # SERVICE COMPONENTS
