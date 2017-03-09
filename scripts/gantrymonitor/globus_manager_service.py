@@ -387,22 +387,22 @@ def writeTaskToInflux(task):
                 influxByteCounts[fsensor].append({
                     "measurement": "file_create",
                     "time": f_created_ts,
-                    "fields": {"value": pointTotal["bytes"]}
+                    "fields": {"value": int(pointTotal["bytes"])}
                 })
                 influxFileCounts[fsensor].append({
                     "measurement": "file_create",
                     "time": f_created_ts,
-                    "fields": {"value": pointTotal["filecount"]}
+                    "fields": {"value": int(pointTotal["filecount"])}
                 })
                 influxByteCounts[fsensor].append({
                     "measurement": "file_transfer",
                     "time": f_transferred_ts,
-                    "fields": {"value": pointTotal["bytes"]}
+                    "fields": {"value": int(pointTotal["bytes"])}
                 })
                 influxFileCounts[fsensor].append({
                     "measurement": "file_transfer",
                     "time": f_transferred_ts,
-                    "fields": {"value": pointTotal["filecount"]}
+                    "fields": {"value": int(pointTotal["filecount"])}
                 })
 
     # Post points to Influx database
