@@ -1,11 +1,5 @@
 {
-  "monitor_log_path": "home/globusmonitor/data/log/log_monitor.txt",
-  "uploader_log_path": "home/globusmonitor/data/log/log_uploader.txt",
-  "active_tasks_path": "home/globusmonitor/data/log/active_tasks.json",
-  "unprocessed_tasks_path": "home/globusmonitor/data/log/unprocessed_tasks.txt",
-  "completed_tasks_path": "home/globusmonitor/data/completed",
-  "dataset_map_path": "home/globusmonitor/data/log/datasets.json",
-  "collection_map_path": "home/globusmonitor/data/log/collections.json",
+  "log_path": "/home/globusmonitor/data/log",
   "status_log_path": "/home/globusmonitor/data/log/monitor_status.json",
 
   "globus": {

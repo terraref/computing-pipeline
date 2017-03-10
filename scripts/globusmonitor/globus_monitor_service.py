@@ -565,7 +565,12 @@ if __name__ == '__main__':
     # Initialize logger handlers
     with open(os.path.join(rootPath,"config_logging.json"), 'r') as f:
         log_config = json.load(f)
-        log_config['handlers']['file']['filename'] = config["monitor_log_path"]
+        main_log_file = os.path.join(config["log_path"], "log_monitor.txt")
+        log_config['handlers']['file']['filename'] = main_log_file
+        if not os.path.exists(config["log_path"]):
+            os.makedirs(config["log_path"])
+        if not os.path.isfile(main_log_file):
+            open(main_log_file, 'a').close()
         logging.config.dictConfig(log_config)
     logger = logging.getLogger('gantry')
 
