@@ -134,7 +134,7 @@ def updateNestedDict(existing, new):
 """Return small JSON object with information about monitor health"""
 def getStatus():
     activeTaskCount = len(activeTasks)
-    unprocessedTasks = readTasksByStatus("SUCCEEDED", True)
+    unprocessedTasks = readTasksByStatus("SUCCEEDED", True, "ALL")
 
     return {
         "active_task_count": activeTaskCount,
@@ -489,6 +489,7 @@ def globusMonitorLoop():
             logger.info("- checking for Globus updates")
             # Use copy of task list so it doesn't change during iteration
             currentActiveTasks = safeCopy(activeTasks)
+            start_count = len(activeTasks)
             for globusID in currentActiveTasks:
                 task = activeTasks[globusID]
                 task_data = getGlobusTaskData(task)
@@ -520,6 +521,9 @@ def globusMonitorLoop():
 
                         writeTaskToDatabase(task)
                         del activeTasks[globusID]
+
+            if len(activeTasks) < start_count:
+                activeTasks = readTasksByStatus("IN PROGRESS")
 
             logger.debug("- done checking for Globus updates")
 
