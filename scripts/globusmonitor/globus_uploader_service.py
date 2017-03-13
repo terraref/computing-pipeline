@@ -397,6 +397,8 @@ def notifyClowderOfCompletedTask(task):
         clowderHost = config['clowder']['host']
         clowderUser = userMap[globUser]['clowder_user']
         clowderPass = userMap[globUser]['clowder_pass']
+        clowderId = userMap[globUser]['clowder_id']
+        clowderContext = userMap[globUser['context']]
 
         sess = requests.Session()
         sess.auth = (clowderUser, clowderPass)
@@ -461,7 +463,16 @@ def notifyClowderOfCompletedTask(task):
 
                     if datasetMD:
                         # Upload metadata
-                        dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
+                        md = {
+                            "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
+                                         {"@vocab": clowderContext}],
+                            "content": datasetMD,
+                            "agent": {
+                                "@type": "cat:user",
+                                "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowderId
+                            }
+                        }
+                        dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata.jsonld",
                                          headers={'Content-Type':'application/json'},
                                          data=json.dumps(datasetMD))
 
