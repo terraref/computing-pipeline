@@ -20,5 +20,11 @@
     "user_map": {},
     "primary_space": "",
     "globus_processing_frequency": 30
+  },
+
+  "postgres": {
+    "database": "globusmonitor",
+    "username": "globusmonitor",
+    "password": ""
   }
 }
