@@ -229,12 +229,12 @@ def writePendingTaskToDatabase(task):
     {
         "dataset": {
             "files": {
-                "filename1": {
+                "filename1___extension": {
                     "name": "filename1",
                     "md": {},
                     "md_name": "name_of_metadata_file"
                     "md_path": "folder_containing_metadata_file"},
-                "filename2": {...},
+                "filename2___extension": {...},
                 ...
             },
             "md": {},
@@ -633,8 +633,8 @@ def buildGlobusBundle(queued_files):
                 new_bundle[ds] = {}
                 new_bundle[ds]['files'] = {}
             # Add files from each dataset
-            for f in queued_files[ds]['files']:
-                fobj = queued_files[ds]['files'][f]
+            for fkey in queued_files[ds]['files']:
+                fobj = queued_files[ds]['files'][fkey]
                 if fobj["path"].find(config['globus']['source_path']) > -1:
                     src_path = os.path.join(fobj["path"], fobj["name"])
                     dest_path = os.path.join(config['globus']['destination_path'],
@@ -672,7 +672,7 @@ def buildGlobusBundle(queued_files):
                 fobj["orig_path"] = fobj["path"]
                 fobj["path"] = dest_path
                 fobj['src_path'] = src_path
-                new_bundle[ds]['files'][f] = fobj
+                new_bundle[ds]['files'][fkey] = fobj
 
             # Clean up any placeholder entries
             if new_bundle[ds]['files'] == {}:
@@ -720,6 +720,7 @@ def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=
 
     # Filename is always last
     filename = pathParts[-1]
+    filekey = filename.replace(".","___")
     # Timestamp is one level up from filename
     if not timestamp:
         timestamp = pathParts[-2]  if len(pathParts)>1 else "unknown_time"
@@ -740,7 +741,7 @@ def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=
     newTransfer = {
         datasetname: {
             "files": {
-                filename: {
+                filekey: {
                     "name": filename,
                     "path": gantryDirPath[1:] if gantryDirPath[0]=="/" else gantryDirPath,
                     "orig_path": f
@@ -749,7 +750,7 @@ def prepFileForPendingTransfers(f, sensorname=None, timestamp=None, datasetname=
         }
     }
     if filemetadata and filemetadata != {}:
-        newTransfer[datasetname]["files"][filename]["md"] = filemetadata
+        newTransfer[datasetname]["files"][filekey]["md"] = filemetadata
 
     return newTransfer
 
@@ -816,15 +817,15 @@ def initializeGlobusTransfer(globus_batch_obj):
         queue_length = 0
         for ds in globus_batch:
             if 'files' in globus_batch[ds]:
-                for f in globus_batch[ds]['files']:
-                    fjson = globus_batch[ds]['files'][f]
-                    if 'src_path' not in fjson:
-                        srcpath = fjson['orig_path']
+                for fkey in globus_batch[ds]['files']:
+                    fobj = globus_batch[ds]['files'][fkey]
+                    if 'src_path' not in fobj:
+                        srcpath = fobj['orig_path']
                         if srcpath.startswith('/LemnaTec'):
                             srcpath = "/gantry_data"+srcpath
                     else:
-                        srcpath = fjson['src_path']
-                    transferObj.add_item(srcpath, fjson['path'])
+                        srcpath = fobj['src_path']
+                    transferObj.add_item(srcpath, fobj['path'])
                     queue_length += 1
 
         # Send transfer to Globus
