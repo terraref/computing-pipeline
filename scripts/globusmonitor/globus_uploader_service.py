@@ -398,7 +398,7 @@ def notifyClowderOfCompletedTask(task):
         clowderUser = userMap[globUser]['clowder_user']
         clowderPass = userMap[globUser]['clowder_pass']
         clowderId = userMap[globUser]['clowder_id']
-        clowderContext = userMap[globUser['context']]
+        clowderContext = userMap[globUser]['context']
 
         sess = requests.Session()
         sess.auth = (clowderUser, clowderPass)
