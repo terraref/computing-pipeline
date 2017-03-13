@@ -414,6 +414,7 @@ def notifyClowderOfCompletedTask(task):
             datasetMD = None
             datasetMDFile = False
             lastFile = None
+            lastFileKey = None
 
             # Assign dataset-level metadata if provided
             if "md" in task['contents'][ds]:
@@ -421,11 +422,11 @@ def notifyClowderOfCompletedTask(task):
 
             # Add local files to dataset by path
             if 'files' in task['contents'][ds]:
-                for f in task['contents'][ds]['files']:
-                    fobj = task['contents'][ds]['files'][f]
+                for fkey in task['contents'][ds]['files']:
+                    fobj = task['contents'][ds]['files'][fkey]
                     if 'clowder_id' not in fobj or fobj['clowder_id'] == "" or fobj['clowder_id'] == "FILE NOT FOUND":
                         if os.path.exists(fobj['path']):
-                            if f.find("metadata.json") == -1:
+                            if fobj['name'].find("metadata.json") == -1:
                                 if 'md' in fobj:
                                     # Use [1,-1] to avoid json.dumps wrapping quotes
                                     # Replace \" with " to avoid json.dumps escaping quotes
@@ -433,13 +434,14 @@ def notifyClowderOfCompletedTask(task):
                                 else:
                                     mdstr = ""
                                 filesQueued.append((fobj['path'], mdstr))
-                                lastFile = f
+                                lastFile = fobj['name']
+                                lastFileKey = fkey
                             else:
                                 datasetMD = clean_json_keys(loadJsonFile(fobj['path']))
-                                datasetMDFile = f
+                                datasetMDFile = fkey
                         else:
                             logger.info("%s dataset %s lists nonexistent file: %s" % (task['globus_id'], ds, fobj['path']))
-                            updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = "FILE NOT FOUND"
+                            updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = "FILE NOT FOUND"
                             writeTaskToDatabase(updatedTask)
 
             if len(filesQueued)>0 or datasetMD:
@@ -511,11 +513,14 @@ def notifyClowderOfCompletedTask(task):
                             if 'ids' in loaded:
                                 for fobj in loaded['ids']:
                                     logger.info("++ added file %s" % fobj['name'])
-                                    updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
+                                    for fkey in updatedTask['contents'][ds]['files']:
+                                        if updatedTask['contents'][ds]['files'][fkey]['name'] == fobj['name']:
+                                            updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = fobj['id']
+                                            break
                                     writeTaskToDatabase(updatedTask)
                             else:
                                 logger.info("++ added file %s" % lastFile)
-                                updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
+                                updatedTask['contents'][ds]['files'][lastFileKey]['clowder_id'] = loaded['id']
                                 writeTaskToDatabase(updatedTask)
                 else:
                     logger.error("- dataset id for %s could not be found/created" % ds)

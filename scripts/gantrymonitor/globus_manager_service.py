@@ -185,7 +185,7 @@ def writeTaskToPostgres(task):
     "contents": {
         "dataset": {
             "files": {
-                "filename1": {
+                "filename1___extension": {
                     "name": "filename1",
                     "path": path on NCSA destination side
                     "orig_path": path on gantry
@@ -193,7 +193,7 @@ def writeTaskToPostgres(task):
                     "md": {},
                     "md_name": "name_of_metadata_file"
                     "md_path": "folder_containing_metadata_file"},
-                "filename2": {...},
+                "filename2___extension": {...},
                 ...
             },
             "md": {},

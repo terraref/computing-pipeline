@@ -55,13 +55,13 @@ config = {}
         "dataset": {                dataset used as key for set of files transferred
             "md": {}                metadata to be associated with this dataset
             "files": {              dict of files from this dataset included in task, each with
-                "filename1": {
+                "filename1___extension": {
                     "name": "file1.txt",    ...filename
                     "path": "",             ...file path, which is updated with path-on-disk once completed
                     "md": {}                ...metadata to be associated with that file
                     "clowder_id": "UUID"    ...UUID of file in Clowder once it is uploaded
                 },
-                "filename2": {...},
+                "filename2___extension": {...},
                 ...
             }
         },
@@ -307,32 +307,6 @@ def readTasksByStatus(status, id_only=False):
     curs.close()
 
     return results
-
-"""Write dataset (name -> clowder_id) mapping to PostgreSQL database"""
-def writeDatasetRecordToDatabase(dataset_name, dataset_id):
-
-    q_insert = "INSERT INTO datasets (name, clowder_id) VALUES ('%s', '%s') " \
-               "ON CONFLICT (name) DO UPDATE SET clowder_id='%s';" % (
-        dataset_name, dataset_id, dataset_id)
-
-    curs = psql_conn.cursor()
-    #logger.debug("Writing dataset %s to PostgreSQL..." % dataset_name)
-    curs.execute(q_insert)
-    psql_conn.commit()
-    curs.close()
-
-"""Write collection (name -> clowder_id) mapping to PostgreSQL database"""
-def writeCollectionRecordToDatabase(collection_name, collection_id):
-
-    q_insert = "INSERT INTO collections (name, clowder_id) VALUES ('%s', '%s') " \
-               "ON CONFLICT (name) DO UPDATE SET clowder_id='%s';" % (
-        collection_name, collection_id, collection_id)
-
-    curs = psql_conn.cursor()
-    #logger.debug("Writing collection %s to PostgreSQL..." % collection_name)
-    curs.execute(q_insert)
-    psql_conn.commit()
-    curs.close()
 
 """Save object into a log file from memory, moving existing file to .backup if it exists"""
 def writeStatusToDisk():
