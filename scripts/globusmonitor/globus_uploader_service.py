@@ -474,7 +474,7 @@ def notifyClowderOfCompletedTask(task):
                         }
                         dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata.jsonld",
                                          headers={'Content-Type':'application/json'},
-                                         data=json.dumps(datasetMD))
+                                         data=json.dumps(md))
 
                         if dsmd.status_code != 200:
                             logger.error("- cannot add dataset metadata (%s: %s)" % (dsmd.status_code, dsmd.text))
