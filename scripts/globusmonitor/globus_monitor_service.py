@@ -267,7 +267,7 @@ def writeTaskToDatabase(task):
     curs.close()
 
 """Fetch all Globus tasks with a particular status"""
-def readTasksByStatus(status, id_only=False):
+def readTasksByStatus(status, id_only=False, limit=2500):
     """
     IN PROGRESS (received notification from sender but not yet verified complete)
          FAILED (Globus could not complete; no longer attempting to complete)
@@ -276,11 +276,11 @@ def readTasksByStatus(status, id_only=False):
       PROCESSED (complete & uploaded into Clowder)
     """
     if id_only:
-        q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s'" % status
+        q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s' limit %s;" % (status, limit)
         results = []
     else:
         q_fetch = "SELECT globus_id, status, received, completed, globus_user, " \
-                  "file_count, bytes, contents FROM globus_tasks WHERE status = '%s'" % status
+                  "file_count, bytes, contents FROM globus_tasks WHERE status = '%s' limit %s;" % (status, limit)
         results = {}
 
 
