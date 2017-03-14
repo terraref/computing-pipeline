@@ -47,33 +47,6 @@ Config file has 2 important entries which do not have default values:
 """
 config = {}
 
-"""activeTasks tracks which Globus IDs are being monitored, and is of the format:
-{"globus_id": {
-    "user":                     globus username
-    "globus_id":                globus job ID of upload
-    "contents": {
-        "dataset": {                dataset used as key for set of files transferred
-            "md": {}                metadata to be associated with this dataset
-            "files": {              dict of files from this dataset included in task, each with
-                "filename1___extension": {
-                    "name": "file1.txt",    ...filename
-                    "path": "",             ...file path, which is updated with path-on-disk once completed
-                    "md": {}                ...metadata to be associated with that file
-                    "clowder_id": "UUID"    ...UUID of file in Clowder once it is uploaded
-                },
-                "filename2___extension": {...},
-                ...
-            }
-        },
-        "dataset2": {...},
-        ...
-    },
-    "received":                 timestamp when task was sent to monitor API
-    "completed":                timestamp when task was completed (including errors and cancelled tasks)
-    "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
-}, {...}, {...}, ...}"""
-activeTasks = {}
-
 app = Flask(__name__)
 api = restful.Api(app)
 
@@ -133,13 +106,10 @@ def updateNestedDict(existing, new):
 
 """Return small JSON object with information about monitor health"""
 def getStatus():
-    activeTaskCount = len(activeTasks)
-    unprocessedTasks = readTasksByStatus("SUCCEEDED", True, "ALL")
-
     return {
-        "active_task_count": activeTaskCount,
-        "unprocessed_task_count": len(unprocessedTasks),
-        "next_unprocessed_task": unprocessedTasks[0] if len(unprocessedTasks) > 0 else ""
+        "in_progress_tasks": countTasksByStatus("IN PROGRESS"),
+        "unprocessed_tasks": countTasksByStatus("SUCCEEDED"),
+        "processed_tasks": countTasksByStatus("PROCESSED")
     }
 
 """Load contents of .json file into a JSON object"""
@@ -308,6 +278,27 @@ def readTasksByStatus(status, id_only=False, limit=2500):
 
     return results
 
+"""Count all Globus tasks with a particular status"""
+def countTasksByStatus(status):
+    """
+    IN PROGRESS (received notification from sender but not yet verified complete)
+         FAILED (Globus could not complete; no longer attempting to complete)
+        DELETED (manually via api below)
+      SUCCEEDED (verified complete; not yet uploaded into Clowder)
+      PROCESSED (complete & uploaded into Clowder)
+    """
+    q_fetch = "SELECT count(1) FROM globus_tasks WHERE status = '%s';" % status
+    count = -1
+
+    curs = psql_conn.cursor()
+    #logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
+    curs.execute(q_fetch)
+    for result in curs:
+        count = result[1]
+    curs.close()
+
+    return count
+
 """Save object into a log file from memory, moving existing file to .backup if it exists"""
 def writeStatusToDisk():
     logPath = config["status_log_path"]
@@ -358,11 +349,11 @@ def requires_auth(f):
 POST new globus tasks to be monitored, or GET full list of tasks being monitored"""
 class GlobusMonitor(restful.Resource):
 
-    """Return list of all active tasks initiated by the requesting user"""
+    """Return list of first 10 active tasks initiated by the requesting user"""
     @requires_auth
     def get(self):
         # TODO: Should this be filtered by user somehow?
-        return activeTasks, 200
+        return readTasksByStatus("IN PROGRESS", limit=10), 200
 
     """Add new Globus task ID from a known user for monitoring"""
     @requires_auth
@@ -387,7 +378,6 @@ class GlobusMonitor(restful.Resource):
                 "status": "IN PROGRESS"
             }
 
-            activeTasks[task['globus_id']] = newTask
             writeTaskToDatabase(newTask)
 
             return 201
@@ -401,32 +391,11 @@ class GlobusTask(restful.Resource):
     """Check if the Globus task ID is finished, in progress, or an error has occurred"""
     @requires_auth
     def get(self, globusID):
-        # TODO: Should this require same Globus credentials as 'owner' of task?
-        if globusID not in activeTasks:
-            # If not in active list, check for record of completed task
-            task = readTaskFromDatabase(globusID)
-            if task:
-                return task, 200
-            else:
-                return "Globus ID not found in active or completed tasks", 404
+        task = readTaskFromDatabase(globusID)
+        if task:
+            return task, 200
         else:
-            return activeTasks[globusID], 200
-
-    """Remove task from active tasks being monitored"""
-    @requires_auth
-    def delete(self, globusID):
-        if globusID in activeTasks:
-            # TODO: Should this perform deletion within Globus as well? For now, just deletes from monitoring
-            task = activeTasks[globusID]
-
-            # Write task as completed with an aborted status
-            task.status = "DELETED"
-            task.completed = datetime.datetime.now()
-            task.path = ""
-
-            writeTaskToDatabase(task)
-            del activeTasks[task['globus_id']]
-            return 204
+            return "Globus ID not found in database", 404
 
 """ /status
 Return basic information about monitor for health checking"""
@@ -488,9 +457,33 @@ def globusMonitorLoop():
         if globWait >= config['globus']['transfer_update_frequency_secs']:
             logger.info("- checking for Globus updates")
             # Use copy of task list so it doesn't change during iteration
-            currentActiveTasks = safeCopy(activeTasks)
-            start_count = len(activeTasks)
-            for globusID in currentActiveTasks:
+            activeTasks = readTasksByStatus("IN PROGRESS")
+            """activeTasks tracks which Globus IDs are being monitored, and is of the format:
+                {"globus_id": {
+                    "user":                     globus username
+                    "globus_id":                globus job ID of upload
+                    "contents": {
+                        "dataset": {                dataset used as key for set of files transferred
+                            "md": {}                metadata to be associated with this dataset
+                            "files": {              dict of files from this dataset included in task, each with
+                                "filename1___extension": {
+                                    "name": "file1.txt",    ...filename
+                                    "path": "",             ...file path, which is updated with path-on-disk once completed
+                                    "md": {}                ...metadata to be associated with that file
+                                    "clowder_id": "UUID"    ...UUID of file in Clowder once it is uploaded
+                                },
+                                "filename2___extension": {...},
+                                ...
+                            }
+                        },
+                        "dataset2": {...},
+                        ...
+                    },
+                    "received":                 timestamp when task was sent to monitor API
+                    "completed":                timestamp when task was completed (including errors and cancelled tasks)
+                    "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
+                }, {...}, {...}, ...}"""
+            for globusID in activeTasks:
                 task = activeTasks[globusID]
                 task_data = getGlobusTaskData(task)
 
@@ -520,10 +513,6 @@ def globusMonitorLoop():
                                     fobj['path'] = os.path.join(config['globus']['incoming_files_path'], fobj['path'])
 
                         writeTaskToDatabase(task)
-                        del activeTasks[globusID]
-
-            if len(activeTasks) < start_count:
-                activeTasks = readTasksByStatus("IN PROGRESS")
 
             logger.debug("- done checking for Globus updates")
 
@@ -557,7 +546,6 @@ if __name__ == '__main__':
     logger = logging.getLogger('gantry')
 
     psql_conn = connectToPostgres()
-    activeTasks = readTasksByStatus("IN PROGRESS")
     generateAuthTokens()
 
     logger.info("- initializing service")
