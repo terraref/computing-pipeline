@@ -185,7 +185,7 @@ def writeTaskToPostgres(task):
     "contents": {
         "dataset": {
             "files": {
-                "filename1": {
+                "filename1___extension": {
                     "name": "filename1",
                     "path": path on NCSA destination side
                     "orig_path": path on gantry
@@ -193,7 +193,7 @@ def writeTaskToPostgres(task):
                     "md": {},
                     "md_name": "name_of_metadata_file"
                     "md_path": "folder_containing_metadata_file"},
-                "filename2": {...},
+                "filename2___extension": {...},
                 ...
             },
             "md": {},
@@ -492,8 +492,11 @@ def globusMonitorLoop():
                     task['completed'] = task_data['completion_time']
                     task['file_count'] = task_data['files']
                     task['bytes'] = task_data['bytes_transferred']
-                    writeTaskToPostgres(task)
-                    writeTaskToInflux(task)
+                    try:
+                        writeTaskToInflux(task)
+                        writeTaskToPostgres(task)
+                    except:
+                        logger.debug("- skipping remaining CREATED tasks this iteration")
 
             # IN PROGRESS -> NOTIFIED on completion, NCSA already notified
             #             -> FAILED on failure
@@ -507,8 +510,11 @@ def globusMonitorLoop():
                     task['completed'] = task_data['completion_time']
                     task['file_count'] = task_data['files']
                     task['bytes'] = task_data['bytes_transferred']
-                    writeTaskToPostgres(task)
-                    writeTaskToInflux(task)
+                    try:
+                        writeTaskToInflux(task)
+                        writeTaskToPostgres(task)
+                    except:
+                        logger.debug("- skipping remaining IN PROGRESS tasks this iteration")
 
             apiWait = config['ncsa_api']['api_check_frequency_secs']
 
@@ -530,7 +536,7 @@ if __name__ == '__main__':
     # Initialize logger handlers
     with open(os.path.join(rootPath,"config_logging.json"), 'r') as f:
         log_config = json.load(f)
-        main_log_file = os.path.join(config["log_path"], "log_monitor.txt")
+        main_log_file = os.path.join(config["log_path"], "log_manager.txt")
         log_config['handlers']['file']['filename'] = main_log_file
         if not os.path.exists(config["log_path"]):
             os.makedirs(config["log_path"])

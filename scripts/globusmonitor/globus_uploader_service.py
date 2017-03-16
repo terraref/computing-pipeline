@@ -137,7 +137,7 @@ def fetchDatasetByName(datasetName, sess, spaceOverrideId=None):
                 # If we only have a date and not a timestamp, don't create date collection
                 c_date = None
             else:
-                c_date = c_sensor + " - " + c_date
+                c_date = c_sensor + " - " + c_date.split("__")[0]
         else:
             c_sensor, c_date, c_year, c_month = None, None, None, None
 
@@ -244,19 +244,23 @@ def connectToPostgres():
         $ pg_ctl -D /home/globusmonitor/postgres/data -l /home/globusmonitor/postgres/log
         $   createdb globusmonitor
     """
+    psql_db = config['postgres']['database']
+    psql_user = config['postgres']['username']
+    psql_pass = config['postgres']['password']
+
     try:
-        conn = psycopg2.connect(dbname='globusmonitor')
+        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass)
     except:
         # Attempt to create database if not found
         conn = psycopg2.connect(dbname='postgres')
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         curs = conn.cursor()
-        curs.execute('CREATE DATABASE globusmonitor;')
+        curs.execute('CREATE DATABASE %s;' % psql_db)
         curs.close()
         conn.commit()
         conn.close()
 
-        conn = psycopg2.connect(dbname='globusmonitor')
+        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass)
         initializeDatabase(conn)
 
     logger.info("Connected to Postgres")
@@ -393,6 +397,8 @@ def notifyClowderOfCompletedTask(task):
         clowderHost = config['clowder']['host']
         clowderUser = userMap[globUser]['clowder_user']
         clowderPass = userMap[globUser]['clowder_pass']
+        clowderId = userMap[globUser]['clowder_id']
+        clowderContext = userMap[globUser]['context']
 
         sess = requests.Session()
         sess.auth = (clowderUser, clowderPass)
@@ -410,6 +416,7 @@ def notifyClowderOfCompletedTask(task):
             datasetMD = None
             datasetMDFile = False
             lastFile = None
+            lastFileKey = None
 
             # Assign dataset-level metadata if provided
             if "md" in task['contents'][ds]:
@@ -417,11 +424,11 @@ def notifyClowderOfCompletedTask(task):
 
             # Add local files to dataset by path
             if 'files' in task['contents'][ds]:
-                for f in task['contents'][ds]['files']:
-                    fobj = task['contents'][ds]['files'][f]
+                for fkey in task['contents'][ds]['files']:
+                    fobj = task['contents'][ds]['files'][fkey]
                     if 'clowder_id' not in fobj or fobj['clowder_id'] == "" or fobj['clowder_id'] == "FILE NOT FOUND":
                         if os.path.exists(fobj['path']):
-                            if f.find("metadata.json") == -1:
+                            if fobj['name'].find("metadata.json") == -1:
                                 if 'md' in fobj:
                                     # Use [1,-1] to avoid json.dumps wrapping quotes
                                     # Replace \" with " to avoid json.dumps escaping quotes
@@ -429,13 +436,14 @@ def notifyClowderOfCompletedTask(task):
                                 else:
                                     mdstr = ""
                                 filesQueued.append((fobj['path'], mdstr))
-                                lastFile = f
+                                lastFile = fobj['name']
+                                lastFileKey = fkey
                             else:
                                 datasetMD = clean_json_keys(loadJsonFile(fobj['path']))
-                                datasetMDFile = f
+                                datasetMDFile = fkey
                         else:
                             logger.info("%s dataset %s lists nonexistent file: %s" % (task['globus_id'], ds, fobj['path']))
-                            updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = "FILE NOT FOUND"
+                            updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = "FILE NOT FOUND"
                             writeTaskToDatabase(updatedTask)
 
             if len(filesQueued)>0 or datasetMD:
@@ -455,9 +463,18 @@ def notifyClowderOfCompletedTask(task):
 
                     if datasetMD:
                         # Upload metadata
-                        dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata",
+                        md = {
+                            "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
+                                         {"@vocab": clowderContext}],
+                            "content": datasetMD,
+                            "agent": {
+                                "@type": "cat:user",
+                                "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowderId
+                            }
+                        }
+                        dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata.jsonld",
                                          headers={'Content-Type':'application/json'},
-                                         data=json.dumps(datasetMD))
+                                         data=json.dumps(md))
 
                         if dsmd.status_code != 200:
                             logger.error("- cannot add dataset metadata (%s: %s)" % (dsmd.status_code, dsmd.text))
@@ -507,11 +524,14 @@ def notifyClowderOfCompletedTask(task):
                             if 'ids' in loaded:
                                 for fobj in loaded['ids']:
                                     logger.info("++ added file %s" % fobj['name'])
-                                    updatedTask['contents'][ds]['files'][fobj['name']]['clowder_id'] = fobj['id']
+                                    for fkey in updatedTask['contents'][ds]['files']:
+                                        if updatedTask['contents'][ds]['files'][fkey]['name'] == fobj['name']:
+                                            updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = fobj['id']
+                                            break
                                     writeTaskToDatabase(updatedTask)
                             else:
                                 logger.info("++ added file %s" % lastFile)
-                                updatedTask['contents'][ds]['files'][lastFile]['clowder_id'] = loaded['id']
+                                updatedTask['contents'][ds]['files'][lastFileKey]['clowder_id'] = loaded['id']
                                 writeTaskToDatabase(updatedTask)
                 else:
                     logger.error("- dataset id for %s could not be found/created" % ds)
@@ -561,7 +581,12 @@ if __name__ == '__main__':
     # Initialize logger handlers
     with open(os.path.join(rootPath,"config_logging.json"), 'r') as f:
         log_config = json.load(f)
-        log_config['handlers']['file']['filename'] = config["uploader_log_path"]
+        main_log_file = os.path.join(config["log_path"], "log_uploader.txt")
+        log_config['handlers']['file']['filename'] = main_log_file
+        if not os.path.exists(config["log_path"]):
+            os.makedirs(config["log_path"])
+        if not os.path.isfile(main_log_file):
+            open(main_log_file, 'a').close()
         logging.config.dictConfig(log_config)
     logger = logging.getLogger('gantry')
 

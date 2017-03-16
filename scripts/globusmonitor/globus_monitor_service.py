@@ -47,33 +47,6 @@ Config file has 2 important entries which do not have default values:
 """
 config = {}
 
-"""activeTasks tracks which Globus IDs are being monitored, and is of the format:
-{"globus_id": {
-    "user":                     globus username
-    "globus_id":                globus job ID of upload
-    "contents": {
-        "dataset": {                dataset used as key for set of files transferred
-            "md": {}                metadata to be associated with this dataset
-            "files": {              dict of files from this dataset included in task, each with
-                "filename1": {
-                    "name": "file1.txt",    ...filename
-                    "path": "",             ...file path, which is updated with path-on-disk once completed
-                    "md": {}                ...metadata to be associated with that file
-                    "clowder_id": "UUID"    ...UUID of file in Clowder once it is uploaded
-                },
-                "filename2": {...},
-                ...
-            }
-        },
-        "dataset2": {...},
-        ...
-    },
-    "received":                 timestamp when task was sent to monitor API
-    "completed":                timestamp when task was completed (including errors and cancelled tasks)
-    "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
-}, {...}, {...}, ...}"""
-activeTasks = {}
-
 app = Flask(__name__)
 api = restful.Api(app)
 
@@ -133,13 +106,10 @@ def updateNestedDict(existing, new):
 
 """Return small JSON object with information about monitor health"""
 def getStatus():
-    activeTaskCount = len(activeTasks)
-    unprocessedTasks = readTasksByStatus("SUCCEEDED", True)
-
     return {
-        "active_task_count": activeTaskCount,
-        "unprocessed_task_count": len(unprocessedTasks),
-        "next_unprocessed_task": unprocessedTasks[0] if len(unprocessedTasks) > 0 else ""
+        "in_progress_tasks": countTasksByStatus("IN PROGRESS"),
+        "unprocessed_tasks": countTasksByStatus("SUCCEEDED"),
+        "processed_tasks": countTasksByStatus("PROCESSED")
     }
 
 """Load contents of .json file into a JSON object"""
@@ -165,19 +135,23 @@ def connectToPostgres():
         $ pg_ctl -D /home/globusmonitor/postgres/data -l /home/globusmonitor/postgres/log
         $   createdb globusmonitor
     """
+    psql_db = config['postgres']['database']
+    psql_user = config['postgres']['username']
+    psql_pass = config['postgres']['password']
+
     try:
-        conn = psycopg2.connect(dbname='globusmonitor')
+        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass)
     except:
         # Attempt to create database if not found
         conn = psycopg2.connect(dbname='postgres')
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         curs = conn.cursor()
-        curs.execute('CREATE DATABASE globusmonitor;')
+        curs.execute('CREATE DATABASE %s;' % psql_db)
         curs.close()
         conn.commit()
         conn.close()
 
-        conn = psycopg2.connect(dbname='globusmonitor')
+        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass)
         initializeDatabase(conn)
 
     logger.info("Connected to Postgres")
@@ -263,7 +237,7 @@ def writeTaskToDatabase(task):
     curs.close()
 
 """Fetch all Globus tasks with a particular status"""
-def readTasksByStatus(status, id_only=False):
+def readTasksByStatus(status, id_only=False, limit=2500):
     """
     IN PROGRESS (received notification from sender but not yet verified complete)
          FAILED (Globus could not complete; no longer attempting to complete)
@@ -272,11 +246,11 @@ def readTasksByStatus(status, id_only=False):
       PROCESSED (complete & uploaded into Clowder)
     """
     if id_only:
-        q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s'" % status
+        q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s' limit %s;" % (status, limit)
         results = []
     else:
         q_fetch = "SELECT globus_id, status, received, completed, globus_user, " \
-                  "file_count, bytes, contents FROM globus_tasks WHERE status = '%s'" % status
+                  "file_count, bytes, contents FROM globus_tasks WHERE status = '%s' limit %s;" % (status, limit)
         results = {}
 
 
@@ -304,31 +278,26 @@ def readTasksByStatus(status, id_only=False):
 
     return results
 
-"""Write dataset (name -> clowder_id) mapping to PostgreSQL database"""
-def writeDatasetRecordToDatabase(dataset_name, dataset_id):
-
-    q_insert = "INSERT INTO datasets (name, clowder_id) VALUES ('%s', '%s') " \
-               "ON CONFLICT (name) DO UPDATE SET clowder_id='%s';" % (
-        dataset_name, dataset_id, dataset_id)
-
-    curs = psql_conn.cursor()
-    #logger.debug("Writing dataset %s to PostgreSQL..." % dataset_name)
-    curs.execute(q_insert)
-    psql_conn.commit()
-    curs.close()
-
-"""Write collection (name -> clowder_id) mapping to PostgreSQL database"""
-def writeCollectionRecordToDatabase(collection_name, collection_id):
-
-    q_insert = "INSERT INTO collections (name, clowder_id) VALUES ('%s', '%s') " \
-               "ON CONFLICT (name) DO UPDATE SET clowder_id='%s';" % (
-        collection_name, collection_id, collection_id)
+"""Count all Globus tasks with a particular status"""
+def countTasksByStatus(status):
+    """
+    IN PROGRESS (received notification from sender but not yet verified complete)
+         FAILED (Globus could not complete; no longer attempting to complete)
+        DELETED (manually via api below)
+      SUCCEEDED (verified complete; not yet uploaded into Clowder)
+      PROCESSED (complete & uploaded into Clowder)
+    """
+    q_fetch = "SELECT count(1) FROM globus_tasks WHERE status = '%s';" % status
+    count = -1
 
     curs = psql_conn.cursor()
-    #logger.debug("Writing collection %s to PostgreSQL..." % collection_name)
-    curs.execute(q_insert)
-    psql_conn.commit()
+    #logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
+    curs.execute(q_fetch)
+    for result in curs:
+        count = result[0]
     curs.close()
+
+    return count
 
 """Save object into a log file from memory, moving existing file to .backup if it exists"""
 def writeStatusToDisk():
@@ -380,11 +349,11 @@ def requires_auth(f):
 POST new globus tasks to be monitored, or GET full list of tasks being monitored"""
 class GlobusMonitor(restful.Resource):
 
-    """Return list of all active tasks initiated by the requesting user"""
+    """Return list of first 10 active tasks initiated by the requesting user"""
     @requires_auth
     def get(self):
         # TODO: Should this be filtered by user somehow?
-        return activeTasks, 200
+        return readTasksByStatus("IN PROGRESS", limit=10), 200
 
     """Add new Globus task ID from a known user for monitoring"""
     @requires_auth
@@ -409,7 +378,6 @@ class GlobusMonitor(restful.Resource):
                 "status": "IN PROGRESS"
             }
 
-            activeTasks[task['globus_id']] = newTask
             writeTaskToDatabase(newTask)
 
             return 201
@@ -423,32 +391,11 @@ class GlobusTask(restful.Resource):
     """Check if the Globus task ID is finished, in progress, or an error has occurred"""
     @requires_auth
     def get(self, globusID):
-        # TODO: Should this require same Globus credentials as 'owner' of task?
-        if globusID not in activeTasks:
-            # If not in active list, check for record of completed task
-            task = readTaskFromDatabase(globusID)
-            if task:
-                return task, 200
-            else:
-                return "Globus ID not found in active or completed tasks", 404
+        task = readTaskFromDatabase(globusID)
+        if task:
+            return task, 200
         else:
-            return activeTasks[globusID], 200
-
-    """Remove task from active tasks being monitored"""
-    @requires_auth
-    def delete(self, globusID):
-        if globusID in activeTasks:
-            # TODO: Should this perform deletion within Globus as well? For now, just deletes from monitoring
-            task = activeTasks[globusID]
-
-            # Write task as completed with an aborted status
-            task.status = "DELETED"
-            task.completed = datetime.datetime.now()
-            task.path = ""
-
-            writeTaskToDatabase(task)
-            del activeTasks[task['globus_id']]
-            return 204
+            return "Globus ID not found in database", 404
 
 """ /status
 Return basic information about monitor for health checking"""
@@ -510,8 +457,33 @@ def globusMonitorLoop():
         if globWait >= config['globus']['transfer_update_frequency_secs']:
             logger.info("- checking for Globus updates")
             # Use copy of task list so it doesn't change during iteration
-            currentActiveTasks = safeCopy(activeTasks)
-            for globusID in currentActiveTasks:
+            activeTasks = readTasksByStatus("IN PROGRESS")
+            """activeTasks tracks which Globus IDs are being monitored, and is of the format:
+                {"globus_id": {
+                    "user":                     globus username
+                    "globus_id":                globus job ID of upload
+                    "contents": {
+                        "dataset": {                dataset used as key for set of files transferred
+                            "md": {}                metadata to be associated with this dataset
+                            "files": {              dict of files from this dataset included in task, each with
+                                "filename1___extension": {
+                                    "name": "file1.txt",    ...filename
+                                    "path": "",             ...file path, which is updated with path-on-disk once completed
+                                    "md": {}                ...metadata to be associated with that file
+                                    "clowder_id": "UUID"    ...UUID of file in Clowder once it is uploaded
+                                },
+                                "filename2___extension": {...},
+                                ...
+                            }
+                        },
+                        "dataset2": {...},
+                        ...
+                    },
+                    "received":                 timestamp when task was sent to monitor API
+                    "completed":                timestamp when task was completed (including errors and cancelled tasks)
+                    "status":                   can be "IN PROGRESS", "DONE", "ABORTED", "ERROR"
+                }, {...}, {...}, ...}"""
+            for globusID in activeTasks:
                 task = activeTasks[globusID]
                 task_data = getGlobusTaskData(task)
 
@@ -541,7 +513,6 @@ def globusMonitorLoop():
                                     fobj['path'] = os.path.join(config['globus']['incoming_files_path'], fobj['path'])
 
                         writeTaskToDatabase(task)
-                        del activeTasks[globusID]
 
             logger.debug("- done checking for Globus updates")
 
@@ -565,12 +536,16 @@ if __name__ == '__main__':
     # Initialize logger handlers
     with open(os.path.join(rootPath,"config_logging.json"), 'r') as f:
         log_config = json.load(f)
-        log_config['handlers']['file']['filename'] = config["monitor_log_path"]
+        main_log_file = os.path.join(config["log_path"], "log_monitor.txt")
+        log_config['handlers']['file']['filename'] = main_log_file
+        if not os.path.exists(config["log_path"]):
+            os.makedirs(config["log_path"])
+        if not os.path.isfile(main_log_file):
+            open(main_log_file, 'a').close()
         logging.config.dictConfig(log_config)
     logger = logging.getLogger('gantry')
 
     psql_conn = connectToPostgres()
-    activeTasks = readTasksByStatus("IN PROGRESS")
     generateAuthTokens()
 
     logger.info("- initializing service")
