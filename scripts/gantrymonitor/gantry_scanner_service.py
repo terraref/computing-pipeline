@@ -449,9 +449,10 @@ def getNewFilesFromFTPLogs():
 
     # NASLOG - handle first as it will have fewer files/less frequent updates -----------------------------
     # /gantry_data/MAC/lightning/2016-06-29/LW110_ALARM1min.dat
+    # /gantry_data/MAC/weather/2017-02-02/WeatherStation_SecData_2017_02_02_0706.dat
     logger.info("- reading naslog from: "+status_lastNasLogLine)
     lastLine = copy.copy(status_lastNasLogLine)
-    currLog = os.path.join(logDir, "naslog")
+    currLog = os.path.join(logDir, "nas.log")
     foundResumePoint = False
     while not foundResumePoint:
         nasfound = 0

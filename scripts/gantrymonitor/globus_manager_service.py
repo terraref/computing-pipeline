@@ -492,8 +492,11 @@ def globusMonitorLoop():
                     task['completed'] = task_data['completion_time']
                     task['file_count'] = task_data['files']
                     task['bytes'] = task_data['bytes_transferred']
-                    writeTaskToPostgres(task)
-                    writeTaskToInflux(task)
+                    try:
+                        writeTaskToInflux(task)
+                        writeTaskToPostgres(task)
+                    except:
+                        logger.debug("- skipping remaining CREATED tasks this iteration")
 
             # IN PROGRESS -> NOTIFIED on completion, NCSA already notified
             #             -> FAILED on failure
@@ -507,8 +510,11 @@ def globusMonitorLoop():
                     task['completed'] = task_data['completion_time']
                     task['file_count'] = task_data['files']
                     task['bytes'] = task_data['bytes_transferred']
-                    writeTaskToPostgres(task)
-                    writeTaskToInflux(task)
+                    try:
+                        writeTaskToInflux(task)
+                        writeTaskToPostgres(task)
+                    except:
+                        logger.debug("- skipping remaining IN PROGRESS tasks this iteration")
 
             apiWait = config['ncsa_api']['api_check_frequency_secs']
 
