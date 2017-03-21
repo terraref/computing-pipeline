@@ -1,3 +1,4 @@
+// Terra: Already existing Coords
 iR445=min_coords(wavelength, 4.45e-7d);
 iR450=min_coords(wavelength, 4.5e-7d);
 iR470=min_coords(wavelength, 4.7e-7d);
@@ -27,14 +28,59 @@ iR760=min_coords(wavelength, 7.6e-7d);
 iR780=min_coords(wavelength, 7.8e-7d);
 iR790=min_coords(wavelength, 7.9e-7d);
 
-
 iR800=min_coords(wavelength, 8e-7d);
 
 iR900=min_coords(wavelength, 9e-7d);
 iR970=min_coords(wavelength, 9.7e-7d);
 
+// LemnaTec: Missing Coords
+iR415=min_coords(wavelength, 4.15e-7d);
+iR420=min_coords(wavelength, 4.2e-7d);
+iR430=min_coords(wavelength, 4.3e-7d);
+iR435=min_coords(wavelength, 4.35e-7d);
+iR440=min_coords(wavelength, 4.4e-7d);
 
+iR510=min_coords(wavelength, 5.1e-7d);
+iR513=min_coords(wavelength, 5.13e-7d);
+iR520=min_coords(wavelength, 5.2e-7d);
+iR534=min_coords(wavelength, 5.34e-7d);
+iR554=min_coords(wavelength, 5.54e-7d);
+iR584=min_coords(wavelength, 5.84e-7d);
 
+iR677=min_coords(wavelength, 6.77e-7d);
+iR695=min_coords(wavelength, 6.95e-7d);
+iR698=min_coords(wavelength, 6.98e-7d);
+
+iR704=min_coords(wavelength, 7.04e-7d);
+iR715=min_coords(wavelength, 7.15e-7d);
+iR724=min_coords(wavelength, 7.24e-7d);
+iR726=min_coords(wavelength, 7.26e-7d);
+iR734=min_coords(wavelength, 7.34e-7d);
+iR747=min_coords(wavelength, 7.47e-7d);
+
+iR810=min_coords(wavelength, 8.1e-7d);
+iR819=min_coords(wavelength, 8.19e-7d);
+iR850=min_coords(wavelength, 8.5e-7d);
+iR857=min_coords(wavelength, 8.57e-7d);
+
+iR1050=min_coords(wavelength, 10.5e-7d);
+iR1110=min_coords(wavelength, 11.1e-7d);
+iR1241=min_coords(wavelength, 12.41e-7d);
+iR1450=min_coords(wavelength, 14.5e-7d);
+iR1510=min_coords(wavelength, 15.1e-7d);
+iR1599=min_coords(wavelength, 15.99e-7d);
+iR1640=min_coords(wavelength, 16.4e-7d);
+iR1649=min_coords(wavelength, 16.49e-7d);
+iR1660=min_coords(wavelength, 16.6e-7d);
+iR1680=min_coords(wavelength, 16.8e-7d);
+iR1754=min_coords(wavelength, 17.54e-7d);
+
+iR2000=min_coords(wavelength, 20e-7d);
+iR2100=min_coords(wavelength, 21e-7d);
+iR2130=min_coords(wavelength, 21.3e-7d);
+iR2200=min_coords(wavelength, 22e-7d);
+
+// Terra: Already existing Reflectances
 R445=rfl_img(iR445,:,:);
 R450=rfl_img(iR450,:,:);
 R470=rfl_img(iR470,:,:);
@@ -69,9 +115,52 @@ R800=rfl_img(iR800,:,:);
 R900=rfl_img(iR900,:,:);
 R970=rfl_img(iR970,:,:);
 
+// LemnaTec: Missing Reflectances
+R415=rfl_img(iR415,:,:);
+R420=rfl_img(iR420,:,:);
+R430=rfl_img(iR430,:,:);
+R435=rfl_img(iR435,:,:);
+R440=rfl_img(iR440,:,:);
 
+R510=rfl_img(iR510,:,:);
+R516=rfl_img(iR513,:,:);
+R520=rfl_img(iR520,:,:);
+R534=rfl_img(iR534,:,:);
+R554=rfl_img(iR554,:,:);
+R584=rfl_img(iR584,:,:);
 
+R677=rfl_img(iR677,:,:);
+R695=rfl_img(iR695,:,:);
+R698=rfl_img(iR698,:,:);
 
+R704=rfl_img(iR704,:,:);
+R715=rfl_img(iR715,:,:);
+R724=rfl_img(iR724,:,:);
+R726=rfl_img(iR726,:,:);
+R734=rfl_img(iR734,:,:);
+R747=rfl_img(iR747,:,:);
+
+R810=rfl_img(iR810,:,:);
+R819=rfl_img(iR819,:,:);
+R850=rfl_img(iR850,:,:);
+R857=rfl_img(iR857,:,:);
+
+R1050=rfl_img(iR1050,:,:);
+R1110=rfl_img(iR1110,:,:);
+R1241=rfl_img(iR1241,:,:);
+R1450=rfl_img(iR1450,:,:);
+R1510=rfl_img(iR1510,:,:);
+R1599=rfl_img(iR1599,:,:);
+R1640=rfl_img(iR1640,:,:);
+R1649=rfl_img(iR1649,:,:);
+R1660=rfl_img(iR1660,:,:);
+R1680=rfl_img(iR1680,:,:);
+R1754=rfl_img(iR1754,:,:);
+
+R2000=rfl_img(iR2000,:,:);
+R2100=rfl_img(iR2100,:,:);
+R2130=rfl_img(iR2130,:,:);
+R2200=rfl_img(iR2200,:,:);
 
 // sanity check for wavelength coord  check min ,max, mode 
 if( fabs(wavelength(iR445)-4.45e-7) > 0.01e-7d )
@@ -169,3 +258,218 @@ NDRE@long_name="Normalized difference vegetation index";
 
 TVI=0.5f* (120.0f*(R750-R550)-200.0f*(R670-R550));
 TVI@long_name="Triangular Vegetation Index";
+
+// LemnaTec: Additional Vegetation Indices
+// ***************************************
+// LemnaTec: Broadband Greenness Indices
+EVI = 2.5 * (R800 - R680) / (R800 + 6.0f * R680 - 7.5f * R450 + 1.0f);
+EVI@long_name="Enhanced Vegetation Index [Huete et al. (1997)]";
+
+ARVI = (R800 - (2.0f * R680 - R450)) / (R800 + (2.0f * R680 - R450));
+ARVI@long_name="Atmospherically Resistant Vegetation Index [Kaufman and Tanré (1996)]";
+
+eta = (2.0f * (pow(R800) - pow(R680)) + 1.5f * R800 + 0.5f * R680) / (R800 + R680 + 0.5f);
+GEMI = (eta * (1.0f - 0.25f * eta)) - ((R680 - 0.125f) / (1.0f - R680));
+GEMI@long_name="Global Environmental Monitoring Index [Pinty and Verstraete (1992)]";
+
+GARI = (R800 - (R550 - 1.7 * (R450 - R680))) / (R800 + (R550 - 1.7 * (R450 - R680)));
+GARI@long_name="Green Atmospherically Resistant Index [Gitelson et al. (1996)]";
+
+DVI = R800 - R680;
+DVI@long_name="Difference Vegetation Index [Tucker et al. (1979)]";
+
+GDVI = R800 - R550;
+GDVI@long_name="Green Difference Vegetation Index [Sripada et al. (2006)]";
+
+GNDVI = (R800 - R550) / (R800 + R550);
+GNDVI@long_name="Green Normalized Difference Vegetation Index [Gitelson and Merzlyak (1998)]";
+
+GRVI = R800 / R550;
+GRVI@long_name="Green Ratio Vegetation Index [Sripada et al. (2006)]";
+
+IPVI = R800 / (R800 + R680);
+IPVI@long_name="Infrared Percentage Vegetation Index [Crippen et al. (1990)]";
+
+LAI = 3.618f * ((2.5.0f * (R800 - R680)) / (R800 + 6.0f * R680 - 7.5.0f * R450 + 1.0f)) - 0.118f;
+LAI@long_name="Leaf Area Index [Boegh et al. (2002)]";
+
+RDVI = (R800 - R680) / sqrt(R800 + R680);
+RDVI@long_name="Renormalized Difference Vegetation Index [Roujean and Breon (1995)]";
+
+MSR = ((R800 / R680) - 1.0f) / (sqrt(R800 / R680) + 1);
+MSR@long_name="Modified Simple Ratio [Chen et al. (1996)]";
+
+NLI = (pow(R800, 2) - R680) / (pow(R800, 2) + R680);
+NLI@long_name="Non-Linear Index [Goel and Qin (1994)]";
+
+MNLI = ((pow(R800, 2) - R680) * 1.5f) / (pow(R800, 2) + R680 + 0.5f);
+MNLI@long_name="Modified Non-Linear Index [Yang et al. (2008)]";
+
+SAVI = (1.5f * (R800 - R680)) / (R800 + R680 + 0.5f);
+SAVI@long_name="Soil Adjusted Vegetation Index [Huete et al. (1988)]";
+
+TDVI = sqrt(0.5f + ((R800 - R680) / (R800 + R680)));
+TDVI@long_name="Transformed Difference Vegetation Index [Bannari et al. (2002)]";
+
+VARI = (R550 - R680) / (R550 + R680 - R450);
+VARI@long_name="Visible Atmospherically Resistant Index [Gitelson et al. (2002)]";
+
+// LemnaTec: Narrowband Greenness Indices
+RENDVI = (R750 - R705) / (R750 + R705);
+RENDVI@long_name="Red Edge Normalized Difference Vegetation Index [Gitelson and Merzlyak (1994)]";
+
+mRESR = (R750 - R445) / (R750 + R445);
+mRESR@long_name="Modified Red Edge Simple Ratio Index [Sims and Gamon (2002)]";
+
+mRENDVI = (R750 - R705) / (R750 + R705 - 2.0f * R445);
+mRENDVI@long_name="Modified Red Edge Normalized Difference Vegetation Index [Sims and Gamon (2002)]";
+
+VOG1 = R740 / R720;
+VOG1@long_name="Vogelmann Red Edge Index 1 [Vogelmann et al. (1993)]";
+
+VOG2 = (R734 - R747) / (R715 + R726);
+VOG2@long_name="Vogelmann Red Edge Index 2 [Vogelmann et al. (1993)]";
+
+VOG3 = (R734 - R747) / (R715 + R720);
+VOG3@long_name="Vogelmann Red Edge Index 3 [Vogelmann et al. (1993)]";
+
+MCARI = ((R700 - R670) - 0.2f * (R700 - R550)) * (R700 / R670);
+MCARI@long_name="Modified Chlorophyll Absorption Reflectance Index [Daughtry et al. (2000)]";
+
+MCARI1 = 1.2f * (2.5f * (R790 - R670) - 1.3f * (R790 - R550));
+MCARI1@long_name="Modified Chlorophyll Absorption Reflectance Index Improved 1 [Haboudane et al. (2004)]";
+
+MCARI2 = (1.5f * (2.5f * (R800 - R670) - 1.3f * (R800 - R550))) / sqrt(pow(2.0f * R800 + 1.0f, 2) - 6.0f * R800 - 5.0f * sqrt(R670) - 0.5f);
+MCARI2@long_name="Modified Chlorophyll Absorption Reflectance Index Improved 2 [Haboudane et al. (2004)]";
+
+MTVI = 1.2f * (1.2f * (R800 - R550) - 2.5f * (R670 - R550));
+MTVI@long_name="Modified Triangular Vegetation Index [Haboudane et al. (2004)]";
+
+MTVI2 = 1.5f * (1.2f * (R800 - R550) - 2.5f * (R670 - R550)) / sqrt(pow(2.0f * R800 + 1.0f ,2) - (6.0f * R800 - 5.0f * sqrt(R670)) - 0.5f);
+MTVI2@long_name="Modified Triangular Vegetation Index Improved [Haboudane et al. (2004)]";
+
+GMI1 = R750 / R550;
+GMI1@long_name="Gitelson and Merzlak Index 1 [Gitelson and Merzlak (1997)]";
+
+GMI2 = R750 / R700;
+GMI2@long_name="Gitelson and Merzlak Index 2 [Gitelson and Merzlak (1997)]";
+
+G = R554 / R677;
+G@long_name="Greenness Index";
+
+Lic1 = (R790 - R680) / (R790 + R680);
+Lic1@long_name="Lichtenthaler Index 1 [Lichtenthaler et al. 1996]";
+
+Lic2 = R440 / R690;
+Lic2@long_name="Lichtenthaler Index 2 [Lichtenthaler et al. 1996]";
+
+Lic3 = R440 / R740;
+Lic3@long_name="Lichtenthaler Index 3 [Lichtenthaler et al. 1996]";
+
+// LemnaTec: Light Use Efficiency Indices
+PRI = (R531 - R570) / (R531 + R570);
+PRI@long_name="Photochemical Reflectance Index [Gamon et al. (1992)]";
+
+// LemnaTec: Canopy Nitrogen Indices
+NDNI = (log(1.0f / R1510) - log(1.0f / R1680)) / (log(1.0f / R1510) + log(1.0f / R1680));
+NDNI@long_name="Normalized Difference Nitrogen Index [Fourty et al. (1996)]";
+
+NRI1510 = (R1510 - R660) / (R1510 + R660);
+NRI1510@long_name="Nitrogen Related Index NRI1510 [Herrmann et al. (2009)]";
+
+NRI850 = (R850 - R660) / (R850 + R660);
+NRI850@long_name="Nitrogen Related Index NRI850 [Behrens et al. (2006)]";
+
+// LemnaTec: Dry or Senescent Carbon Indices
+NDLI = (log(1.0f / R1754) - log(1.0f / R1680)) / (log(1.0f / R1754) + log(1.0f / R1680));
+NDLI@long_name="Normalized Difference Lignin Index [Melillo et al. (1982)]";
+
+CAI = (0.5 * (R2000 - R2200)) / R2100;
+CAI@long_name="Cellulose Absorption Index [Daughtry et al. (2001)]";
+
+PSRI = (R680 - R500) / R750;
+PSRI@long_name="Plant Senescence Reflectance Index [Merzlyak et al. (1999)]";
+
+// LemnaTec: Leaf Pigments Indices
+CRI1 = 1.0f / R510 - 1.0f / R550;
+CRI1@long_name="Carotenoid Reflectance Index 1 [Gitelson et al. (2002)]";
+
+CRI2 = 1.0f / R510 - 1.0f / R700;
+CRI2@long_name="Carotenoid Reflectance Index 2 [Gitelson et al. (2002)]";
+
+ARI1 = 1.0f / R550 - 1.0f / R700;
+ARI1@long_name="Anthocyanin Reflectance Index 1 [Gitelson et al. (2001)]";
+
+ARI2 = R800 * ((1.0f / R550) - (1.0f / R700));
+ARI2@long_name="Anthocyanin Reflectance Index 2 [Gitelson et al. (2001)]";
+
+SRPI = R430 / R680;
+SRPI@long_name="Simple Ration Pigment Index [Penuelas et al. (1995)]";
+
+NPQI = (R415 - R435) / (R415 + R435);
+NPQI@long_name="Normalized Phaeophytinization Index [Barnes et al. (1992)]";
+
+NPCI = (R680 - R430) / (R680 + R430);
+NPCI@long_name="Normalized Pigment Chlorophyll Index [Penuelas et al. (1994)]";
+
+// LemnaTec: Canopy Water Content Indices
+WBI = R900 / R970;
+WBI@long_name="Water Band Index [Penuelas et al. (1995)]";
+
+NDWI = (R857 - R1241) / ( R700 + R1241);
+NDWI@long_name="Normalized Difference Water Index [Gao et al. (1995)]";
+
+MSI = R819 / R1599;
+MSI@long_name="Moisture Stress Index [Hunt and Rock (1989)]";
+
+NDII = (R857 - R1241) / ( R700 + R1241);
+NDII@long_name="Normalized Difference Infrared Index [Hardisky et al. (1983)]";
+
+NMDI = (R819 - R1649) / (R819 + R1649);
+NMDI@long_name="Normalized Multiband Drought Index [Wang and Qu (2007)]";
+
+// LemnaTec: Spectral Disease Indices
+HI = ((R534 - R698) / (R534 + R698)) - (R704 / 2.0f);
+HI@long_name="Healthy Index [Mahlein et al. (2013)]";
+
+CLSI = ((R698 - R570) / (R698 + R570)) - R734;
+CLSI@long_name="Cercospora Leaf Spot Index [Mahlein et al. (2013)]";
+
+SBRI = ((R570 - R513) / (R570 + R513)) + (R704 / 2.0f);
+SBRI="Sugar Beet Rust Index [Mahlein et al. (2013)]";
+
+PMI = ((R520 - R584) / (R520 + R584)) + R724;
+PMI@long_name="Powdery Mildew Index [Mahlein et al. (2013)]";
+
+// LemnaTec: Disease Water Stress Indices
+DWSI-1 = R800 / R1660;
+DWSI-1@long_name="Disease Water Stress Index 1 [Apan, Held, Phinn and Markley (2003)]";
+
+DWSI-2 = R1660 / R550;
+DWSI-2@long_name="Disease Water Stress Index 2 [Apan, Held, Phinn and Markley (2003)]";
+
+DWSI-3 = R1660 / R680;
+DWSI-3@long_name="Disease Water Stress Index 3 [Apan, Held, Phinn and Markley (2003)]";
+
+DWSI-4 = R550 / R680;
+DWSI-4@long_name="Disease Water Stress Index 4 [Apan, Held, Phinn and Markley (2003)]";
+
+DWSI-5 = (R800 + R550) / (R1660 + R680);
+DWSI-5@long_name="Disease Water Stress Index 5 [Apan, Held, Phinn and Markley (2003)]";
+
+// LemnaTec: Stress Detection Indices
+Crt1 = R695 / R420;
+CRT1@long_name="Carter Index 1 [Carter (1994)]";
+
+Crt2 = R695 / R760;
+Crt2@long_name="Carter Index 2 [Carter (1996)]";
+
+// LemnaTec: Misc Indices
+BIG2 = R450 / R550;
+BIG2@long_name="Blue/Green Index [Zarco-Tejada et al. (2005)]";
+
+LSI = R1110 / R810;
+LSI@long_name="Leaf Structure Index [Maruthi Sridhar et al. (2007)]";
+
+BRI = ((1.0f / R550) - (1.0f / R700)) / R800;
+BRI@long_name="Browning Reflectance Index [Chivkunova et al. (2001)]";
