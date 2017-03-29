@@ -368,7 +368,7 @@ def writeTaskToInflux(task):
                         # ../weather_2016_06_29.dat
                         ftime = "12:00:00" + site_time
 
-                # InfluxDB accepts time in seconds from epoch
+                # InfluxDB accepts time in nanoseconds from epoch
                 f_created_ts = int(parse(fdate+"T"+ftime).strftime('%s'))
                 # completion time from Globus is formatted: "2017-02-10 16:09:57+00:00"
                 f_transferred_ts = int(parse(comp.replace(" ", "T")).strftime('%s'))
@@ -386,22 +386,22 @@ def writeTaskToInflux(task):
 
                 influxByteCounts[fsensor].append({
                     "measurement": "file_create",
-                    "time": f_created_ts,
+                    "time": f_created_ts*1000000000,
                     "fields": {"value": int(pointTotal["bytes"])}
                 })
                 influxFileCounts[fsensor].append({
                     "measurement": "file_create",
-                    "time": f_created_ts,
+                    "time": f_created_ts*1000000000,
                     "fields": {"value": int(pointTotal["filecount"])}
                 })
                 influxByteCounts[fsensor].append({
                     "measurement": "file_transfer",
-                    "time": f_transferred_ts,
+                    "time": f_transferred_ts*1000000000,
                     "fields": {"value": int(pointTotal["bytes"])}
                 })
                 influxFileCounts[fsensor].append({
                     "measurement": "file_transfer",
-                    "time": f_transferred_ts,
+                    "time": f_transferred_ts*1000000000,
                     "fields": {"value": int(pointTotal["filecount"])}
                 })
 
