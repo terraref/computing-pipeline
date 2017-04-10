@@ -78,7 +78,7 @@ def main():
                                 }
                             }
                         }
-                    elif full_path.find("demosaic"):
+                    elif full_path.find("demosaic") > -1:
                         # /projects/arpae/terraref/sites/ua-mac/Level_1/demosaic/2016-11-18/2016-11-18__08-48-36-847/0b8908ca-4c1a-44aa-a72e-e5ec0aa3ec4d_left.jpg
                         timeinfo = full_path.split("/")[-2]
                         date = timeinfo.split("__")[0]
@@ -93,18 +93,20 @@ def main():
                                     "@type": "cat:extractor",
                                     "extractor_id": clowderURL + "/api/extractors/terra.demosaic"
                                 }
-                            }
+                            },
+                            "snapshot": None
                         }
-                    elif full_path.find("EnvironmentLogger"):
+                    elif full_path.find("EnvironmentLogger") > -1:
                         # /projects/arpae/terraref/sites/ua-mac/Level_1/EnvironmentLogger/2016-09-21/2016-09-21_00-27-10_environmentlogger.nc
                         date = full_path.split("/")[-2]
                         curr_info = {
                             "sensor": "EnvironmentLogger",
                             "date": date,
                             "timestamp": None,
-                            "metadata": None
+                            "metadata": None,
+                            "snapshot": None
                         }
-                    elif full_path.find("scanner3DTop"):
+                    elif full_path.find("scanner3DTop") > -1:
                         # /projects/arpae/terraref/sites/ua-mac/Level_1/scanner3DTop/2016-12-01/2016-12-01__11-30-45-448/4880b4f9-abd5-4a19-b38e-5308c2926d1e__Top-heading-east_0.ply
                         timeinfo = full_path.split("/")[-2]
                         date = timeinfo.split("__")[0]
@@ -112,7 +114,8 @@ def main():
                             "sensor": "scanner3DTop",
                             "date": date,
                             "timestamp": timeinfo,
-                            "metadata": None
+                            "metadata": None,
+                            "snapshot": None
                         }
 
                 # If the properties don't match, submit this group and start a new group
