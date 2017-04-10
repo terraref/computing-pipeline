@@ -443,9 +443,8 @@ def notifyClowderOfCompletedTask(task):
                                     datasetMD = clean_json_keys(loadJsonFile(fobj['path']))
                                     datasetMDFile = fkey
                                 except:
-                                    logger.error("Could not decode JSON from %s" % fobj['path'])
-                                    datasetMD = None
-                                    datasetMDFile = False
+                                    logger.error("- could not decode JSON from %s" % fobj['path'])
+                                    return False
                         else:
                             logger.info("%s dataset %s lists nonexistent file: %s" % (task['globus_id'], ds, fobj['path']))
                             updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = "FILE NOT FOUND"
