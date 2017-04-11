@@ -109,7 +109,8 @@ def getStatus():
     return {
         "in_progress_tasks": countTasksByStatus("IN PROGRESS"),
         "unprocessed_tasks": countTasksByStatus("SUCCEEDED"),
-        "processed_tasks": countTasksByStatus("PROCESSED")
+        "processed_tasks": countTasksByStatus("PROCESSED"),
+        "errored_tasks": countTasksByStatus("ERROR")
     }
 
 """Load contents of .json file into a JSON object"""
@@ -244,6 +245,7 @@ def readTasksByStatus(status, id_only=False, limit=2500):
         DELETED (manually via api below)
       SUCCEEDED (verified complete; not yet uploaded into Clowder)
       PROCESSED (complete & uploaded into Clowder)
+          ERROR (encountered error uploading into Clowder)
     """
     if id_only:
         q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s' limit %s;" % (status, limit)

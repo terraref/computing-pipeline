@@ -316,8 +316,8 @@ def writeTaskToDatabase(task):
     curs.close()
 
 """Fetch all Globus tasks with a particular status"""
-def getNextUnprocessedTask():
-    q_fetch = "SELECT * FROM globus_tasks WHERE status = 'SUCCEEDED' order by completed ASC limit 1"
+def getNextUnprocessedTask(status="SUCCEEDED"):
+    q_fetch = "SELECT * FROM globus_tasks WHERE status = '%s' order by completed ASC limit 1" % status
     nextTask = None
 
     curs = psql_conn.cursor()
@@ -443,8 +443,9 @@ def notifyClowderOfCompletedTask(task):
                                     datasetMD = clean_json_keys(loadJsonFile(fobj['path']))
                                     datasetMDFile = fkey
                                 except:
-                                    logger.error("- could not decode JSON from %s" % fobj['path'])
-                                    return False
+                                    logger.error("could not decode JSON from %s" % fobj['path'])
+                                    updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = "FILE NOT FOUND"
+                                    writeTaskToDatabase(updatedTask)
                         else:
                             logger.info("%s dataset %s lists nonexistent file: %s" % (task['globus_id'], ds, fobj['path']))
                             updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = "FILE NOT FOUND"
@@ -567,7 +568,9 @@ def clowderSubmissionLoop():
                     task['status'] = 'PROCESSED'
                     writeTaskToDatabase(task)
                 else:
-                    logger.error("%s not successfully sent" % globusID)
+                    logger.error("%s not successfully sent; marking ERROR" % globusID)
+                    task['status'] = 'ERROR'
+                    writeTaskToDatabase(task)
 
                 task = getNextUnprocessedTask()
 
