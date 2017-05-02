@@ -25,6 +25,7 @@
   "postgres": {
     "database": "globusmonitor",
     "username": "globusmonitor",
-    "password": ""
+    "password": "",
+    "host": "terra-postgres"
   }
 }

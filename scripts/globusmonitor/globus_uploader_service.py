@@ -247,12 +247,13 @@ def connectToPostgres():
     psql_db = config['postgres']['database']
     psql_user = config['postgres']['username']
     psql_pass = config['postgres']['password']
+    psql_host = config['postgres']['host']
 
     try:
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass)
+        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
     except:
         # Attempt to create database if not found
-        conn = psycopg2.connect(dbname='postgres')
+        conn = psycopg2.connect(dbname='postgres', host=psql_host)
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         curs = conn.cursor()
         curs.execute('CREATE DATABASE %s;' % psql_db)
@@ -260,7 +261,7 @@ def connectToPostgres():
         conn.commit()
         conn.close()
 
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass)
+        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
         initializeDatabase(conn)
 
     logger.info("Connected to Postgres")
