@@ -1,0 +1,52 @@
+PUT [base_url/experiments/]
+curl -H "Content-Type: application/json" -X PUT --data @experiment_add.json "https://genomevolution.org/coge/api/v1/experiments?username=x&token=y"
+{
+    "genome_id": 16911,
+    “metadata”: {
+        "name": "string",
+        "description": "string",
+        "restricted": true,
+        "source_name": "string",
+        "version": "string"
+        "tags": [
+            {
+                "description": "string",
+                "name": "string"
+            }
+        ]
+    },
+    "additional_metadata": [
+        {
+            "link": "string",
+            "text": "string",
+            "type": "string",
+            "type_group": "string"
+        }
+    ],
+    "source_data": [
+        {
+            "path": "/iplant/home/shared/terraref/raw_data/filename.fastq",
+            "type": "irods"
+        }
+    ],
+    "trimming_params": {  
+        "-q": 25,
+        "-m": 17,
+        "--quality-base": 32
+    },
+    "alignment_params": {  
+        "tool":"gsnap",
+        "-N": 1,
+        "-n": 5,
+        "-Q": true,
+        "--gap-mode": "none",
+        "--nofails": true,
+        "read_type": "single"
+      },
+    "expression_params": {  
+        "-Q": 20
+    },
+    "snp_params": {  
+        "method": “coge” | “samtools” | "platypus"
+    }
+}
