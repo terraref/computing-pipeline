@@ -1,10 +1,12 @@
 <!--- 
-Thanks for contributing your input! Instructions are in comments, like this 
--->
+Thanks for contributing your input! Instructions are in comments
 
-_please edit this template before submitting a new pull request_
+comments are between <!--- and ---> 
 
-<!--- 
+
+_PLEASE USE THIS TEMPLATE when submitting a new issue_
+
+<!--- (REQUIRED)
 Title: Provide a general summary of your feature / question / issue in the title above. 
 -->
 
@@ -12,7 +14,7 @@ Title: Provide a general summary of your feature / question / issue in the title
 Tags: please select one or more relevant tags
 --->
 
-### Description
+### Description (REQUIRED)
 <!--- 
 Is there something you want to do? Is this a bug? Feature request? Discussion? 
   * Question: ask away!
@@ -22,20 +24,32 @@ Is there something you want to do? Is this a bug? Feature request? Discussion?
 
 <!--- 
 ### Details
+
+USE CASES: "As an _state role_  I would like to _state what you wish to do_ "
+
 How would this change help? (you, the project, the user community? 
 How would it be used? 
-      Are there any examples (existing software / utilities)? Please provide links, screenshots, etc-->
+      Are there any examples (existing software / utilities)? Please provide reproducible code snippets, links, screenshots, etc
 
-### Completion Criteria   
+--> 
+### Completion Criteria (REQUIRED/ESSENTIAL)
 
 <!--- How will we know when this is done?
-please use boxes like
-for a bug:
+
+Examples:
+
+FOR A BUG:
 * [ ] Now I can [topic of question / bug]
-for a discussion:
+
+FOR A DISCUSSION:
 * [ ] Discuss and develop requirements docs; create issues for next steps
 for a new feature
+* [ ] Create follow up epic / issues 
+
+
+FOR A FEATURE REQUEST
 * [ ] create algorithm
 * [ ] write test
 * [ ] add to pipeline
 --->
+
