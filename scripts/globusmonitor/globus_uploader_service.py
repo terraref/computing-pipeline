@@ -412,6 +412,10 @@ def notifyClowderOfCompletedTask(task):
 
         spaceoverride = task['contents']['space_id'] if 'space_id' in task['contents'] else None
         for ds in task['contents']:
+            # Skip any unexpected files at root level, e.g. /home/clowder/sites/ua-mac/raw_data/GetFluorescenceValues.m
+            if ds in ["LemnaTec - MovingSensor"]:
+                continue
+                
             filesQueued = []
             fileFormData = []
             datasetMD = None
