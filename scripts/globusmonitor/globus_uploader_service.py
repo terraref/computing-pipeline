@@ -412,8 +412,10 @@ def notifyClowderOfCompletedTask(task):
 
         spaceoverride = task['contents']['space_id'] if 'space_id' in task['contents'] else None
         for ds in task['contents']:
-            # Skip any unexpected files at root level, e.g. /home/clowder/sites/ua-mac/raw_data/GetFluorescenceValues.m
-            if ds in ["LemnaTec - MovingSensor"]:
+            # Skip any unexpected files at root level, e.g.
+            #   /home/clowder/sites/ua-mac/raw_data/GetFluorescenceValues.m
+            #   /home/clowder/sites/ua-mac/raw_data/irrigation/2017-06-04/@Recycle/flowmetertotals_March-2017.csv",
+            if ds in ["LemnaTec - MovingSensor"] or ds.find("@Recycle") > -1:
                 continue
                 
             filesQueued = []
