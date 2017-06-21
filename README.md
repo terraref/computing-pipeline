@@ -7,7 +7,6 @@ The computing pipeline is a data storage and computing system that provides rese
 * [Website](https://terraref.org)
 * email: dlebauer@illinois.edu
 * [GitHub Issues](https://github.com/terraref/computing-pipeline/issues)
-* [Chat Room](https://gitter.im/terraref/computing-pipeline)
 
 
 To provide input on reference data products and support for existing standards and software, please visit the [Reference Data GitHub repository](https://github.com/terraref/reference-data).
