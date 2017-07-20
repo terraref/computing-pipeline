@@ -14,8 +14,9 @@ Title: Provide a general summary of your feature / question / issue in the title
 Tags: please select one or more relevant tags
 --->
 
-### Description (REQUIRED)
-<!--- 
+### Description 
+<!--- (REQUIRED)
+
 Is there something you want to do? Is this a bug? Feature request? Discussion? 
   * Question: ask away!
   * New feature / analysis : 
@@ -32,9 +33,10 @@ How would it be used?
       Are there any examples (existing software / utilities)? Please provide reproducible code snippets, links, screenshots, etc
 
 --> 
-### Completion Criteria (REQUIRED/ESSENTIAL)
+### Completion Criteria 
+<!---(REQUIRED/ESSENTIAL)
 
-<!--- How will we know when this is done?
+ How will we know when this is done?
 
 Examples:
 
