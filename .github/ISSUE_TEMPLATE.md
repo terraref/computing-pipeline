@@ -1,10 +1,12 @@
-<!--- 
+<!---
+
+
 Thanks for contributing your input! Instructions are in comments
+_PLEASE USE THIS TEMPLATE when submitting a new issue_
 
 comments are between <!--- and ---> 
 
 
-_PLEASE USE THIS TEMPLATE when submitting a new issue_
 
 <!--- (REQUIRED)
 Title: Provide a general summary of your feature / question / issue in the title above. 
