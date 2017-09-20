@@ -481,6 +481,8 @@ def notifyClowderOfCompletedTask(task):
                     if datasetMD:
                         # Upload metadata
                         try:
+                            logger.info("cleaning as %s" % sensorname)
+                            logger.info(datasetMD)
                             cleaned_dsmd = clean_metadata(datasetMD, sensorname)
                         except:
                             logger.error("- error cleaning metadata for %s" % ds)
