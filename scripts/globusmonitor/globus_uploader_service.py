@@ -342,6 +342,8 @@ def getNextUnprocessedTask(status="SUCCEEDED"):
 """Fetch mappings of dataset/collection name to Clowder ID"""
 def readRecordsFromDatabase():
     q_fetch_datas = "SELECT * FROM datasets;"
+    # TODO: Find a better solution for memory issues
+    q_fetch_datas = "SELECT * from datasets where name like '%- 2017-%';"
     q_detch_colls = "SELECT * FROM collections;"
 
     curs = psql_conn.cursor()
