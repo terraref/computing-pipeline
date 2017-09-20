@@ -19,6 +19,8 @@ from flask.ext import restful
 from flask_restful import reqparse, abort, Api, Resource
 from globusonline.transfer.api_client import TransferAPIClient, APIError, ClientError, goauth
 
+from terrautils.metadata import clean_metadata
+
 rootPath = "/home/globusmonitor/computing-pipeline/scripts/globusmonitor"
 
 """
@@ -424,6 +426,7 @@ def notifyClowderOfCompletedTask(task):
             datasetMDFile = False
             lastFile = None
             lastFileKey = None
+            sensorname = ds.split(" - ")[0]
 
             # Assign dataset-level metadata if provided
             if "md" in task['contents'][ds]:
@@ -475,10 +478,15 @@ def notifyClowderOfCompletedTask(task):
 
                     if datasetMD:
                         # Upload metadata
+                        try:
+                            cleaned_dsmd = clean_metadata(datasetMD, sensorname)
+                        except:
+                            logger.error("- error cleaning metadata for %s" % ds)
+                            return False
                         md = {
                             "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
                                          {"@vocab": clowderContext}],
-                            "content": datasetMD,
+                            "content": cleaned_dsmd,
                             "agent": {
                                 "@type": "cat:user",
                                 "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowderId
