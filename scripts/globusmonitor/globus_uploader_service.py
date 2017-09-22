@@ -13,11 +13,10 @@ import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
-from functools import wraps
 from flask import Flask, request, Response
 from flask.ext import restful
-from flask_restful import reqparse, abort, Api, Resource
-from globusonline.transfer.api_client import TransferAPIClient, APIError, ClientError, goauth
+
+from terrautils.metadata import clean_metadata
 
 rootPath = "/home/globusmonitor/computing-pipeline/scripts/globusmonitor"
 
@@ -340,6 +339,8 @@ def getNextUnprocessedTask(status="SUCCEEDED"):
 """Fetch mappings of dataset/collection name to Clowder ID"""
 def readRecordsFromDatabase():
     q_fetch_datas = "SELECT * FROM datasets;"
+    # TODO: Find a better solution for memory issues
+    q_fetch_datas = "SELECT * from datasets where name like '%- 2017-%';"
     q_detch_colls = "SELECT * FROM collections;"
 
     curs = psql_conn.cursor()
@@ -424,6 +425,7 @@ def notifyClowderOfCompletedTask(task):
             datasetMDFile = False
             lastFile = None
             lastFileKey = None
+            sensorname = ds.split(" - ")[0]
 
             # Assign dataset-level metadata if provided
             if "md" in task['contents'][ds]:
@@ -475,10 +477,15 @@ def notifyClowderOfCompletedTask(task):
 
                     if datasetMD:
                         # Upload metadata
+                        try:
+                            cleaned_dsmd = clean_metadata(datasetMD, sensorname)
+                        except:
+                            logger.error("- error cleaning metadata for %s" % ds)
+                            return False
                         md = {
                             "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
                                          {"@vocab": clowderContext}],
-                            "content": datasetMD,
+                            "content": cleaned_dsmd,
                             "agent": {
                                 "@type": "cat:user",
                                 "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowderId
@@ -562,8 +569,8 @@ def clowderSubmissionLoop():
 
         # Check with Globus for any status updates on monitored tasks
         if clowderWait >= config['clowder']['globus_processing_frequency']:
+            # First handle all regular tasks
             task = getNextUnprocessedTask()
-
             while task:
                 globusID = task['globus_id']
                 clowderDone = notifyClowderOfCompletedTask(task)
@@ -580,6 +587,25 @@ def clowderSubmissionLoop():
                     writeTaskToDatabase(task)
 
                 task = getNextUnprocessedTask()
+
+            # Next attempt to handle any ERROR tasks a second time
+            task = getNextUnprocessedTask("ERROR")
+            while task:
+                globusID = task['globus_id']
+                clowderDone = notifyClowderOfCompletedTask(task)
+                if clowderDone:
+                    logger.info("%s task successfully processed!" % globusID, extra={
+                        "globus_id": globusID,
+                        "action": "PROCESSING COMPLETE"
+                    })
+                    task['status'] = 'PROCESSED'
+                    writeTaskToDatabase(task)
+                else:
+                    logger.error("%s ERROR processing unsuccessful; returning to queue" % globusID)
+                    task['status'] = 'SUCCEEDED'
+                    writeTaskToDatabase(task)
+
+                task = getNextUnprocessedTask("ERROR")
 
             clowderWait = 0
 
