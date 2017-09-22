@@ -16,6 +16,8 @@ from urllib3.filepost import encode_multipart_formdata
 from flask import Flask, request, Response
 from flask.ext import restful
 
+from terrautils.metadata import clean_metadata
+
 rootPath = "/home/globusmonitor/computing-pipeline/scripts/globusmonitor"
 
 """
@@ -337,6 +339,8 @@ def getNextUnprocessedTask(status="SUCCEEDED"):
 """Fetch mappings of dataset/collection name to Clowder ID"""
 def readRecordsFromDatabase():
     q_fetch_datas = "SELECT * FROM datasets;"
+    # TODO: Find a better solution for memory issues
+    q_fetch_datas = "SELECT * from datasets where name like '%- 2017-%';"
     q_detch_colls = "SELECT * FROM collections;"
 
     curs = psql_conn.cursor()
@@ -421,6 +425,7 @@ def notifyClowderOfCompletedTask(task):
             datasetMDFile = False
             lastFile = None
             lastFileKey = None
+            sensorname = ds.split(" - ")[0]
 
             # Assign dataset-level metadata if provided
             if "md" in task['contents'][ds]:
@@ -472,10 +477,15 @@ def notifyClowderOfCompletedTask(task):
 
                     if datasetMD:
                         # Upload metadata
+                        try:
+                            cleaned_dsmd = clean_metadata(datasetMD, sensorname)
+                        except:
+                            logger.error("- error cleaning metadata for %s" % ds)
+                            return False
                         md = {
                             "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
                                          {"@vocab": clowderContext}],
-                            "content": datasetMD,
+                            "content": cleaned_dsmd,
                             "agent": {
                                 "@type": "cat:user",
                                 "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowderId
