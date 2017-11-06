@@ -41,12 +41,12 @@ USAGE
 
 # Clowder connection info
 clowder_host = "https://terraref.ncsa.illinois.edu/clowder/"
-clowder_key = "Pb3AUSqnUw"
+clowder_key = ""
 # This is base Danforth space
 root_space = "571fbfefe4b032ce83d96006"
 # Upload as Danforth Site Clowder user
 clowder_user = "terrarefglobus+danforth@ncsa.illinois.edu"
-clowder_pass = "jichyapMab"
+clowder_pass = ""
 clowder_uid  = "5808d84864f4455cbe16f6d1"
 # Set True to only print outputs without creating anything
 dry_run = True
