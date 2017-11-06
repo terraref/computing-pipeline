@@ -1,10 +1,11 @@
 import sys, os, json
-import requests
-from urllib3.filepost import encode_multipart_formdata
+import logging
 
-###
-# RUN AS USER UBUNTU
-###
+from pyclowder.connectors import Connector
+from pyclowder.files import upload_metadata as upload_file_metadata
+from pyclowder.datasets import upload_metadata as upload_dataset_metadata
+from terrautils.extractors import get_collection_or_create, get_dataset_or_create, upload_to_dataset, build_metadata
+
 
 """
 Given a root dir (experiment)...
@@ -32,8 +33,26 @@ Given a root dir (experiment)...
     7. Create dataset in Clowder for this snapshot
     8. Add files & metadata to snapshot
     9. Submit dataset for extraction by PlantCV extractor
+
+USAGE
+    python loadDanforthSnapshots.py /home/clowder/sites/danforth/raw_data/TM015_F_051616
+    python loadDanforthSnapshots.py /home/clowder/sites/danforth/raw_data/TM016_F_052716
 """
 
+# Clowder connection info
+clowder_host = "https://terraref.ncsa.illinois.edu/clowder/"
+clowder_key = "Pb3AUSqnUw"
+# This is base Danforth space
+root_space = "571fbfefe4b032ce83d96006"
+# Upload as Danforth Site Clowder user
+clowder_user = "terrarefglobus+danforth@ncsa.illinois.edu"
+clowder_pass = "jichyapMab"
+clowder_uid  = "5808d84864f4455cbe16f6d1"
+# Set True to only print outputs without creating anything
+dry_run = True
+
+
+logging.basicConfig(filename='danforth_upload.log',level=logging.DEBUG)
 
 def loadJsonFile(jsonfile):
     try:
@@ -158,19 +177,22 @@ def formatImageMetadata(filename, experiment_md, snap_details):
     }
 
 
+conn = Connector({})
 experiment_root = sys.argv[1]
 experiment_name = os.path.basename(experiment_root)
 if os.path.exists(experiment_root):
+    logging.debug("Searching for index files in %s" % experiment_root)
     md_file  = os.path.join(experiment_root, experiment_name+"_metadata.json")
     csv_file = os.path.join(experiment_root, "SnapshotInfo.csv")
 
     if not os.path.isfile(md_file):
-        print("No metadata.json file found in %s" % experiment_root)
+        logging.debug("No metadata.json file found in %s" % experiment_root)
         sys.exit(1)
     if not os.path.isfile(md_file):
-        print("No SnapshotInfo.csv file found in %s" % experiment_root)
+        logging.debug("No SnapshotInfo.csv file found in %s" % experiment_root)
         sys.exit(1)
 
+    logging.debug("Found index files; loading %s" % md_file)
     base_md = loadJsonFile(md_file)
     experiment_md = {
         "sensor": "ddpscIndoorSuite",
@@ -181,115 +203,67 @@ if os.path.exists(experiment_root):
         "snapshot": None
     }
 
-    # TODO: Create Clowder collection
+    # Create Clowder collection
+    if not dry_run:
+        experiment_coll = get_collection_or_create(clowder_host, clowder_key, clowder_user, clowder_pass, experiment_name,
+                                                   parent_space=root_space)
+        logging.debug("Created collection %s [%s]" % (experiment_name, experiment_coll))
+    else:
+        logging.debug("Skipping collection %s [%s]" % (experiment_name, "DRY RUN"))
+        logging.debug("Metadata for %s: %s" % (experiment_name, experiment_md))
 
     for snap_dir in os.path.listdir(experiment_root):
         if os.path.isdir(snap_dir):
+            logging.debug("Scanning files in %s" % snap_dir)
             snap_id = snap_dir.replace("snapshot", "")
             snap_details = getSnapshotDetails(csv_file, snap_id)
 
-            # TODO: Create Clowder dataset
-
-            snap_files = os.path.listdir(os.path.join(experiment_root, snap_dir))
-            for img_file in snap_files:
-                img_md = formatImageMetadata(img_file, experiment_md, snap_details)
-
-                # TODO: Upload file + metadata to Clowder
-
-
-
-
-def submitGroupToClowder(group):
-    """Create collection/dataset if needed and post files/metadata to it"""
-    c_sensor = group['sensor']
-    c_date = c_sensor + " - "+ group['date']
-    c_year = c_sensor + " - "+ group['date'].split('-')[0]
-    c_month = c_year + "-" + group['date'].split('-')[1]
-
-    # Space is organized per-site, will just hardcode these for now
-    if c_sensor == "ddpscIndoorSuite":
-        c_space = "571fbfefe4b032ce83d96006"
-        c_user = "terrarefglobus+danforth@ncsa.illinois.edu"
-        c_user_id = "5808d84864f4455cbe16f6d1"
-        c_pass = ""
-        c_context = "https://terraref.ncsa.illinois.edu/metadata/danforth#"
-    else:
-        c_space = "571fb3e1e4b032ce83d95ecf"
-        c_user = "terrarefglobus+uamac@ncsa.illinois.edu"
-        c_user_id = "57adcb81c0a7465986583df1"
-        c_pass = ""
-        c_context = "https://terraref.ncsa.illinois.edu/metadata/uamac#"
-
-    sess = requests.Session()
-    sess.auth = (c_user, c_pass)
-
-    print(c_sensor +" | "+c_year +" | "+c_month +" | "+c_date)
-
-    id_sensor = fetchCollectionByName(c_sensor, c_space, sess)
-    id_year = fetchCollectionByName(c_year, c_space, sess)
-    id_month = fetchCollectionByName(c_month, c_space, sess)
-    # Nest new collections if necessary
-    if id_year['created']: associateChildCollection(id_sensor['id'], id_year['id'], sess)
-    if id_month['created']: associateChildCollection(id_year['id'], id_month['id'], sess)
-
-    if group['snapshot'] is not None:
-        # Danforth uses Snapshot as dataset
-        c_dataset = c_sensor + " - " + group['snapshot']
-        id_date = fetchCollectionByName(c_date, c_space, sess)
-        if id_date["created"]: associateChildCollection(id_month['id'], id_date['id'], sess)
-        id_dataset = fetchDatasetByName(c_dataset, c_space, id_sensor["id"], id_year["id"], id_month["id"], id_date["id"], sess)
-    elif group['timestamp'] is None:
-        # Some have the date level as the dataset, not a collection
-        c_dataset = c_sensor + " - " + group['date']
-        id_dataset = fetchDatasetByName(c_dataset, c_space, id_sensor["id"], id_year["id"], id_month["id"], None, sess)
-    else:
-        c_dataset = c_sensor + " - " + group['timestamp']
-        id_date = fetchCollectionByName(c_date, c_space, sess)
-        if id_date["created"]: associateChildCollection(id_month['id'], id_date['id'], sess)
-        id_dataset = fetchDatasetByName(c_dataset, c_space, id_sensor["id"], id_year["id"], id_month["id"], id_date["id"], sess)
-
-    # Perform actual posts
-    if id_dataset:
-        if group['metadata']:
-            md = {
-                "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
-                             {"@vocab": c_context}],
-                "content": group['metadata'],
+            # Create Clowder dataset and add metadata
+            snap_md = {
+                "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld"],
+                "content": base_md['experiment'],
                 "agent": {
                     "@type": "cat:user",
-                    "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % c_user_id
+                    "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_uid
                 }
             }
-            sess.post(clowderURL+"/api/datasets/"+id_dataset+"/metadata.jsonld",
-                      headers={'Content-Type':'application/json'},
-                      data=json.dumps(md))
-            print("++++ added metadata to %s (%s)" % (c_dataset, id_dataset))
-
-        fileFormData = []
-        for f in group['files']:
-            # METADATA
-            # Use [1,-1] to avoid json.dumps wrapping quotes
-            # Replace \" with " to avoid json.dumps escaping quotes
-            fmd = group['file_md'][f] if f in group['file_md'] else None
-            mdstr = ', "md":'+json.dumps(fmd).replace('\\"', '"') if fmd else ""
-            if f.find("/gpfs/largeblockFS/") > -1:
-                f = f.replace("/gpfs/largeblockFS/projects/arpae/terraref/", "/home/clowder/")
-
-            fileFormData.append(("file",'{"path":"%s"%s}' % (f, mdstr)))
-
-        if len(fileFormData) > 0:
-            (content, header) = encode_multipart_formdata(fileFormData)
-            fi = sess.post(clowderURL+"/api/uploadToDataset/"+id_dataset,
-                                       headers={'Content-Type':header},
-                                       data=content)
-
-            if fi.status_code == 200:
-                print("++++ added files to %s (%s)" % (c_dataset, id_dataset))
+            if not dry_run:
+                snap_dataset = get_dataset_or_create(clowder_host, clowder_key, clowder_user, clowder_pass, snap_dir,
+                                                     experiment_coll, root_space)
+                logging.debug("Created collection %s [%s]" % (snap_dir, snap_dataset))
+                snap_md["dataset_id"] = snap_dataset
+                upload_dataset_metadata(conn, clowder_host, clowder_key, snap_dataset, snap_md)
+                logging.debug("Uploaded metadata to [%s]" % snap_dataset)
             else:
-                print(fi.status_code)
-                print(fi.status_message)
+                logging.debug("Skipping dataset %s [%s]" % (snap_dir, "DRY RUN"))
+                logging.debug("Details for %s: %s" % (snap_dir, snap_details))
+                logging.debug("Metadata for %s: %s" % (snap_dir, snap_md))
 
-inputfile = sys.argv[1]
-danforthCSV = "/home/clowder/sites/danforth/raw_data/sorghum_pilot_dataset/SnapshotInfo.csv"
-clowderURL = "https://terraref.ncsa.illinois.edu/clowder"
-lastLine = ""
+            # Upload files and metadata to Clowder
+            snap_files = os.path.listdir(os.path.join(experiment_root, snap_dir))
+            for img_file in snap_files:
+                img_path = os.path.join(experiment_root, snap_dir, img_file)
+                img_md = formatImageMetadata(img_file, experiment_md, snap_details)
+                file_md = {
+                    "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld"],
+                    "content": img_md,
+                    "agent": {
+                        "@type": "cat:user",
+                        "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_uid
+                    }
+                }
+                if not dry_run:
+                    file_id = upload_to_dataset(conn, clowder_host, clowder_user, clowder_pass, snap_dataset, img_path)
+                    logging.debug("Created file %s [%s]" % (img_file, file_id))
+                    file_md["file_id"] = file_id
+                    upload_file_metadata(conn, clowder_host, clowder_key, file_id, file_md)
+                    logging.debug("Uploaded metadata to [%s]" % file_id)
+                else:
+                    logging.debug("Skipping file %s [%s]" % (img_file, "DRY RUN"))
+                    logging.debug("Metadata for %s: %s" % (img_file, file_md))
+
+    logging.debug("Experiment uploading complete.")
+
+else:
+    logging.debug("%s does not exist" % experiment_root)
+    sys.exit(1)
