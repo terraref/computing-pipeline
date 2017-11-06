@@ -212,7 +212,7 @@ if os.path.exists(experiment_root):
         logging.debug("Skipping collection %s [%s]" % (experiment_name, "DRY RUN"))
         logging.debug("Metadata for %s: %s" % (experiment_name, experiment_md))
 
-    for snap_dir in os.path.listdir(experiment_root):
+    for snap_dir in os.listdir(experiment_root):
         if os.path.isdir(snap_dir):
             logging.debug("Scanning files in %s" % snap_dir)
             snap_id = snap_dir.replace("snapshot", "")
@@ -240,7 +240,7 @@ if os.path.exists(experiment_root):
                 logging.debug("Metadata for %s: %s" % (snap_dir, snap_md))
 
             # Upload files and metadata to Clowder
-            snap_files = os.path.listdir(os.path.join(experiment_root, snap_dir))
+            snap_files = os.listdir(os.path.join(experiment_root, snap_dir))
             for img_file in snap_files:
                 img_path = os.path.join(experiment_root, snap_dir, img_file)
                 img_md = formatImageMetadata(img_file, experiment_md, snap_details)
