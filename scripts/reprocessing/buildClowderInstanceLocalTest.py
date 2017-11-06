@@ -45,10 +45,10 @@ def upload_ds(conn, host, key, sensor, date, timestamp, ds_files, ds_meta):
             return
 
         if TIMESTAMP_FOLDER:
-            dataset_id = build_dataset_hierarchy(CONN, CLOWDER_HOST, CLOWDER_KEY, SPACE_ID,
+            dataset_id = build_dataset_hierarchy(CLOWDER_HOST, CLOWDER_KEY, CLOWDER_USER, CLOWDER_PASS, SPACE_ID,
                                                  sensor, year, month, dd, sensor+' - '+timestamp)
         else:
-            dataset_id = build_dataset_hierarchy(CONN, CLOWDER_HOST, CLOWDER_KEY, SPACE_ID,
+            dataset_id = build_dataset_hierarchy(CLOWDER_HOST, CLOWDER_KEY, CLOWDER_USER, CLOWDER_PASS, SPACE_ID,
                                                  sensor, year, month, leaf_ds_name=sensor+' - '+date)
 
         log("adding files to Clowder dataset %s" % dataset_id)
