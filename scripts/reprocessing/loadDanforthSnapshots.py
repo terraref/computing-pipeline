@@ -3,7 +3,7 @@ import logging
 
 from pyclowder.connectors import Connector
 from pyclowder.files import upload_metadata as upload_file_metadata
-from pyclowder.datasets import upload_metadata as upload_dataset_metadata
+from pyclowder.datasets import submit_extraction, upload_metadata as upload_dataset_metadata
 from terrautils.extractors import get_collection_or_create, get_dataset_or_create, upload_to_dataset, build_metadata
 
 
@@ -51,8 +51,16 @@ clowder_uid  = "5808d84864f4455cbe16f6d1"
 # Set True to only print outputs without creating anything
 dry_run = True
 
+LAST_SNAP = "snapshot20538"
 
-logging.basicConfig(filename='danforth_upload.log',level=logging.DEBUG)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+handler = logging.FileHandler('danforth_upload.log')
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 def loadJsonFile(jsonfile):
     try:
@@ -120,36 +128,37 @@ def formatImageMetadata(filename, experiment_md, snap_details):
     # Format of top-view image names: imgtyp_camera_zoom_lifter_gain_exposure_imageID
     img_meta = filename.split('_')
 
-    # Format camera_type
-    if img_meta[0] == 'VIS':
-        camera_type = 'visible/RGB'
-    elif img_meta[0] == 'NIR':
-        camera_type = 'near-infrared'
-    # Format camera perspective
-    if img_meta[1] == 'SV':
-        perspective = 'side-view'
-    elif img_meta[1] == 'TV':
-        perspective = 'top-view'
-
-    # SIDE VIEW
-    if len(img_meta) == 8:
-        rotation_angle = img_meta[2]
-        zoom = (0.0008335 * int(img_meta[3].replace('z', ''))) + 0.9991665
-        stage_position = img_meta[4].replace('h', '')
-        camera_gain = img_meta[5].replace('g', '')
-        camera_exposure = img_meta[6].replace('e', '')
-        img_id = img_meta[7]
-    # TOP VIEW
-    elif len(img_meta) == 7:
-        rotation_angle = 0
-        zoom = (0.0008335 * int(img_meta[2].replace('z', ''))) + 0.9991665
-        stage_position = img_meta[3].replace('h', '')
-        camera_gain = img_meta[4].replace('g', '')
-        camera_exposure = img_meta[5].replace('e', '')
-        img_id = img_meta[6]
+    for val in img_meta:
+        # Format camera type
+        if val == "VIS":
+            camera_type = 'visible/RGB'
+        elif val == "NIR":
+            camera_type = 'near-infrared'
+        # Format camera perspective
+        elif val == 'SV':
+            perspective = 'side-view'
+        elif val == 'TV':
+            perspective = 'top-view'
+            rotation_angle = 0
+        # Get zoom/gain/exposure/stage position
+        elif val.startswith("z"):
+            zoom = (0.0008335 * int(val.replace('z', ''))) + 0.9991665
+        elif val.startswith("h"):
+            stage_position = val.replace('h', '')
+        elif val.startswith("g"):
+            camera_gain = val.replace('g', '')
+        elif val.startswith("e"):
+            camera_exposure = val.replace('e', '')
+        # Get rotation for side-view images
+        elif val in ["0", "90", "180", "270"]:
+            rotation_angle = val
+        elif val.endswith(".png"):
+            continue
+        else:
+            img_id = val
 
     # Extract human-readable values from Danforth Center barcodes
-    barcode = parseDanforthBarcode(snap_details['barcode'])
+    barcode = parseDanforthBarcode(snap_details['plantbarcode'])
     experiment_codes = experiment_md['sample']['barcode']
     if barcode['species'] in experiment_codes['species']:
         species = experiment_codes['species'][barcode['species']]
@@ -177,22 +186,22 @@ def formatImageMetadata(filename, experiment_md, snap_details):
     }
 
 
-conn = Connector({})
+conn = Connector({}, mounted_paths={"/home/clowder/sites":"/home/clowder/sites"})
 experiment_root = sys.argv[1]
 experiment_name = os.path.basename(experiment_root)
 if os.path.exists(experiment_root):
-    logging.debug("Searching for index files in %s" % experiment_root)
+    logger.debug("Searching for index files in %s" % experiment_root)
     md_file  = os.path.join(experiment_root, experiment_name+"_metadata.json")
     csv_file = os.path.join(experiment_root, "SnapshotInfo.csv")
 
     if not os.path.isfile(md_file):
-        logging.debug("No metadata.json file found in %s" % experiment_root)
+        logger.debug("%s not found" % md_file)
         sys.exit(1)
-    if not os.path.isfile(md_file):
-        logging.debug("No SnapshotInfo.csv file found in %s" % experiment_root)
+    if not os.path.isfile(csv_file):
+        logger.debug("%s not found" % csv_file)
         sys.exit(1)
 
-    logging.debug("Found index files; loading %s" % md_file)
+    logger.debug("Found index files; loading %s" % md_file)
     base_md = loadJsonFile(md_file)
     experiment_md = {
         "sensor": "ddpscIndoorSuite",
@@ -207,16 +216,26 @@ if os.path.exists(experiment_root):
     if not dry_run:
         experiment_coll = get_collection_or_create(clowder_host, clowder_key, clowder_user, clowder_pass, experiment_name,
                                                    parent_space=root_space)
-        logging.debug("Created collection %s [%s]" % (experiment_name, experiment_coll))
+        logger.debug("Created collection %s [%s]" % (experiment_name, experiment_coll))
     else:
-        logging.debug("Skipping collection %s [%s]" % (experiment_name, "DRY RUN"))
-        logging.debug("Metadata for %s: %s" % (experiment_name, experiment_md))
+        logger.debug("Skipping collection %s [%s]" % (experiment_name, "DRY RUN"))
 
+    found_last_snap = True if LAST_SNAP == "" else False
     for snap_dir in os.listdir(experiment_root):
-        if os.path.isdir(snap_dir):
-            logging.debug("Scanning files in %s" % snap_dir)
+        if snap_dir == LAST_SNAP and not found_last_snap:
+            logger.debug("Resuming from %s" % LAST_SNAP)
+            found_last_snap = True
+        elif not found_last_snap:
+            continue
+
+        if os.path.isdir(os.path.join(experiment_root, snap_dir)):
+            logger.debug("Scanning files in %s" % snap_dir)
             snap_id = snap_dir.replace("snapshot", "")
             snap_details = getSnapshotDetails(csv_file, snap_id)
+
+            if not snap_details:
+                logger.debug("Error getting snapshot details for: %s" % snap_dir)
+                continue
 
             # Create Clowder dataset and add metadata
             snap_md = {
@@ -230,20 +249,19 @@ if os.path.exists(experiment_root):
             if not dry_run:
                 snap_dataset = get_dataset_or_create(clowder_host, clowder_key, clowder_user, clowder_pass, snap_dir,
                                                      experiment_coll, root_space)
-                logging.debug("Created collection %s [%s]" % (snap_dir, snap_dataset))
+                logger.debug("Created dataset %s [%s]" % (snap_dir, snap_dataset))
                 snap_md["dataset_id"] = snap_dataset
                 upload_dataset_metadata(conn, clowder_host, clowder_key, snap_dataset, snap_md)
-                logging.debug("Uploaded metadata to [%s]" % snap_dataset)
+                logger.debug("Uploaded metadata to [%s]" % snap_dataset)
             else:
-                logging.debug("Skipping dataset %s [%s]" % (snap_dir, "DRY RUN"))
-                logging.debug("Details for %s: %s" % (snap_dir, snap_details))
-                logging.debug("Metadata for %s: %s" % (snap_dir, snap_md))
+                logger.debug("Skipping dataset %s [%s]" % (snap_dir, "DRY RUN"))
 
             # Upload files and metadata to Clowder
             snap_files = os.listdir(os.path.join(experiment_root, snap_dir))
             for img_file in snap_files:
+                logger.debug("Uploading %s" % img_file)
                 img_path = os.path.join(experiment_root, snap_dir, img_file)
-                img_md = formatImageMetadata(img_file, experiment_md, snap_details)
+                img_md = formatImageMetadata(img_file, experiment_md['metadata'], snap_details)
                 file_md = {
                     "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld"],
                     "content": img_md,
@@ -254,16 +272,21 @@ if os.path.exists(experiment_root):
                 }
                 if not dry_run:
                     file_id = upload_to_dataset(conn, clowder_host, clowder_user, clowder_pass, snap_dataset, img_path)
-                    logging.debug("Created file %s [%s]" % (img_file, file_id))
+                    logger.debug("Created file %s [%s]" % (img_file, file_id))
                     file_md["file_id"] = file_id
                     upload_file_metadata(conn, clowder_host, clowder_key, file_id, file_md)
-                    logging.debug("Uploaded metadata to [%s]" % file_id)
+                    logger.debug("Uploaded metadata to [%s]" % file_id)
                 else:
-                    logging.debug("Skipping file %s [%s]" % (img_file, "DRY RUN"))
-                    logging.debug("Metadata for %s: %s" % (img_file, file_md))
+                    logger.debug("Skipping file %s [%s]" % (img_file, "DRY RUN"))
 
-    logging.debug("Experiment uploading complete.")
+            # Submit new dataset for extraction to plantCV extractor
+            if not dry_run:
+                extractor = "terra.lemnatec.plantcv"
+                logger.debug("Submitting dataset [%s] to %s" % (snap_dataset, extractor))
+                submit_extraction(conn, clowder_host, clowder_key, snap_dataset, extractor)
+
+    logger.debug("Experiment uploading complete.")
 
 else:
-    logging.debug("%s does not exist" % experiment_root)
+    logger.debug("%s does not exist" % experiment_root)
     sys.exit(1)
