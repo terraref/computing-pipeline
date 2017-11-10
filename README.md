@@ -16,7 +16,7 @@ To provide input on reference data products and support for existing standards a
 
 ### Terms of Use 
 
-Project wide - if any code or data do not have clear terms of reuse, please request that the author provide one. We use [UI NCSA Open Source License](https://opensource.org/licenses/NCSA), by default and also recommend [MIT](https://opensource.org/licenses/MIT) and [BSD](https://opensource.org/licenses/BSD-2-Clause)*
+Project wide - if any code or data do not have clear terms of reuse, please request that the author provide one. We use [BSD 3 Clause by default](https://opensource.org/licenses/BSD-3-Clause). 
 
 <a href="http://creativecommons.org/licenses/by/4.0/" rel=
     "license"><img alt="Creative Commons License" src=
