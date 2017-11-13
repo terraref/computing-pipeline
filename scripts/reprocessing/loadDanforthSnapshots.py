@@ -52,6 +52,7 @@ clowder_uid  = "5808d84864f4455cbe16f6d1"
 dry_run = True
 
 LAST_SNAP = "snapshot20538"
+LAST_SNAP = ""
 
 
 logger = logging.getLogger(__name__)
@@ -162,10 +163,18 @@ def formatImageMetadata(filename, experiment_md, snap_details):
     experiment_codes = experiment_md['sample']['barcode']
     if barcode['species'] in experiment_codes['species']:
         species = experiment_codes['species'][barcode['species']]
+    else:
+        species = 'unknown'
+
     if barcode['genotype'] in experiment_codes['genotypes']:
         genotype = experiment_codes['genotypes'][barcode['genotype']]
+    else:
+        genotype = 'unknown'
+
     if barcode['treatment'] in experiment_codes['treatments']:
         treatment = experiment_codes['treatments'][barcode['treatment']]
+    else:
+        treatment = 'unknown'
 
     return {
         'snapshot_id' : snap_details['id'],
@@ -243,7 +252,7 @@ if os.path.exists(experiment_root):
                 "content": base_md['experiment'],
                 "agent": {
                     "@type": "cat:user",
-                    "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_uid
+                    "user_id": "%sapi/users/%s" % (clowder_host, clowder_uid)
                 }
             }
             if not dry_run:
@@ -267,7 +276,7 @@ if os.path.exists(experiment_root):
                     "content": img_md,
                     "agent": {
                         "@type": "cat:user",
-                        "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_uid
+                        "user_id": "%sapi/users/%s" % (clowder_host, clowder_uid)
                     }
                 }
                 if not dry_run:
