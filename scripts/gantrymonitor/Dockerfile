@@ -2,29 +2,21 @@ FROM ubuntu
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
 RUN apt-get -y update \
-    && apt-get -y install curl python python-dev python-pip \
+    && apt-get -y install curl \
+        python \
+        python-dev \
+        python-pip \
     && pip install flask-restful \
-    && pip install requests \
-    && pip install python-logstash \
-    && pip install globusonline-transfer-api-client \
+        requests \
+        python-logstash \
+        globusonline-transfer-api-client \
     && mkdir /home/gantry
 
-COPY gantry_scanner_service.py /home/gantry/gantry_scanner_service.py
-COPY globus_manager_service.py /home/gantry/globus_manager_service.py
-COPY start_services.sh /home/gantry/start_services.sh
-COPY config_default.json /home/gantry/config_default.json
-COPY config_logging.json /home/gantry/config_logging.json
+COPY start_services.sh *.py *.json /home/gantry/
 
-ENV MONITOR_API_PORT 5455
 CMD ["/home/gantry/start_services.sh"]
 
-# BUILD
-# docker build -f Dockerfile -t maxzilla2/terra-gantry-monitor .
-# docker push maxzilla2/terra-gantry-monitor
-
-# DEPLOY TO COREOS
-# ssh -i ~/.ssh/max.key -l core 141.142.208.132
-# docker pull maxzilla2/terra-gantry-monitor
+ENV MONITOR_API_PORT=5455
 
 # RUN w/ MOUNTED CUSTOM CONFIG, DATA, LOG FOLDERS
 # docker run --rm -p 5455:5455
@@ -32,4 +24,11 @@ CMD ["/home/gantry/start_services.sh"]
 #       -v ~/Git/TERRAref/computing-pipeline/scripts/gantrymonitor/log:/home/gantrymonitor/log
 #       -v ~/gantry:/home/gantry
 #       maxzilla2/terra-globus-monitor
-# 141.142.208.132:5455
+
+docker run -p 5455:5455 --add-host="localhost:141.142.22.37" \
+	-v /var/log/gantrymonitor:/home/gantry/data \
+	-v /gantry_data:/home/gantry/sites \
+	-v /gantry_data/LemnaTec/ToDelete/sites:/home/gantry/delete/sites \
+	-v /var/log:/var/log \
+-d maxzilla2/terra-gantry-monitor
+

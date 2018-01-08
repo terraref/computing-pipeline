@@ -1,0 +1,26 @@
+FROM terraref/terrautils
+MAINTAINER Max Burnette <mburnet2@illinois.edu>
+
+RUN apt-get -y update \
+    && apt-get -y install curl \
+    && pip install flask-restful \
+        python-logstash \
+        globusonline-transfer-api-client \
+        psycopg2 \
+    && mkdir /home/gantry \
+    && mkdir /home/gantry/data
+
+
+COPY *.py *.json /home/globusmonitor/
+COPY data /home/globusmonitor/data
+
+ENV MONITOR_API_PORT 5454
+CMD ["python", "/home/globusmonitor/globus_uploader_service.py"]
+
+# RUN w/ MOUNTED CUSTOM CONFIG, DATA, LOG FOLDERS
+# docker run --rm
+#       -v ~/Git/TERRAref/computing-pipeline/scripts/globusmonitor/config_custom.json:/home/globusmonitor/config_custom.json
+#       -v ~/Git/TERRAref/computing-pipeline/scripts/globusmonitor/log:/home/globusmonitor/log
+#       -v ~/globus:/home/globus
+#       maxzilla2/terra-globus-monitor
+# 141.142.208.132:5454

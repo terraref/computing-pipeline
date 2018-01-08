@@ -13,12 +13,11 @@ import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
-from flask import Flask, request, Response
-from flask.ext import restful
 
 from terrautils.metadata import clean_metadata
 
 rootPath = "/home/globusmonitor/computing-pipeline/scripts/globusmonitor"
+rootPath = "/home/globusmonitor"
 
 """
 Config file has 2 important entries which do not have default values:
@@ -51,9 +50,6 @@ config = {}
 """
 datasetMap = {}
 collectionMap = {}
-
-app = Flask(__name__)
-api = restful.Api(app)
 
 # ----------------------------------------------------------
 # SHARED UTILS
