@@ -135,9 +135,9 @@ def connectToPostgres():
         $   createdb globusmonitor
     """
     psql_db = config['postgres']['database']
-    psql_user = config['postgres']['username']
-    psql_pass = config['postgres']['password']
-    psql_host = config['postgres']['host']
+    psql_host = os.getenv("POSTGRES_HOST", config['postgres']['host'])
+    psql_user = os.getenv("POSTGRES_USER", config['postgres']['username'])
+    psql_pass = os.getenv("POSTGRES_PASSWORD", config['postgres']['password'])
 
     try:
         conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
