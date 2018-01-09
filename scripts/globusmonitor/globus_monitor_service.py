@@ -18,7 +18,6 @@ from flask import Flask, request, Response
 from flask_restful import Api, Resource
 from globusonline.transfer.api_client import TransferAPIClient, APIError, ClientError, goauth
 
-rootPath = "/home/globusmonitor/computing-pipeline/scripts/globusmonitor"
 rootPath = "/home/globusmonitor"
 
 """

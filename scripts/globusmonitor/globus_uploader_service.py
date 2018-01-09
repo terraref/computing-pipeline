@@ -16,7 +16,6 @@ from urllib3.filepost import encode_multipart_formdata
 
 from terrautils.metadata import clean_metadata
 
-rootPath = "/home/globusmonitor/computing-pipeline/scripts/globusmonitor"
 rootPath = "/home/globusmonitor"
 
 """
