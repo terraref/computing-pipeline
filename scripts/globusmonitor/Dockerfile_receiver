@@ -6,13 +6,9 @@ RUN apt-get -y update \
     && pip install flask-restful \
         python-logstash \
         globusonline-transfer-api-client \
-        psycopg2 \
-    && mkdir /home/gantry \
-    && mkdir /home/gantry/data
-
+        psycopg2
 
 COPY *.py *.json /home/globusmonitor/
-COPY data /home/globusmonitor/data
 
 ENV MONITOR_API_PORT 5454
 CMD ["python", "/home/globusmonitor/globus_monitor_service.py"]
