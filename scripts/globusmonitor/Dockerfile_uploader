@@ -10,5 +10,4 @@ RUN apt-get -y update \
 
 COPY *.py *.json /home/globusmonitor/
 
-ENV MONITOR_API_PORT 5454
 CMD ["python", "/home/globusmonitor/globus_uploader_service.py"]
