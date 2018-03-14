@@ -238,7 +238,7 @@ def connectToPostgres():
         $ pg_ctl -D /home/globusmonitor/postgres/data -l /home/globusmonitor/postgres/log
         $   createdb globusmonitor
     """
-    psql_db = config['postgres']['database']
+    psql_db = os.getenv("POSTGRES_DATABASE", config['postgres']['database'])
     psql_host = os.getenv("POSTGRES_HOST", config['postgres']['host'])
     psql_user = os.getenv("POSTGRES_USER", config['postgres']['username'])
     psql_pass = os.getenv("POSTGRES_PASSWORD", config['postgres']['password'])
@@ -456,6 +456,15 @@ def notifyClowderOfCompletedTask(task):
                             writeTaskToDatabase(updatedTask)
 
             if len(filesQueued)>0 or datasetMD:
+                # Try to clean metadata first
+                if datasetMD:
+                    # Upload metadata
+                    try:
+                        cleaned_dsmd = clean_metadata(datasetMD, sensorname)
+                    except:
+                        logger.error("- error cleaning metadata for %s" % ds)
+                        return False
+
                 dsid = fetchDatasetByName(ds, sess, spaceoverride)
                 dsFileList = fetchDatasetFileList(dsid, sess)
                 if dsid:
@@ -471,12 +480,6 @@ def notifyClowderOfCompletedTask(task):
                             fileFormData.append(("file",'{"path":"%s"%s}' % (queued[0], queued[1])))
 
                     if datasetMD:
-                        # Upload metadata
-                        try:
-                            cleaned_dsmd = clean_metadata(datasetMD, sensorname)
-                        except:
-                            logger.error("- error cleaning metadata for %s" % ds)
-                            return False
                         md = {
                             "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
                                          {"@vocab": clowderContext}],

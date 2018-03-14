@@ -133,7 +133,7 @@ def connectToPostgres():
         $ pg_ctl -D /home/globusmonitor/postgres/data -l /home/globusmonitor/postgres/log
         $   createdb globusmonitor
     """
-    psql_db = config['postgres']['database']
+    psql_db = os.getenv("POSTGRES_DATABASE", config['postgres']['database'])
     psql_host = os.getenv("POSTGRES_HOST", config['postgres']['host'])
     psql_user = os.getenv("POSTGRES_USER", config['postgres']['username'])
     psql_pass = os.getenv("POSTGRES_PASSWORD", config['postgres']['password'])
