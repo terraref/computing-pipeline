@@ -312,22 +312,28 @@ def writeTaskToDatabase(task):
 
 """Fetch all Globus tasks with a particular status"""
 def getNextUnprocessedTask(status="SUCCEEDED"):
-    q_fetch = "SELECT * FROM globus_tasks WHERE status = '%s' order by completed ASC limit 1" % status
+
+    # Use Common Table Expression to update status to PENDING and return row at the same time
+    q_fetch = "WITH cte AS (SELECT globus_id FROM globus_tasks where STATUS = '%s' ORDER BY completed ASC LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE globus_tasks gt  SET status = 'PENDING' FROM cte WHERE gt.globus_id = cte.globus_id RETURNING *" %status
+
     nextTask = None
 
-    curs = psql_conn.cursor()
-    logger.debug("Fetching next unprocessed task from PostgreSQL...")
-    curs.execute(q_fetch)
-    for result in curs:
-        nextTask = {
-            "globus_id": result[0],
-            "status": result[1],
-            "received": result[2],
-            "completed": result[3],
-            "user": result[4],
-            "contents": result[5]
-        }
-    curs.close()
+    try:
+        curs = psql_conn.cursor()
+        logger.debug("Fetching next unprocessed task from PostgreSQL...")
+        curs.execute(q_fetch)
+        for result in curs:
+            nextTask = {
+                "globus_id": result[0],
+                "status": result[1],
+                "received": result[2],
+                "completed": result[3],
+                "user": result[4],
+                "contents": result[5]
+            }
+        curs.close()
+    except Exception as e:
+        logger.error("Exception fetching task next task %s" % str(e))
 
     return nextTask
 
@@ -571,38 +577,48 @@ def clowderSubmissionLoop():
             task = getNextUnprocessedTask()
             while task:
                 globusID = task['globus_id']
-                clowderDone = notifyClowderOfCompletedTask(task)
-                if clowderDone:
-                    logger.info("%s task successfully processed!" % globusID, extra={
-                        "globus_id": globusID,
-                        "action": "PROCESSING COMPLETE"
-                    })
-                    task['status'] = 'PROCESSED'
+                try: 
+                    clowderDone = notifyClowderOfCompletedTask(task)
+                    if clowderDone:
+                        logger.info("%s task successfully processed!" % globusID, extra={
+                            "globus_id": globusID,
+                            "action": "PROCESSING COMPLETE"
+                        })
+                        task['status'] = 'PROCESSED'
+                        writeTaskToDatabase(task)
+                    else:
+                        logger.error("%s not successfully sent; marking ERROR" % globusID)
+                        task['status'] = 'ERROR'
+                        writeTaskToDatabase(task)
+                except Exception as e:
+                    logger.error("Exception processing task %s; returning to queue" % globusID, str(e))
+                    task['status'] = 'FAILED'
                     writeTaskToDatabase(task)
-                else:
-                    logger.error("%s not successfully sent; marking ERROR" % globusID)
-                    task['status'] = 'ERROR'
-                    writeTaskToDatabase(task)
-
+   
                 task = getNextUnprocessedTask()
-
+  
             # Next attempt to handle any ERROR tasks a second time
             task = getNextUnprocessedTask("ERROR")
             while task:
                 globusID = task['globus_id']
-                clowderDone = notifyClowderOfCompletedTask(task)
-                if clowderDone:
-                    logger.info("%s task successfully processed!" % globusID, extra={
-                        "globus_id": globusID,
-                        "action": "PROCESSING COMPLETE"
-                    })
-                    task['status'] = 'PROCESSED'
+                try: 
+                    clowderDone = notifyClowderOfCompletedTask(task)
+                    if clowderDone:
+                        logger.info("%s task successfully processed!" % globusID, extra={
+                            "globus_id": globusID,
+                            "action": "PROCESSING COMPLETE"
+                        })
+                        task['status'] = 'PROCESSED'
+                        writeTaskToDatabase(task)
+                    else:
+                        logger.error("%s ERROR processing unsuccessful; returning to queue" % globusID)
+                        task['status'] = 'SUCCEEDED'
+                        writeTaskToDatabase(task)
+                except Exception as e:
+                    logger.error("Exception processing task %s; returning to queue" % globusID, str(e))
+                    task['status'] = 'FAILED'
                     writeTaskToDatabase(task)
-                else:
-                    logger.error("%s ERROR processing unsuccessful; returning to queue" % globusID)
-                    task['status'] = 'SUCCEEDED'
-                    writeTaskToDatabase(task)
-
+ 
                 task = getNextUnprocessedTask("ERROR")
 
             clowderWait = 0
