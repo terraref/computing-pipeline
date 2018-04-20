@@ -1,0 +1,13 @@
+FROM terraref/terrautils
+MAINTAINER Max Burnette <mburnet2@illinois.edu>
+
+RUN apt-get -y update \
+    && apt-get -y install curl \
+    && pip install flask-restful \
+        python-logstash \
+        globusonline-transfer-api-client \
+        psycopg2
+
+COPY *.py *.json /home/globusmonitor/
+
+CMD ["python", "/home/globusmonitor/globus_uploader_service.py"]

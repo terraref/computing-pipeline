@@ -13,12 +13,10 @@ import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
-from flask import Flask, request, Response
-from flask.ext import restful
 
 from terrautils.metadata import clean_metadata
 
-rootPath = "/home/globusmonitor/computing-pipeline/scripts/globusmonitor"
+rootPath = "/home/globusmonitor"
 
 """
 Config file has 2 important entries which do not have default values:
@@ -51,9 +49,6 @@ config = {}
 """
 datasetMap = {}
 collectionMap = {}
-
-app = Flask(__name__)
-api = restful.Api(app)
 
 # ----------------------------------------------------------
 # SHARED UTILS
@@ -243,10 +238,10 @@ def connectToPostgres():
         $ pg_ctl -D /home/globusmonitor/postgres/data -l /home/globusmonitor/postgres/log
         $   createdb globusmonitor
     """
-    psql_db = config['postgres']['database']
-    psql_user = config['postgres']['username']
-    psql_pass = config['postgres']['password']
-    psql_host = config['postgres']['host']
+    psql_db = os.getenv("POSTGRES_DATABASE", config['postgres']['database'])
+    psql_host = os.getenv("POSTGRES_HOST", config['postgres']['host'])
+    psql_user = os.getenv("POSTGRES_USER", config['postgres']['username'])
+    psql_pass = os.getenv("POSTGRES_PASSWORD", config['postgres']['password'])
 
     try:
         conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
@@ -461,6 +456,15 @@ def notifyClowderOfCompletedTask(task):
                             writeTaskToDatabase(updatedTask)
 
             if len(filesQueued)>0 or datasetMD:
+                # Try to clean metadata first
+                if datasetMD:
+                    # Upload metadata
+                    try:
+                        cleaned_dsmd = clean_metadata(datasetMD, sensorname)
+                    except:
+                        logger.error("- error cleaning metadata for %s" % ds)
+                        return False
+
                 dsid = fetchDatasetByName(ds, sess, spaceoverride)
                 dsFileList = fetchDatasetFileList(dsid, sess)
                 if dsid:
@@ -476,12 +480,6 @@ def notifyClowderOfCompletedTask(task):
                             fileFormData.append(("file",'{"path":"%s"%s}' % (queued[0], queued[1])))
 
                     if datasetMD:
-                        # Upload metadata
-                        try:
-                            cleaned_dsmd = clean_metadata(datasetMD, sensorname)
-                        except:
-                            logger.error("- error cleaning metadata for %s" % ds)
-                            return False
                         md = {
                             "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
                                          {"@vocab": clowderContext}],

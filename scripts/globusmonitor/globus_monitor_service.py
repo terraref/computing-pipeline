@@ -10,18 +10,15 @@
 
 import os, shutil, json, time, datetime, thread, copy, atexit, collections, fcntl
 import logging, logging.config, logstash
-import requests
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from io import BlockingIOError
-from urllib3.filepost import encode_multipart_formdata
 from functools import wraps
 from flask import Flask, request, Response
-from flask.ext import restful
-from flask_restful import reqparse, abort, Api, Resource
+from flask_restful import Api, Resource
 from globusonline.transfer.api_client import TransferAPIClient, APIError, ClientError, goauth
 
-rootPath = "/home/globusmonitor/computing-pipeline/scripts/globusmonitor"
+rootPath = "/home/globusmonitor"
 
 """
 Config file has 2 important entries which do not have default values:
@@ -48,7 +45,7 @@ Config file has 2 important entries which do not have default values:
 config = {}
 
 app = Flask(__name__)
-api = restful.Api(app)
+api = Api(app)
 
 # ----------------------------------------------------------
 # SHARED UTILS
@@ -136,10 +133,10 @@ def connectToPostgres():
         $ pg_ctl -D /home/globusmonitor/postgres/data -l /home/globusmonitor/postgres/log
         $   createdb globusmonitor
     """
-    psql_db = config['postgres']['database']
-    psql_user = config['postgres']['username']
-    psql_pass = config['postgres']['password']
-    psql_host = config['postgres']['host']
+    psql_db = os.getenv("POSTGRES_DATABASE", config['postgres']['database'])
+    psql_host = os.getenv("POSTGRES_HOST", config['postgres']['host'])
+    psql_user = os.getenv("POSTGRES_USER", config['postgres']['username'])
+    psql_pass = os.getenv("POSTGRES_PASSWORD", config['postgres']['password'])
 
     try:
         conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
@@ -350,7 +347,7 @@ def requires_auth(f):
 
 """ /tasks
 POST new globus tasks to be monitored, or GET full list of tasks being monitored"""
-class GlobusMonitor(restful.Resource):
+class GlobusMonitor(Resource):
 
     """Return list of first 10 active tasks initiated by the requesting user"""
     @requires_auth
@@ -389,7 +386,7 @@ class GlobusMonitor(restful.Resource):
 
 """ /tasks/<globusID>
 GET details of a particular globus task, or DELETE a globus task from monitoring"""
-class GlobusTask(restful.Resource):
+class GlobusTask(Resource):
 
     """Check if the Globus task ID is finished, in progress, or an error has occurred"""
     @requires_auth
@@ -402,7 +399,7 @@ class GlobusTask(restful.Resource):
 
 """ /status
 Return basic information about monitor for health checking"""
-class MonitorStatus(restful.Resource):
+class MonitorStatus(Resource):
 
     def get(self):
         return getStatus(), 200
