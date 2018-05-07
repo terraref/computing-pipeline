@@ -194,10 +194,14 @@ def writeTaskToDatabase(task):
     curs.close()
 
 """Fetch all Globus tasks with a particular status"""
-def getNextUnprocessedTask(status="SUCCEEDED"):
+def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
 
     # Use Common Table Expression to update status to PENDING and return row at the same time
-    q_fetch = "WITH cte AS (SELECT globus_id FROM globus_tasks where STATUS = '%s' ORDER BY completed ASC LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE globus_tasks gt  SET status = 'PENDING' FROM cte WHERE gt.globus_id = cte.globus_id RETURNING *" %status
+    if reverse:
+        q_fetch = "WITH cte AS (SELECT globus_id FROM globus_tasks where STATUS = '%s' ORDER BY completed DESC LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE globus_tasks gt  SET status = 'PENDING' FROM cte WHERE gt.globus_id = cte.globus_id RETURNING *" %status
+
+    else:
+        q_fetch = "WITH cte AS (SELECT globus_id FROM globus_tasks where STATUS = '%s' ORDER BY completed ASC LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE globus_tasks gt  SET status = 'PENDING' FROM cte WHERE gt.globus_id = cte.globus_id RETURNING *" %status
 
     nextTask = None
 
@@ -487,7 +491,7 @@ def clowderSubmissionLoop():
                 task = getNextUnprocessedTask()
   
             # Next attempt to handle any ERROR tasks a second time
-            task = getNextUnprocessedTask("RETRY")
+            task = getNextUnprocessedTask("RETRY", reverse=True)
             while task:
                 globusID = task['globus_id']
                 try: 
@@ -508,7 +512,7 @@ def clowderSubmissionLoop():
                     task['status'] = 'ERROR'
                     writeTaskToDatabase(task)
  
-                task = getNextUnprocessedTask("RETRY")
+                task = getNextUnprocessedTask("RETRY", reverse=True)
 
             clowderWait = 0
 
