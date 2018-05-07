@@ -15,6 +15,7 @@ from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
 
 from terrautils.metadata import clean_metadata
+from terrautils.extractors import build_dataset_hierarchy
 
 rootPath = "/home/globusmonitor"
 
@@ -42,13 +43,6 @@ Config file has 2 important entries which do not have default values:
 """
 config = {}
 
-"""Maps dataset/collection name to clowder UUID
-{
-    "name": "UUID"
-}
-"""
-datasetMap = {}
-collectionMap = {}
 
 # ----------------------------------------------------------
 # SHARED UTILS
@@ -115,63 +109,6 @@ def loadJsonFile(filename):
         logger.error("- unable to open %s" % filename)
         return {}
 
-"""Find dataset id if dataset exists, creating if necessary"""
-def fetchDatasetByName(datasetName, sess, spaceOverrideId=None):
-    if datasetName in datasetMap:
-        return datasetMap[datasetName]
-    else:
-        # Get names of collection hierarchy
-        if datasetName.find(" - ") > -1:
-            # e.g. "co2Sensor - 2016-12-25" or "VNIR - 2016-12-25__12-32-42-123"
-            c_sensor = datasetName.split(" - ")[0]
-            c_date = datasetName.split(" - ")[1]
-            c_year = c_sensor + " - " + c_date.split('-')[0]
-            c_month = c_year+"-"+c_date.split('-')[1]
-            if c_date.find("__") == -1:
-                # If we only have a date and not a timestamp, don't create date collection
-                c_date = None
-            else:
-                c_date = c_sensor + " - " + c_date.split("__")[0]
-        else:
-            c_sensor, c_date, c_year, c_month = None, None, None, None
-
-        id_sensor = fetchCollectionByName(c_sensor, sess, spaceOverrideId) if c_sensor else None
-        id_date = fetchCollectionByName(c_date, sess, spaceOverrideId) if c_date else None
-        id_year = fetchCollectionByName(c_year, sess, spaceOverrideId) if c_year else None
-        id_month = fetchCollectionByName(c_month, sess, spaceOverrideId) if c_month else None
-        if id_year and id_year['created']:
-            associateChildCollection(id_sensor['id'], id_year['id'], sess)
-        if id_month and id_month['created']:
-            associateChildCollection(id_year['id'], id_month['id'], sess)
-        if id_date and id_date['created']:
-            associateChildCollection(id_month['id'], id_date['id'], sess)
-
-        if not spaceOverrideId and config['clowder']['primary_space'] != "":
-            spaceOverrideId = config['clowder']['primary_space']
-        spaceId = ', "space": ["%s"]' % spaceOverrideId if spaceOverrideId else ''
-
-        if id_date:
-            dataObj = '{"name": "%s", "collection": ["%s"]%s}' % (datasetName, id_date['id'], spaceId)
-        else:
-            dataObj = '{"name": "%s", "collection": ["%s"]%s}' % (datasetName, id_month['id'], spaceId)
-        ds = sess.post(config['clowder']['host']+"/api/datasets/createempty",
-                                  headers={"Content-Type": "application/json"},
-                                  data=dataObj)
-
-        if ds.status_code == 200:
-            dsid = ds.json()['id']
-            datasetMap[datasetName] = dsid
-            writeDatasetRecordToDatabase(datasetName, dsid)
-            logger.info("++ created dataset %s (%s)" % (datasetName, dsid), extra={
-                "dataset_id": dsid,
-                "dataset_name": datasetName,
-                "action": "DATASET CREATED"
-            })
-            return dsid
-        else:
-            logger.error("- cannot create dataset (%s: %s)" % (ds.status_code, ds.text))
-            return None
-
 """Find list of file objects in a given dataset"""
 def fetchDatasetFileList(datasetId, requestsSession):
     clowkey = config['clowder']['secret_key']
@@ -183,48 +120,6 @@ def fetchDatasetFileList(datasetId, requestsSession):
     else:
         logger.error("- cannot find file list for dataset %s" % datasetId)
         return []
-
-"""Find dataset id if dataset exists, creating if necessary"""
-def fetchCollectionByName(collectionName, requestsSession, spaceOverrideId=None):
-    if collectionName in collectionMap:
-        return {
-            "id": collectionMap[collectionName],
-            "created": False
-        }
-    if collectionName not in collectionMap:
-        coll = requestsSession.post(config['clowder']['host']+"/api/collections",
-                                    headers={"Content-Type": "application/json"},
-                                    data='{"name": "%s", "description": ""}' % collectionName)
-        time.sleep(1)
-
-        if coll.status_code == 200:
-            collid = coll.json()['id']
-            collectionMap[collectionName] = collid
-            writeCollectionRecordToDatabase(collectionName, collid)
-            logger.info("++ created collection %s (%s)" % (collectionName, collid), extra={
-                "collection_id": collid,
-                "collection_name": collectionName,
-                "action": "CREATED COLLECTION"
-            })
-            # Add new collection to primary space if defined
-            if not spaceOverrideId and config['clowder']['primary_space'] != "":
-                spaceOverrideId = config['clowder']['primary_space']
-
-            if spaceOverrideId:
-                requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addCollectionToSpace/%s" %
-                                     (spaceOverrideId, collid))
-            return {
-                "id": collid,
-                "created": True
-            }
-        else:
-            logger.error("- cannot create collection (%s: %s)" % (coll.status_code, coll.text))
-            return None
-
-"""Add child collection to parent collection"""
-def associateChildCollection(parentId, childId, requestsSession):
-    requestsSession.post(config['clowder']['host']+"/api/collections/%s/addSubCollection/%s" %
-                         (parentId, childId))
 
 
 # ----------------------------------------------------------
@@ -337,25 +232,6 @@ def getNextUnprocessedTask(status="SUCCEEDED"):
 
     return nextTask
 
-"""Fetch mappings of dataset/collection name to Clowder ID"""
-def readRecordsFromDatabase():
-    q_fetch_datas = "SELECT * FROM datasets;"
-    # TODO: Find a better solution for memory issues
-    q_fetch_datas = "SELECT * from datasets where name like '%- 2017-%';"
-    q_detch_colls = "SELECT * FROM collections;"
-
-    curs = psql_conn.cursor()
-    logger.debug("Fetching dataset mappings from PostgreSQL...")
-    curs.execute(q_fetch_datas)
-    for currds in curs:
-        datasetMap[currds[0]] = currds[1]
-
-    logger.debug("Fetching collection mappings from PostgreSQL...")
-    curs.execute(q_detch_colls)
-    for currco in curs:
-        collectionMap[currco[0]] = currco[1]
-    curs.close()
-
 """Write dataset (name -> clowder_id) mapping to PostgreSQL database"""
 def writeDatasetRecordToDatabase(dataset_name, dataset_id):
 
@@ -397,14 +273,15 @@ def notifyClowderOfCompletedTask(task):
             "globus_id": task['globus_id'],
             "action": "NOTIFYING CLOWDER OF COMPLETION"
         })
-        clowderHost = config['clowder']['host']
-        clowderUser = userMap[globUser]['clowder_user']
-        clowderPass = userMap[globUser]['clowder_pass']
-        clowderId = userMap[globUser]['clowder_id']
-        clowderContext = userMap[globUser]['context']
+        clowder_host = config['clowder']['host']
+        clowder_key  = config['clowder']['secret_key']
+        clowder_user = userMap[globUser]['clowder_user']
+        clowder_pass = userMap[globUser]['clowder_pass']
+        clowder_id = userMap[globUser]['clowder_id']
+        clowder_context = userMap[globUser]['context']
 
         sess = requests.Session()
-        sess.auth = (clowderUser, clowderPass)
+        sess.auth = (clowder_user, clowder_pass)
 
         # This will be false if any files in the task have errors; task will be revisited
         allDone = True
@@ -412,7 +289,7 @@ def notifyClowderOfCompletedTask(task):
         # Prepare upload object with all file(s) found
         updatedTask = safeCopy(task)
 
-        spaceoverride = task['contents']['space_id'] if 'space_id' in task['contents'] else None
+        space_id = task['contents']['space_id'] if 'space_id' in task['contents'] else config['clowder']['primary_space']
         for ds in task['contents']:
             # Skip any unexpected files at root level, e.g.
             #   /home/clowder/sites/ua-mac/raw_data/GetFluorescenceValues.m
@@ -471,7 +348,25 @@ def notifyClowderOfCompletedTask(task):
                         logger.error("- error cleaning metadata for %s" % ds)
                         return False
 
-                dsid = fetchDatasetByName(ds, sess, spaceoverride)
+                if ds.find(" - ") > -1:
+                    # e.g. "co2Sensor - 2016-12-25" or "VNIR - 2016-12-25__12-32-42-123"
+                    c_sensor = ds.split(" - ")[0]
+                    c_date  = ds.split(" - ")[1]
+                    c_year  = c_date.split('-')[0]
+                    c_month = c_date.split('-')[1]
+                    if c_date.find("__") == -1:
+                        # If we only have a date and not a timestamp, don't create date collection
+                        c_date = None
+                    else:
+                        c_date = c_date.split("__")[0]
+                else:
+                    c_sensor, c_date, c_year, c_month = ds, None, None, None
+
+                # Get dataset from clowder, or create & associate with collections
+                dsid = build_dataset_hierarchy(clowder_host, clowder_key, clowder_user, clowder_pass, space_id,
+                                               c_sensor, c_year, c_month, c_date, ds)
+                logger.info("dataset %s id: %s" % (ds, dsid))
+
                 dsFileList = fetchDatasetFileList(dsid, sess)
                 if dsid:
                     # Only send files not already present in dataset by path
@@ -488,14 +383,14 @@ def notifyClowderOfCompletedTask(task):
                     if datasetMD:
                         md = {
                             "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
-                                         {"@vocab": clowderContext}],
+                                         {"@vocab": clowder_context}],
                             "content": cleaned_dsmd,
                             "agent": {
                                 "@type": "cat:user",
-                                "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowderId
+                                "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_id
                             }
                         }
-                        dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata.jsonld",
+                        dsmd = sess.post(clowder_host+"/api/datasets/"+dsid+"/metadata.jsonld",
                                          headers={'Content-Type':'application/json'},
                                          data=json.dumps(md))
 
@@ -535,7 +430,7 @@ def notifyClowderOfCompletedTask(task):
                         })
 
                         (content, header) = encode_multipart_formdata(fileFormData)
-                        fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
+                        fi = sess.post(clowder_host+"/api/uploadToDataset/"+dsid,
                                        headers={'Content-Type':header},
                                        data=content)
 
@@ -645,7 +540,6 @@ if __name__ == '__main__':
     logger = logging.getLogger('gantry')
 
     psql_conn = connectToPostgres()
-    readRecordsFromDatabase()
 
     logger.info("- initializing service")
     # Create thread for service to begin monitoring
