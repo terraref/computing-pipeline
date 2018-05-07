@@ -61,18 +61,6 @@ def safeCopy(obj):
 
     return newObj
 
-"""If metadata keys have periods in them, Clowder will reject the metadata"""
-def clean_json_keys(jsonobj):
-    clean_json = {}
-    for key in jsonobj.keys():
-        try:
-            jsonobj[key].keys() # Is this a json object?
-            clean_json[key.replace(".","_")] = clean_json_keys(jsonobj[key])
-        except:
-            clean_json[key.replace(".","_")] = jsonobj[key]
-
-    return clean_json
-
 """Attempt to lock a file so API and monitor don't write at once, and wait if unable"""
 def lockFile(f):
     # From http://tilde.town/~cristo/file-locking-in-python.html
@@ -284,7 +272,7 @@ def notifyClowderOfCompletedTask(task):
         sess.auth = (clowder_user, clowder_pass)
 
         # This will be false if any files in the task have errors; task will be revisited
-        allDone = True
+        response = "OK"
 
         # Prepare upload object with all file(s) found
         updatedTask = safeCopy(task)
@@ -307,13 +295,13 @@ def notifyClowderOfCompletedTask(task):
 
             # Assign dataset-level metadata if provided
             if "md" in task['contents'][ds]:
-                datasetMD = clean_json_keys(task['contents'][ds]['md'])
+                datasetMD = task['contents'][ds]['md']
 
             # Add local files to dataset by path
             if 'files' in task['contents'][ds]:
                 for fkey in task['contents'][ds]['files']:
                     fobj = task['contents'][ds]['files'][fkey]
-                    if 'clowder_id' not in fobj or fobj['clowder_id'] == "" or fobj['clowder_id'] == "FILE NOT FOUND":
+                    if 'clowder_id' not in fobj or fobj['clowder_id'] == "":
                         if os.path.exists(fobj['path']):
                             if fobj['name'].find("metadata.json") == -1:
                                 if 'md' in fobj:
@@ -327,16 +315,18 @@ def notifyClowderOfCompletedTask(task):
                                 lastFileKey = fkey
                             else:
                                 try:
-                                    datasetMD = clean_json_keys(loadJsonFile(fobj['path']))
+                                    datasetMD = loadJsonFile(fobj['path'])
                                     datasetMDFile = fkey
                                 except:
-                                    logger.error("could not decode JSON from %s" % fobj['path'])
+                                    logger.error("[%s] could not decode JSON from %s" % (ds, fobj['path']))
                                     updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = "FILE NOT FOUND"
                                     writeTaskToDatabase(updatedTask)
+                                    if response == "OK": response = "ERROR" # Don't overwrite a RETRY
                         else:
-                            logger.info("%s dataset %s lists nonexistent file: %s" % (task['globus_id'], ds, fobj['path']))
+                            logger.error("[%s] file not found: %s" % (ds, fobj['path']))
                             updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = "FILE NOT FOUND"
                             writeTaskToDatabase(updatedTask)
+                            if response == "OK": response = "ERROR" # Don't overwrite a RETRY
 
             if len(filesQueued)>0 or datasetMD:
                 # Try to clean metadata first
@@ -344,9 +334,10 @@ def notifyClowderOfCompletedTask(task):
                     # Upload metadata
                     try:
                         cleaned_dsmd = clean_metadata(datasetMD, sensorname)
-                    except:
-                        logger.error("- error cleaning metadata for %s" % ds)
-                        return False
+                    except Exception as e:
+                        logger.error("[%s] could not clean md: %s" % (ds, str(e)))
+                        # TODO: possible this could be recoverable with more info from clean_metadata
+                        if response == "OK": response = "ERROR" # Don't overwrite a RETRY
 
                 if ds.find(" - ") > -1:
                     # e.g. "co2Sensor - 2016-12-25" or "VNIR - 2016-12-25__12-32-42-123"
@@ -363,12 +354,17 @@ def notifyClowderOfCompletedTask(task):
                     c_sensor, c_date, c_year, c_month = ds, None, None, None
 
                 # Get dataset from clowder, or create & associate with collections
-                dsid = build_dataset_hierarchy(clowder_host, clowder_key, clowder_user, clowder_pass, space_id,
-                                               c_sensor, c_year, c_month, c_date, ds)
-                logger.info("dataset %s id: %s" % (ds, dsid))
+                try:
+                    dsid = build_dataset_hierarchy(clowder_host, clowder_key, clowder_user, clowder_pass, space_id,
+                                                   c_sensor, c_year, c_month, c_date, ds)
+                    logger.info("dataset %s id: %s" % (ds, dsid))
+                except Exception as e:
+                    logger.error("[%s] could not build hierarchy: %s" % (ds, str(e)))
+                    response = "RETRY"
+                    continue
 
-                dsFileList = fetchDatasetFileList(dsid, sess)
                 if dsid:
+                    dsFileList = fetchDatasetFileList(dsid, sess)
                     # Only send files not already present in dataset by path
                     for queued in filesQueued:
                         alreadyStored = False
@@ -395,8 +391,8 @@ def notifyClowderOfCompletedTask(task):
                                          data=json.dumps(md))
 
                         if dsmd.status_code != 200:
-                            logger.error("- cannot add dataset metadata (%s: %s)" % (dsmd.status_code, dsmd.text))
-                            return False
+                            logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
+                            response = "RETRY"
                         else:
                             if datasetMDFile:
                                 logger.info("++ added metadata from .json file to dataset %s" % ds, extra={
@@ -410,7 +406,7 @@ def notifyClowderOfCompletedTask(task):
                                 writeTaskToDatabase(updatedTask)
                             else:
                                 # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
-                                logger.info("++ added metadata to dataset %s" % ds, extra={
+                                logger.info("++ [%s] added metadata" % ds, extra={
                                     "dataset_name": ds,
                                     "dataset_id": dsid,
                                     "action": "METADATA ADDED",
@@ -435,29 +431,27 @@ def notifyClowderOfCompletedTask(task):
                                        data=content)
 
                         if fi.status_code != 200:
-                            logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.text))
-                            return False
+                            logger.error("[%s] failed to attach files (%s: %s)" % (ds, fi.status_code, fi.text))
+                            response = "RETRY"
                         else:
                             loaded = fi.json()
                             if 'ids' in loaded:
                                 for fobj in loaded['ids']:
-                                    logger.info("++ added file %s" % fobj['name'])
+                                    logger.info("++ [%s] added file %s" % (ds, fobj['name']))
                                     for fkey in updatedTask['contents'][ds]['files']:
                                         if updatedTask['contents'][ds]['files'][fkey]['name'] == fobj['name']:
                                             updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = fobj['id']
                                             break
                                     writeTaskToDatabase(updatedTask)
                             else:
-                                logger.info("++ added file %s" % lastFile)
+                                logger.info("++ [%s] added file %s" % (ds, lastFile))
                                 updatedTask['contents'][ds]['files'][lastFileKey]['clowder_id'] = loaded['id']
                                 writeTaskToDatabase(updatedTask)
-                else:
-                    logger.error("- dataset id for %s could not be found/created" % ds)
-                    allDone = False
-        return allDone
+
+        return response
     else:
-        logger.error("- cannot find clowder user credentials for Globus user %s" % globUser)
-        return False
+        logger.error("%s task: no credentials for Globus user %s" % (task['globus_id'], globUser))
+        return "ERROR"
 
 """Work on completed Globus transfers to process them into Clowder"""
 def clowderSubmissionLoop():
@@ -474,7 +468,7 @@ def clowderSubmissionLoop():
                 globusID = task['globus_id']
                 try: 
                     clowderDone = notifyClowderOfCompletedTask(task)
-                    if clowderDone:
+                    if clowderDone == "OK":
                         logger.info("%s task successfully processed!" % globusID, extra={
                             "globus_id": globusID,
                             "action": "PROCESSING COMPLETE"
@@ -482,23 +476,23 @@ def clowderSubmissionLoop():
                         task['status'] = 'PROCESSED'
                         writeTaskToDatabase(task)
                     else:
-                        logger.error("%s not successfully sent; marking ERROR" % globusID)
-                        task['status'] = 'ERROR'
+                        logger.error("%s not successfully processed; marking %s" % (globusID, clowderDone))
+                        task['status'] = clowderDone
                         writeTaskToDatabase(task)
                 except Exception as e:
-                    logger.error("Exception processing task %s; returning to queue" % globusID, str(e))
-                    task['status'] = 'FAILED'
+                    logger.error("Exception processing task %s; marking ERROR" % globusID, str(e))
+                    task['status'] = 'ERROR'
                     writeTaskToDatabase(task)
    
                 task = getNextUnprocessedTask()
   
             # Next attempt to handle any ERROR tasks a second time
-            task = getNextUnprocessedTask("ERROR")
+            task = getNextUnprocessedTask("RETRY")
             while task:
                 globusID = task['globus_id']
                 try: 
                     clowderDone = notifyClowderOfCompletedTask(task)
-                    if clowderDone:
+                    if clowderDone == "OK":
                         logger.info("%s task successfully processed!" % globusID, extra={
                             "globus_id": globusID,
                             "action": "PROCESSING COMPLETE"
@@ -506,15 +500,15 @@ def clowderSubmissionLoop():
                         task['status'] = 'PROCESSED'
                         writeTaskToDatabase(task)
                     else:
-                        logger.error("%s ERROR processing unsuccessful; returning to queue" % globusID)
-                        task['status'] = 'SUCCEEDED'
+                        logger.error("%s not successfully processed; marking %s" % (globusID, clowderDone))
+                        task['status'] = clowderDone
                         writeTaskToDatabase(task)
                 except Exception as e:
-                    logger.error("Exception processing task %s; returning to queue" % globusID, str(e))
-                    task['status'] = 'FAILED'
+                    logger.error("Exception processing task %s; marking ERROR" % globusID, str(e))
+                    task['status'] = 'ERROR'
                     writeTaskToDatabase(task)
  
-                task = getNextUnprocessedTask("ERROR")
+                task = getNextUnprocessedTask("RETRY")
 
             clowderWait = 0
 
