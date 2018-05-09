@@ -207,7 +207,7 @@ def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
 
     try:
         curs = psql_conn.cursor()
-        logger.debug("Fetching next unprocessed task from PostgreSQL...")
+        logger.debug("Fetching next %s task from PostgreSQL..." % status)
         curs.execute(q_fetch)
         for result in curs:
             nextTask = {
@@ -220,8 +220,9 @@ def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
             }
         curs.close()
     except Exception as e:
-        logger.error("Exception fetching task next task %s" % str(e))
+        logger.error("Exception fetching task: %s" % str(e))
 
+    logger.debug("Found task %s [%s]" % (nextTask['globus_id'], nextTask['completed']))
     return nextTask
 
 """Write dataset (name -> clowder_id) mapping to PostgreSQL database"""
@@ -271,6 +272,8 @@ def notifyClowderOfCompletedTask(task):
         clowder_pass = userMap[globUser]['clowder_pass']
         clowder_id = userMap[globUser]['clowder_id']
         clowder_context = userMap[globUser]['context']
+        if not clowder_host.endswith("/"):
+            clowder_host += "/"
 
         sess = requests.Session()
         sess.auth = (clowder_user, clowder_pass)
