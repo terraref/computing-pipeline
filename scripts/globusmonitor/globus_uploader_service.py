@@ -272,8 +272,6 @@ def notifyClowderOfCompletedTask(task):
         clowder_pass = userMap[globUser]['clowder_pass']
         clowder_id = userMap[globUser]['clowder_id']
         clowder_context = userMap[globUser]['context']
-        if not clowder_host.endswith("/"):
-            clowder_host += "/"
 
         sess = requests.Session()
         sess.auth = (clowder_user, clowder_pass)
@@ -362,7 +360,8 @@ def notifyClowderOfCompletedTask(task):
 
                 # Get dataset from clowder, or create & associate with collections
                 try:
-                    dsid = build_dataset_hierarchy(clowder_host, clowder_key, clowder_user, clowder_pass, space_id,
+                    hierarchy_host = clowder_host + ("/" if not clowder_host.endswith("/") else "")
+                    dsid = build_dataset_hierarchy(hierarchy_host, clowder_key, clowder_user, clowder_pass, space_id,
                                                    c_sensor, c_year, c_month, c_date, ds)
                     logger.info("dataset %s id: %s" % (ds, dsid))
                 except Exception as e:
@@ -397,7 +396,7 @@ def notifyClowderOfCompletedTask(task):
                                          headers={'Content-Type':'application/json'},
                                          data=json.dumps(md))
 
-                        if dsmd.status_code in [502, 504]:
+                        if dsmd.status_code in [500, 502, 504]:
                             logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
                             response = "RETRY"
                         elif dsmd.status_code != 200:
@@ -440,7 +439,7 @@ def notifyClowderOfCompletedTask(task):
                                        headers={'Content-Type':header},
                                        data=content)
 
-                        if fi.status_code in [502, 504]:
+                        if fi.status_code in [500, 502, 504]:
                             logger.error("[%s] failed to attach files (%s: %s)" % (ds, fi.status_code, fi.text))
                             response = "RETRY"
                         if fi.status_code != 200:
