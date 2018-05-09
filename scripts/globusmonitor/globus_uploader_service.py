@@ -15,6 +15,7 @@ from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
 
 from terrautils.metadata import clean_metadata
+from terrautils.extractors import build_dataset_hierarchy
 
 rootPath = "/home/globusmonitor"
 
@@ -42,13 +43,6 @@ Config file has 2 important entries which do not have default values:
 """
 config = {}
 
-"""Maps dataset/collection name to clowder UUID
-{
-    "name": "UUID"
-}
-"""
-datasetMap = {}
-collectionMap = {}
 
 # ----------------------------------------------------------
 # SHARED UTILS
@@ -66,18 +60,6 @@ def safeCopy(obj):
             time.sleep(0.1)
 
     return newObj
-
-"""If metadata keys have periods in them, Clowder will reject the metadata"""
-def clean_json_keys(jsonobj):
-    clean_json = {}
-    for key in jsonobj.keys():
-        try:
-            jsonobj[key].keys() # Is this a json object?
-            clean_json[key.replace(".","_")] = clean_json_keys(jsonobj[key])
-        except:
-            clean_json[key.replace(".","_")] = jsonobj[key]
-
-    return clean_json
 
 """Attempt to lock a file so API and monitor don't write at once, and wait if unable"""
 def lockFile(f):
@@ -115,63 +97,6 @@ def loadJsonFile(filename):
         logger.error("- unable to open %s" % filename)
         return {}
 
-"""Find dataset id if dataset exists, creating if necessary"""
-def fetchDatasetByName(datasetName, sess, spaceOverrideId=None):
-    if datasetName in datasetMap:
-        return datasetMap[datasetName]
-    else:
-        # Get names of collection hierarchy
-        if datasetName.find(" - ") > -1:
-            # e.g. "co2Sensor - 2016-12-25" or "VNIR - 2016-12-25__12-32-42-123"
-            c_sensor = datasetName.split(" - ")[0]
-            c_date = datasetName.split(" - ")[1]
-            c_year = c_sensor + " - " + c_date.split('-')[0]
-            c_month = c_year+"-"+c_date.split('-')[1]
-            if c_date.find("__") == -1:
-                # If we only have a date and not a timestamp, don't create date collection
-                c_date = None
-            else:
-                c_date = c_sensor + " - " + c_date.split("__")[0]
-        else:
-            c_sensor, c_date, c_year, c_month = None, None, None, None
-
-        id_sensor = fetchCollectionByName(c_sensor, sess, spaceOverrideId) if c_sensor else None
-        id_date = fetchCollectionByName(c_date, sess, spaceOverrideId) if c_date else None
-        id_year = fetchCollectionByName(c_year, sess, spaceOverrideId) if c_year else None
-        id_month = fetchCollectionByName(c_month, sess, spaceOverrideId) if c_month else None
-        if id_year and id_year['created']:
-            associateChildCollection(id_sensor['id'], id_year['id'], sess)
-        if id_month and id_month['created']:
-            associateChildCollection(id_year['id'], id_month['id'], sess)
-        if id_date and id_date['created']:
-            associateChildCollection(id_month['id'], id_date['id'], sess)
-
-        if not spaceOverrideId and config['clowder']['primary_space'] != "":
-            spaceOverrideId = config['clowder']['primary_space']
-        spaceId = ', "space": ["%s"]' % spaceOverrideId if spaceOverrideId else ''
-
-        if id_date:
-            dataObj = '{"name": "%s", "collection": ["%s"]%s}' % (datasetName, id_date['id'], spaceId)
-        else:
-            dataObj = '{"name": "%s", "collection": ["%s"]%s}' % (datasetName, id_month['id'], spaceId)
-        ds = sess.post(config['clowder']['host']+"/api/datasets/createempty",
-                                  headers={"Content-Type": "application/json"},
-                                  data=dataObj)
-
-        if ds.status_code == 200:
-            dsid = ds.json()['id']
-            datasetMap[datasetName] = dsid
-            writeDatasetRecordToDatabase(datasetName, dsid)
-            logger.info("++ created dataset %s (%s)" % (datasetName, dsid), extra={
-                "dataset_id": dsid,
-                "dataset_name": datasetName,
-                "action": "DATASET CREATED"
-            })
-            return dsid
-        else:
-            logger.error("- cannot create dataset (%s: %s)" % (ds.status_code, ds.text))
-            return None
-
 """Find list of file objects in a given dataset"""
 def fetchDatasetFileList(datasetId, requestsSession):
     clowkey = config['clowder']['secret_key']
@@ -183,48 +108,6 @@ def fetchDatasetFileList(datasetId, requestsSession):
     else:
         logger.error("- cannot find file list for dataset %s" % datasetId)
         return []
-
-"""Find dataset id if dataset exists, creating if necessary"""
-def fetchCollectionByName(collectionName, requestsSession, spaceOverrideId=None):
-    if collectionName in collectionMap:
-        return {
-            "id": collectionMap[collectionName],
-            "created": False
-        }
-    if collectionName not in collectionMap:
-        coll = requestsSession.post(config['clowder']['host']+"/api/collections",
-                                    headers={"Content-Type": "application/json"},
-                                    data='{"name": "%s", "description": ""}' % collectionName)
-        time.sleep(1)
-
-        if coll.status_code == 200:
-            collid = coll.json()['id']
-            collectionMap[collectionName] = collid
-            writeCollectionRecordToDatabase(collectionName, collid)
-            logger.info("++ created collection %s (%s)" % (collectionName, collid), extra={
-                "collection_id": collid,
-                "collection_name": collectionName,
-                "action": "CREATED COLLECTION"
-            })
-            # Add new collection to primary space if defined
-            if not spaceOverrideId and config['clowder']['primary_space'] != "":
-                spaceOverrideId = config['clowder']['primary_space']
-
-            if spaceOverrideId:
-                requestsSession.post(config['clowder']['host']+"/api/spaces/%s/addCollectionToSpace/%s" %
-                                     (spaceOverrideId, collid))
-            return {
-                "id": collid,
-                "created": True
-            }
-        else:
-            logger.error("- cannot create collection (%s: %s)" % (coll.status_code, coll.text))
-            return None
-
-"""Add child collection to parent collection"""
-def associateChildCollection(parentId, childId, requestsSession):
-    requestsSession.post(config['clowder']['host']+"/api/collections/%s/addSubCollection/%s" %
-                         (parentId, childId))
 
 
 # ----------------------------------------------------------
@@ -311,10 +194,14 @@ def writeTaskToDatabase(task):
     curs.close()
 
 """Fetch all Globus tasks with a particular status"""
-def getNextUnprocessedTask(status="SUCCEEDED"):
+def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
 
     # Use Common Table Expression to update status to PENDING and return row at the same time
-    q_fetch = "WITH cte AS (SELECT globus_id FROM globus_tasks where STATUS = '%s' ORDER BY completed ASC LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE globus_tasks gt  SET status = 'PENDING' FROM cte WHERE gt.globus_id = cte.globus_id RETURNING *" %status
+    if reverse:
+        q_fetch = "WITH cte AS (SELECT globus_id FROM globus_tasks where STATUS = '%s' ORDER BY completed DESC LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE globus_tasks gt  SET status = 'PENDING' FROM cte WHERE gt.globus_id = cte.globus_id RETURNING *" %status
+
+    else:
+        q_fetch = "WITH cte AS (SELECT globus_id FROM globus_tasks where STATUS = '%s' ORDER BY completed ASC LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE globus_tasks gt  SET status = 'PENDING' FROM cte WHERE gt.globus_id = cte.globus_id RETURNING *" %status
 
     nextTask = None
 
@@ -336,25 +223,6 @@ def getNextUnprocessedTask(status="SUCCEEDED"):
         logger.error("Exception fetching task next task %s" % str(e))
 
     return nextTask
-
-"""Fetch mappings of dataset/collection name to Clowder ID"""
-def readRecordsFromDatabase():
-    q_fetch_datas = "SELECT * FROM datasets;"
-    # TODO: Find a better solution for memory issues
-    q_fetch_datas = "SELECT * from datasets where name like '%- 2017-%';"
-    q_detch_colls = "SELECT * FROM collections;"
-
-    curs = psql_conn.cursor()
-    logger.debug("Fetching dataset mappings from PostgreSQL...")
-    curs.execute(q_fetch_datas)
-    for currds in curs:
-        datasetMap[currds[0]] = currds[1]
-
-    logger.debug("Fetching collection mappings from PostgreSQL...")
-    curs.execute(q_detch_colls)
-    for currco in curs:
-        collectionMap[currco[0]] = currco[1]
-    curs.close()
 
 """Write dataset (name -> clowder_id) mapping to PostgreSQL database"""
 def writeDatasetRecordToDatabase(dataset_name, dataset_id):
@@ -397,22 +265,23 @@ def notifyClowderOfCompletedTask(task):
             "globus_id": task['globus_id'],
             "action": "NOTIFYING CLOWDER OF COMPLETION"
         })
-        clowderHost = config['clowder']['host']
-        clowderUser = userMap[globUser]['clowder_user']
-        clowderPass = userMap[globUser]['clowder_pass']
-        clowderId = userMap[globUser]['clowder_id']
-        clowderContext = userMap[globUser]['context']
+        clowder_host = config['clowder']['host']
+        clowder_key  = config['clowder']['secret_key']
+        clowder_user = userMap[globUser]['clowder_user']
+        clowder_pass = userMap[globUser]['clowder_pass']
+        clowder_id = userMap[globUser]['clowder_id']
+        clowder_context = userMap[globUser]['context']
 
         sess = requests.Session()
-        sess.auth = (clowderUser, clowderPass)
+        sess.auth = (clowder_user, clowder_pass)
 
-        # This will be false if any files in the task have errors; task will be revisited
-        allDone = True
+        # Response can be OK, RETRY or ERROR
+        response = "OK"
 
         # Prepare upload object with all file(s) found
         updatedTask = safeCopy(task)
 
-        spaceoverride = task['contents']['space_id'] if 'space_id' in task['contents'] else None
+        space_id = task['contents']['space_id'] if 'space_id' in task['contents'] else config['clowder']['primary_space']
         for ds in task['contents']:
             # Skip any unexpected files at root level, e.g.
             #   /home/clowder/sites/ua-mac/raw_data/GetFluorescenceValues.m
@@ -430,13 +299,13 @@ def notifyClowderOfCompletedTask(task):
 
             # Assign dataset-level metadata if provided
             if "md" in task['contents'][ds]:
-                datasetMD = clean_json_keys(task['contents'][ds]['md'])
+                datasetMD = task['contents'][ds]['md']
 
             # Add local files to dataset by path
             if 'files' in task['contents'][ds]:
                 for fkey in task['contents'][ds]['files']:
                     fobj = task['contents'][ds]['files'][fkey]
-                    if 'clowder_id' not in fobj or fobj['clowder_id'] == "" or fobj['clowder_id'] == "FILE NOT FOUND":
+                    if 'clowder_id' not in fobj or fobj['clowder_id'] == "":
                         if os.path.exists(fobj['path']):
                             if fobj['name'].find("metadata.json") == -1:
                                 if 'md' in fobj:
@@ -450,16 +319,18 @@ def notifyClowderOfCompletedTask(task):
                                 lastFileKey = fkey
                             else:
                                 try:
-                                    datasetMD = clean_json_keys(loadJsonFile(fobj['path']))
+                                    datasetMD = loadJsonFile(fobj['path'])
                                     datasetMDFile = fkey
                                 except:
-                                    logger.error("could not decode JSON from %s" % fobj['path'])
+                                    logger.error("[%s] could not decode JSON from %s" % (ds, fobj['path']))
                                     updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = "FILE NOT FOUND"
                                     writeTaskToDatabase(updatedTask)
+                                    if response == "OK": response = "ERROR" # Don't overwrite a RETRY
                         else:
-                            logger.info("%s dataset %s lists nonexistent file: %s" % (task['globus_id'], ds, fobj['path']))
+                            logger.error("[%s] file not found: %s" % (ds, fobj['path']))
                             updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = "FILE NOT FOUND"
                             writeTaskToDatabase(updatedTask)
+                            if response == "OK": response = "ERROR" # Don't overwrite a RETRY
 
             if len(filesQueued)>0 or datasetMD:
                 # Try to clean metadata first
@@ -467,13 +338,37 @@ def notifyClowderOfCompletedTask(task):
                     # Upload metadata
                     try:
                         cleaned_dsmd = clean_metadata(datasetMD, sensorname)
-                    except:
-                        logger.error("- error cleaning metadata for %s" % ds)
-                        return False
+                    except Exception as e:
+                        logger.error("[%s] could not clean md: %s" % (ds, str(e)))
+                        # TODO: possible this could be recoverable with more info from clean_metadata
+                        if response == "OK": response = "ERROR" # Don't overwrite a RETRY
 
-                dsid = fetchDatasetByName(ds, sess, spaceoverride)
-                dsFileList = fetchDatasetFileList(dsid, sess)
+                if ds.find(" - ") > -1:
+                    # e.g. "co2Sensor - 2016-12-25" or "VNIR - 2016-12-25__12-32-42-123"
+                    c_sensor = ds.split(" - ")[0]
+                    c_date  = ds.split(" - ")[1]
+                    c_year  = c_date.split('-')[0]
+                    c_month = c_date.split('-')[1]
+                    if c_date.find("__") == -1:
+                        # If we only have a date and not a timestamp, don't create date collection
+                        c_date = None
+                    else:
+                        c_date = c_date.split("__")[0]
+                else:
+                    c_sensor, c_date, c_year, c_month = ds, None, None, None
+
+                # Get dataset from clowder, or create & associate with collections
+                try:
+                    dsid = build_dataset_hierarchy(clowder_host, clowder_key, clowder_user, clowder_pass, space_id,
+                                                   c_sensor, c_year, c_month, c_date, ds)
+                    logger.info("dataset %s id: %s" % (ds, dsid))
+                except Exception as e:
+                    logger.error("[%s] could not build hierarchy: %s" % (ds, str(e)))
+                    response = "RETRY"
+                    continue
+
                 if dsid:
+                    dsFileList = fetchDatasetFileList(dsid, sess)
                     # Only send files not already present in dataset by path
                     for queued in filesQueued:
                         alreadyStored = False
@@ -488,20 +383,23 @@ def notifyClowderOfCompletedTask(task):
                     if datasetMD:
                         md = {
                             "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
-                                         {"@vocab": clowderContext}],
+                                         {"@vocab": clowder_context}],
                             "content": cleaned_dsmd,
                             "agent": {
                                 "@type": "cat:user",
-                                "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowderId
+                                "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_id
                             }
                         }
-                        dsmd = sess.post(clowderHost+"/api/datasets/"+dsid+"/metadata.jsonld",
+                        dsmd = sess.post(clowder_host+"/api/datasets/"+dsid+"/metadata.jsonld",
                                          headers={'Content-Type':'application/json'},
                                          data=json.dumps(md))
 
-                        if dsmd.status_code != 200:
-                            logger.error("- cannot add dataset metadata (%s: %s)" % (dsmd.status_code, dsmd.text))
-                            return False
+                        if dsmd.status_code in [502, 504]:
+                            logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
+                            response = "RETRY"
+                        elif dsmd.status_code != 200:
+                            logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
+                            response = "ERROR"
                         else:
                             if datasetMDFile:
                                 logger.info("++ added metadata from .json file to dataset %s" % ds, extra={
@@ -515,7 +413,7 @@ def notifyClowderOfCompletedTask(task):
                                 writeTaskToDatabase(updatedTask)
                             else:
                                 # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
-                                logger.info("++ added metadata to dataset %s" % ds, extra={
+                                logger.info("++ [%s] added metadata" % ds, extra={
                                     "dataset_name": ds,
                                     "dataset_id": dsid,
                                     "action": "METADATA ADDED",
@@ -535,34 +433,35 @@ def notifyClowderOfCompletedTask(task):
                         })
 
                         (content, header) = encode_multipart_formdata(fileFormData)
-                        fi = sess.post(clowderHost+"/api/uploadToDataset/"+dsid,
+                        fi = sess.post(clowder_host+"/api/uploadToDataset/"+dsid,
                                        headers={'Content-Type':header},
                                        data=content)
 
+                        if fi.status_code in [502, 504]:
+                            logger.error("[%s] failed to attach files (%s: %s)" % (ds, fi.status_code, fi.text))
+                            response = "RETRY"
                         if fi.status_code != 200:
-                            logger.error("- cannot upload files (%s - %s)" % (fi.status_code, fi.text))
-                            return False
+                            logger.error("[%s] failed to attach files (%s: %s)" % (ds, fi.status_code, fi.text))
+                            response = "ERROR"
                         else:
                             loaded = fi.json()
                             if 'ids' in loaded:
                                 for fobj in loaded['ids']:
-                                    logger.info("++ added file %s" % fobj['name'])
+                                    logger.info("++ [%s] added file %s" % (ds, fobj['name']))
                                     for fkey in updatedTask['contents'][ds]['files']:
                                         if updatedTask['contents'][ds]['files'][fkey]['name'] == fobj['name']:
                                             updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = fobj['id']
                                             break
                                     writeTaskToDatabase(updatedTask)
                             else:
-                                logger.info("++ added file %s" % lastFile)
+                                logger.info("++ [%s] added file %s" % (ds, lastFile))
                                 updatedTask['contents'][ds]['files'][lastFileKey]['clowder_id'] = loaded['id']
                                 writeTaskToDatabase(updatedTask)
-                else:
-                    logger.error("- dataset id for %s could not be found/created" % ds)
-                    allDone = False
-        return allDone
+
+        return response
     else:
-        logger.error("- cannot find clowder user credentials for Globus user %s" % globUser)
-        return False
+        logger.error("%s task: no credentials for Globus user %s" % (task['globus_id'], globUser))
+        return "ERROR"
 
 """Work on completed Globus transfers to process them into Clowder"""
 def clowderSubmissionLoop():
@@ -579,7 +478,7 @@ def clowderSubmissionLoop():
                 globusID = task['globus_id']
                 try: 
                     clowderDone = notifyClowderOfCompletedTask(task)
-                    if clowderDone:
+                    if clowderDone == "OK":
                         logger.info("%s task successfully processed!" % globusID, extra={
                             "globus_id": globusID,
                             "action": "PROCESSING COMPLETE"
@@ -587,23 +486,23 @@ def clowderSubmissionLoop():
                         task['status'] = 'PROCESSED'
                         writeTaskToDatabase(task)
                     else:
-                        logger.error("%s not successfully sent; marking ERROR" % globusID)
-                        task['status'] = 'ERROR'
+                        logger.error("%s not successfully processed; marking %s" % (globusID, clowderDone))
+                        task['status'] = clowderDone
                         writeTaskToDatabase(task)
                 except Exception as e:
-                    logger.error("Exception processing task %s; returning to queue" % globusID, str(e))
-                    task['status'] = 'FAILED'
+                    logger.error("Exception processing task %s; marking ERROR" % globusID, str(e))
+                    task['status'] = 'ERROR'
                     writeTaskToDatabase(task)
    
                 task = getNextUnprocessedTask()
   
             # Next attempt to handle any ERROR tasks a second time
-            task = getNextUnprocessedTask("ERROR")
+            task = getNextUnprocessedTask("RETRY", reverse=True)
             while task:
                 globusID = task['globus_id']
                 try: 
                     clowderDone = notifyClowderOfCompletedTask(task)
-                    if clowderDone:
+                    if clowderDone == "OK":
                         logger.info("%s task successfully processed!" % globusID, extra={
                             "globus_id": globusID,
                             "action": "PROCESSING COMPLETE"
@@ -611,15 +510,15 @@ def clowderSubmissionLoop():
                         task['status'] = 'PROCESSED'
                         writeTaskToDatabase(task)
                     else:
-                        logger.error("%s ERROR processing unsuccessful; returning to queue" % globusID)
-                        task['status'] = 'SUCCEEDED'
+                        logger.error("%s not successfully processed; marking %s" % (globusID, clowderDone))
+                        task['status'] = clowderDone
                         writeTaskToDatabase(task)
                 except Exception as e:
-                    logger.error("Exception processing task %s; returning to queue" % globusID, str(e))
-                    task['status'] = 'FAILED'
+                    logger.error("Exception processing task %s; marking ERROR" % globusID, str(e))
+                    task['status'] = 'ERROR'
                     writeTaskToDatabase(task)
  
-                task = getNextUnprocessedTask("ERROR")
+                task = getNextUnprocessedTask("RETRY", reverse=True)
 
             clowderWait = 0
 
@@ -645,7 +544,6 @@ if __name__ == '__main__':
     logger = logging.getLogger('gantry')
 
     psql_conn = connectToPostgres()
-    readRecordsFromDatabase()
 
     logger.info("- initializing service")
     # Create thread for service to begin monitoring
