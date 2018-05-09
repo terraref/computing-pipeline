@@ -275,7 +275,7 @@ def notifyClowderOfCompletedTask(task):
         sess = requests.Session()
         sess.auth = (clowder_user, clowder_pass)
 
-        # This will be false if any files in the task have errors; task will be revisited
+        # Response can be OK, RETRY or ERROR
         response = "OK"
 
         # Prepare upload object with all file(s) found
