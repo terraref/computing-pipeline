@@ -394,9 +394,12 @@ def notifyClowderOfCompletedTask(task):
                                          headers={'Content-Type':'application/json'},
                                          data=json.dumps(md))
 
-                        if dsmd.status_code != 200:
+                        if dsmd.status_code in [502, 504]:
                             logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
                             response = "RETRY"
+                        elif dsmd.status_code != 200:
+                            logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
+                            response = "ERROR"
                         else:
                             if datasetMDFile:
                                 logger.info("++ added metadata from .json file to dataset %s" % ds, extra={
@@ -434,9 +437,12 @@ def notifyClowderOfCompletedTask(task):
                                        headers={'Content-Type':header},
                                        data=content)
 
-                        if fi.status_code != 200:
+                        if fi.status_code in [502, 504]:
                             logger.error("[%s] failed to attach files (%s: %s)" % (ds, fi.status_code, fi.text))
                             response = "RETRY"
+                        if fi.status_code != 200:
+                            logger.error("[%s] failed to attach files (%s: %s)" % (ds, fi.status_code, fi.text))
+                            response = "ERROR"
                         else:
                             loaded = fi.json()
                             if 'ids' in loaded:
