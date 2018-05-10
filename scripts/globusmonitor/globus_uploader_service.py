@@ -14,6 +14,7 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
 
+from pyclowder.datasets import download_metadata
 from terrautils.metadata import clean_metadata
 from terrautils.extractors import build_dataset_hierarchy
 
@@ -222,7 +223,10 @@ def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
     except Exception as e:
         logger.error("Exception fetching task: %s" % str(e))
 
-    logger.debug("Found task %s [%s]" % (nextTask['globus_id'], nextTask['completed']))
+    if nextTask:
+        logger.debug("Found task %s [%s]" % (nextTask['globus_id'], nextTask['completed']))
+    else:
+        logger.debug("No task found.")
     return nextTask
 
 """Write dataset (name -> clowder_id) mapping to PostgreSQL database"""
@@ -383,46 +387,55 @@ def notifyClowderOfCompletedTask(task):
                             fileFormData.append(("file",'{"path":"%s"%s}' % (queued[0], queued[1])))
 
                     if datasetMD:
-                        md = {
-                            "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
-                                         {"@vocab": clowder_context}],
-                            "content": cleaned_dsmd,
-                            "agent": {
-                                "@type": "cat:user",
-                                "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_id
+                        # Check for existing metadata from the site user
+                        alreadyAttached = False
+                        md_existing = download_metadata(None, clowder_host, clowder_key, dsid)
+                        for mdobj in md_existing:
+                            if mdobj['agent']['user_id'] == "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_id:
+                                logger.info("- skipping metadata (already attached)")
+                                alreadyAttached = True
+                                break
+                        if not alreadyAttached:
+                            md = {
+                                "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
+                                             {"@vocab": clowder_context}],
+                                "content": cleaned_dsmd,
+                                "agent": {
+                                    "@type": "cat:user",
+                                    "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_id
+                                }
                             }
-                        }
-                        dsmd = sess.post(clowder_host+"/api/datasets/"+dsid+"/metadata.jsonld",
-                                         headers={'Content-Type':'application/json'},
-                                         data=json.dumps(md))
+                            dsmd = sess.post(clowder_host+"/api/datasets/"+dsid+"/metadata.jsonld",
+                                             headers={'Content-Type':'application/json'},
+                                             data=json.dumps(md))
 
-                        if dsmd.status_code in [500, 502, 504]:
-                            logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
-                            response = "RETRY"
-                        elif dsmd.status_code != 200:
-                            logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
-                            response = "ERROR"
-                        else:
-                            if datasetMDFile:
-                                logger.info("++ added metadata from .json file to dataset %s" % ds, extra={
-                                    "dataset_name": ds,
-                                    "dataset_id": dsid,
-                                    "action": "METADATA ADDED",
-                                    "metadata": datasetMD
-                                })
-                                updatedTask['contents'][ds]['files'][datasetMDFile]['metadata_loaded'] = True
-                                updatedTask['contents'][ds]['files'][datasetMDFile]['clowder_id'] = "attached to dataset"
-                                writeTaskToDatabase(updatedTask)
+                            if dsmd.status_code in [500, 502, 504]:
+                                logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
+                                response = "RETRY"
+                            elif dsmd.status_code != 200:
+                                logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
+                                response = "ERROR"
                             else:
-                                # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
-                                logger.info("++ [%s] added metadata" % ds, extra={
-                                    "dataset_name": ds,
-                                    "dataset_id": dsid,
-                                    "action": "METADATA ADDED",
-                                    "metadata": datasetMD
-                                })
-                                del updatedTask['contents'][ds]['md']
-                                writeTaskToDatabase(updatedTask)
+                                if datasetMDFile:
+                                    logger.info("++ added metadata from .json file to dataset %s" % ds, extra={
+                                        "dataset_name": ds,
+                                        "dataset_id": dsid,
+                                        "action": "METADATA ADDED",
+                                        "metadata": datasetMD
+                                    })
+                                    updatedTask['contents'][ds]['files'][datasetMDFile]['metadata_loaded'] = True
+                                    updatedTask['contents'][ds]['files'][datasetMDFile]['clowder_id'] = "attached to dataset"
+                                    writeTaskToDatabase(updatedTask)
+                                else:
+                                    # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
+                                    logger.info("++ [%s] added metadata" % ds, extra={
+                                        "dataset_name": ds,
+                                        "dataset_id": dsid,
+                                        "action": "METADATA ADDED",
+                                        "metadata": datasetMD
+                                    })
+                                    del updatedTask['contents'][ds]['md']
+                                    writeTaskToDatabase(updatedTask)
 
                     if len(fileFormData)>0:
                         # Upload collected files for this dataset
