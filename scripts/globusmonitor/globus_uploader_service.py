@@ -389,7 +389,7 @@ def notifyClowderOfCompletedTask(task):
                     if datasetMD:
                         # Check for existing metadata from the site user
                         alreadyAttached = False
-                        md_existing = download_metadata(None, clowder_host, clowder_key, dsid)
+                        md_existing = download_metadata(None, hierarchy_host, clowder_key, dsid)
                         for mdobj in md_existing:
                             if mdobj['agent']['user_id'] == "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_id:
                                 logger.info("- skipping metadata (already attached)")
@@ -505,7 +505,7 @@ def clowderSubmissionLoop():
                         task['status'] = clowderDone
                         writeTaskToDatabase(task)
                 except Exception as e:
-                    logger.error("Exception processing task %s; marking ERROR" % globusID, str(e))
+                    logger.error("Exception processing task %s; marking ERROR (%s)" % (globusID, str(e)))
                     task['status'] = 'ERROR'
                     writeTaskToDatabase(task)
    
