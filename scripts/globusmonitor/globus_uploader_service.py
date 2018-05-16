@@ -302,6 +302,8 @@ def notifyClowderOfCompletedTask(task):
             lastFileKey = None
             sensorname = ds.split(" - ")[0]
 
+            logger.info("%s -- Processing [%s]" % (task['globus_id'], ds))
+
             # Assign dataset-level metadata if provided
             if "md" in task['contents'][ds]:
                 datasetMD = task['contents'][ds]['md']
@@ -329,11 +331,13 @@ def notifyClowderOfCompletedTask(task):
                                 except:
                                     logger.error("[%s] could not decode JSON from %s" % (ds, fobj['path']))
                                     updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = "FILE NOT FOUND"
+                                    updatedTask['contents'][ds]['files'][fkey]['error'] = "Failed to load JSON"
                                     writeTaskToDatabase(updatedTask)
                                     if response == "OK": response = "ERROR" # Don't overwrite a RETRY
                         else:
                             logger.error("[%s] file not found: %s" % (ds, fobj['path']))
                             updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = "FILE NOT FOUND"
+                            updatedTask['contents'][ds]['files'][fkey]['error'] = "File not found"
                             writeTaskToDatabase(updatedTask)
                             if response == "OK": response = "ERROR" # Don't overwrite a RETRY
 
@@ -345,6 +349,7 @@ def notifyClowderOfCompletedTask(task):
                         cleaned_dsmd = clean_metadata(datasetMD, sensorname)
                     except Exception as e:
                         logger.error("[%s] could not clean md: %s" % (ds, str(e)))
+                        task['contents'][ds]['error'] = "Count not clean metadata: %s" % str(e)
                         # TODO: possible this could be recoverable with more info from clean_metadata
                         if response == "OK": response = "ERROR" # Don't overwrite a RETRY
 
@@ -367,9 +372,10 @@ def notifyClowderOfCompletedTask(task):
                     hierarchy_host = clowder_host + ("/" if not clowder_host.endswith("/") else "")
                     dsid = build_dataset_hierarchy(hierarchy_host, clowder_key, clowder_user, clowder_pass, space_id,
                                                    c_sensor, c_year, c_month, c_date, ds)
-                    logger.info("dataset %s id: %s" % (ds, dsid))
+                    logger.info("   [%s] id: %s" % (ds, dsid))
                 except Exception as e:
                     logger.error("[%s] could not build hierarchy: %s" % (ds, str(e)))
+                    task['contents'][ds]['retry'] = "Count not build dataset hierarchy: %s" % str(e)
                     response = "RETRY"
                     continue
 
@@ -411,13 +417,15 @@ def notifyClowderOfCompletedTask(task):
 
                             if dsmd.status_code in [500, 502, 504]:
                                 logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
+                                updatedTask['contents'][ds]['files'][datasetMDFile]['retry'] = "%s: %s" % (dsmd.status_code, dsmd.text)
                                 response = "RETRY"
                             elif dsmd.status_code != 200:
                                 logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
+                                updatedTask['contents'][ds]['files'][datasetMDFile]['error'] = "%s: %s" % (dsmd.status_code, dsmd.text)
                                 response = "ERROR"
                             else:
                                 if datasetMDFile:
-                                    logger.info("++ added metadata from .json file to dataset %s" % ds, extra={
+                                    logger.info("   [%s] added metadata from .json file" % ds, extra={
                                         "dataset_name": ds,
                                         "dataset_id": dsid,
                                         "action": "METADATA ADDED",
@@ -428,7 +436,7 @@ def notifyClowderOfCompletedTask(task):
                                     writeTaskToDatabase(updatedTask)
                                 else:
                                     # Remove metadata from activeTasks on success even if file upload fails in next step, so we don't repeat md
-                                    logger.info("++ [%s] added metadata" % ds, extra={
+                                    logger.info("   [%s] added metadata" % ds, extra={
                                         "dataset_name": ds,
                                         "dataset_id": dsid,
                                         "action": "METADATA ADDED",
@@ -440,7 +448,7 @@ def notifyClowderOfCompletedTask(task):
                     if len(fileFormData)>0:
                         # Upload collected files for this dataset
                         # Boundary encoding from http://stackoverflow.com/questions/17982741/python-using-reuests-library-for-multipart-form-data
-                        logger.info("%s uploading unprocessed files belonging to %s" % (task['globus_id'], ds), extra={
+                        logger.info("   [%s] uploading unprocessed files" % ds, extra={
                             "dataset_id": dsid,
                             "dataset_name": ds,
                             "action": "UPLOADING FILES",
@@ -454,23 +462,35 @@ def notifyClowderOfCompletedTask(task):
 
                         if fi.status_code in [500, 502, 504]:
                             logger.error("[%s] failed to attach files (%s: %s)" % (ds, fi.status_code, fi.text))
+                            updatedTask['contents'][ds]['files'][datasetMDFile]['retry'] = "%s: %s" % (fi.status_code, fi.text)
                             response = "RETRY"
                         if fi.status_code != 200:
                             logger.error("[%s] failed to attach files (%s: %s)" % (ds, fi.status_code, fi.text))
+                            updatedTask['contents'][ds]['files'][datasetMDFile]['error'] = "%s: %s" % (fi.status_code, fi.text)
                             response = "ERROR"
                         else:
                             loaded = fi.json()
                             if 'ids' in loaded:
                                 for fobj in loaded['ids']:
-                                    logger.info("++ [%s] added file %s" % (ds, fobj['name']))
+                                    logger.info("   [%s] added file %s" % (ds, fobj['name']))
                                     for fkey in updatedTask['contents'][ds]['files']:
                                         if updatedTask['contents'][ds]['files'][fkey]['name'] == fobj['name']:
                                             updatedTask['contents'][ds]['files'][fkey]['clowder_id'] = fobj['id']
+                                            # remove any previous retry/error messages
+                                            if 'retry' in updatedTask['contents'][ds]['files'][fkey]:
+                                                del(updatedTask['contents'][ds]['files'][fkey]['retry'])
+                                            if 'error' in updatedTask['contents'][ds]['files'][fkey]:
+                                                del(updatedTask['contents'][ds]['files'][fkey]['error'])
                                             break
                                     writeTaskToDatabase(updatedTask)
                             else:
-                                logger.info("++ [%s] added file %s" % (ds, lastFile))
+                                logger.info("   [%s] added file %s" % (ds, lastFile))
                                 updatedTask['contents'][ds]['files'][lastFileKey]['clowder_id'] = loaded['id']
+                                # remove any previous retry/error messages
+                                if 'retry' in updatedTask['contents'][ds]['files'][lastFileKey]:
+                                    del(updatedTask['contents'][ds]['files'][lastFileKey]['retry'])
+                                if 'error' in updatedTask['contents'][ds]['files'][lastFileKey]:
+                                    del(updatedTask['contents'][ds]['files'][lastFileKey]['error'])
                                 writeTaskToDatabase(updatedTask)
 
         return response
