@@ -1,21 +1,12 @@
 #!/usr/bin/env python
 
-import json
-import re
-import os
-from numpy import asarray, rollaxis
-
 from pyclowder.utils import CheckMessage
-from pyclowder.datasets import download_metadata, get_info, upload_metadata
+from pyclowder.files import download_metadata, upload_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, load_json_file, \
     build_metadata, build_dataset_hierarchy
 from terrautils.betydb import add_arguments, get_sites, get_sites_by_latlon, submit_traits, \
     get_site_boundaries
-from terrautils.geostreams import create_datapoint_with_dependencies
-from terrautils.gdal import clip_raster, centroid_from_geojson
 from terrautils.metadata import get_extractor_metadata, get_terraref_metadata
-
-import terraref.stereo_rgb
 
 
 class BetyDBUploader(TerrarefExtractor):
@@ -32,7 +23,7 @@ class BetyDBUploader(TerrarefExtractor):
     def check_message(self, connector, host, secret_key, resource, parameters):
         self.start_check(resource)
 
-        md = download_metadata(connector, host, secret_key, resource['parent']['id'])
+        md = download_metadata(connector, host, secret_key, resource['id'])
         if get_extractor_metadata(md, self.extractor_info['name']) and not self.overwrite:
             self.log_skip(resource,"metadata indicates it was already processed")
             return CheckMessage.ignore
@@ -46,11 +37,11 @@ class BetyDBUploader(TerrarefExtractor):
         submit_traits(resource['local_paths'][0], betykey=self.bety_key)
 
         # Add metadata to original dataset indicating this was run
-        self.log_info(resource, "updating dataset metadata (%s)" % resource['parent']['id'])
-        ext_meta = build_metadata(host, self.extractor_info, resource['parent']['id'], {
+        self.log_info(resource, "updating file metadata (%s)" % resource['id'])
+        ext_meta = build_metadata(host, self.extractor_info, resource['id'], {
             "betydb_link": "https://terraref.ncsa.illinois.edu/bety/api/beta/variables?name=canopy_cover"
-        }, 'dataset')
-        upload_metadata(connector, host, secret_key, resource['parent']['id'], ext_meta)
+        }, 'file')
+        upload_metadata(connector, host, secret_key, resource['id'], ext_meta)
 
         self.end_message(resource)
 

@@ -2,10 +2,10 @@
 
 import json
 import csv
-from numpy import asarray, rollaxis
 
 from pyclowder.utils import CheckMessage
-from pyclowder.datasets import download_metadata, get_info, upload_metadata
+from pyclowder.datasets import get_info
+from pyclowder.files import download_metadata, upload_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, load_json_file, \
     build_metadata, build_dataset_hierarchy
 from terrautils.betydb import add_arguments, get_sites, get_sites_by_latlon, submit_traits, \
@@ -26,7 +26,7 @@ class GeostreamsUploader(TerrarefExtractor):
     def check_message(self, connector, host, secret_key, resource, parameters):
         self.start_check(resource)
 
-        md = download_metadata(connector, host, secret_key, resource['parent']['id'])
+        md = download_metadata(connector, host, secret_key, resource['id'])
         if get_extractor_metadata(md, self.extractor_info['name']) and not self.overwrite:
             self.log_skip(resource,"metadata indicates it was already processed")
             return CheckMessage.ignore
@@ -80,12 +80,12 @@ class GeostreamsUploader(TerrarefExtractor):
                 self.log_error(resource, '%s not found in CSV' % plotname)
 
         # Add metadata to original dataset indicating this was run
-        self.log_info(resource, "updating dataset metadata (%s)" % resource['parent']['id'])
-        ext_meta = build_metadata(host, self.extractor_info, resource['parent']['id'], {
+        self.log_info(resource, "updating file metadata (%s)" % resource['id'])
+        ext_meta = build_metadata(host, self.extractor_info, resource['id'], {
             "plots_processed": successful_plots,
             "plots_skipped": len(all_plots)-successful_plots
-        }, 'dataset')
-        upload_metadata(connector, host, secret_key, resource['parent']['id'], ext_meta)
+        }, 'file')
+        upload_metadata(connector, host, secret_key, resource['id'], ext_meta)
 
         self.end_message(resource)
 
