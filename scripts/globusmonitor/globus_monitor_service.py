@@ -106,6 +106,7 @@ def getStatus():
     return {
         "IN PROGRESS": countTasksByStatus("IN PROGRESS"),
         "SUCCEEDED": countTasksByStatus("SUCCEEDED"),
+        "PENDING": countTasksByStatus("PENDING"),
         "PROCESSED": countTasksByStatus("PROCESSED"),
         "RETRY": countTasksByStatus("RETRY"),
         "ERROR": countTasksByStatus("ERROR")
