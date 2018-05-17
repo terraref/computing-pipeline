@@ -386,7 +386,7 @@ def notifyClowderOfCompletedTask(task):
                         alreadyStored = False
                         for storedFile in dsFileList:
                             if queued[0] == storedFile['filepath']:
-                                logger.info("- skipping file %s (already uploaded)" % queued[0])
+                                logger.info("   skipping file %s (already uploaded)" % queued[0])
                                 alreadyStored = True
                                 break
                         if not alreadyStored:
@@ -398,7 +398,7 @@ def notifyClowderOfCompletedTask(task):
                         md_existing = download_metadata(None, hierarchy_host, clowder_key, dsid)
                         for mdobj in md_existing:
                             if mdobj['agent']['user_id'] == "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_id:
-                                logger.info("- skipping metadata (already attached)")
+                                logger.info("   skipping metadata (already attached)")
                                 alreadyAttached = True
                                 break
                         if not alreadyAttached:
