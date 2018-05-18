@@ -230,6 +230,7 @@ def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
         current_task = nextTask['globus_id']
         logger.debug("Found task %s [%s]" % (nextTask['globus_id'], nextTask['completed']))
     else:
+        current_task = None
         logger.debug("No task found.")
     return nextTask
 
