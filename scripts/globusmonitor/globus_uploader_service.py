@@ -363,7 +363,7 @@ def notifyClowderOfCompletedTask(task):
                         # If we only have a date and not a timestamp, don't create date collection
                         c_date = None
                     else:
-                        c_date = c_date.split("__")[0]
+                        c_date = c_date.split("__")[0].split("-")[2]
                 else:
                     c_sensor, c_date, c_year, c_month = ds, None, None, None
 
