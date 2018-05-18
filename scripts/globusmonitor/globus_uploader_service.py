@@ -415,7 +415,7 @@ def notifyClowderOfCompletedTask(task):
                                              headers={'Content-Type':'application/json'},
                                              data=json.dumps(md))
 
-                            if dsmd.status_code in [104, 500, 502, 504]:
+                            if dsmd.status_code in [500, 502, 504]:
                                 logger.error("[%s] failed to attach metadata (%s: %s)" % (ds, dsmd.status_code, dsmd.text))
                                 updatedTask['contents'][ds]['files'][datasetMDFile]['retry'] = "%s: %s" % (dsmd.status_code, dsmd.text)
                                 response = "RETRY"
@@ -460,7 +460,7 @@ def notifyClowderOfCompletedTask(task):
                                        headers={'Content-Type':header},
                                        data=content)
 
-                        if fi.status_code in [104, 500, 502, 504]:
+                        if fi.status_code in [500, 502, 504]:
                             logger.error("[%s] failed to attach files (%s: %s)" % (ds, fi.status_code, fi.text))
                             updatedTask['contents'][ds]['files'][datasetMDFile]['retry'] = "%s: %s" % (fi.status_code, fi.text)
                             response = "RETRY"
@@ -524,6 +524,15 @@ def clowderSubmissionLoop():
                         logger.error("%s not successfully processed; marking %s" % (globusID, clowderDone))
                         task['status'] = clowderDone
                         writeTaskToDatabase(task)
+                except SocketError as e:
+                    if e.errno != errno.ECONNRESET:
+                        logger.error("Exception processing task %s; marking ERROR (%s)" % (globusID, str(e)))
+                        task['status'] = 'ERROR'
+                        writeTaskToDatabase(task)
+                    else:
+                        logger.error("Connection reset on %s; marking RETRY (%s)" % (globusID, str(e)))
+                        task['status'] = 'RETRY'
+                        writeTaskToDatabase(task)
                 except Exception as e:
                     logger.error("Exception processing task %s; marking ERROR (%s)" % (globusID, str(e)))
                     task['status'] = 'ERROR'
@@ -547,6 +556,15 @@ def clowderSubmissionLoop():
                     else:
                         logger.error("%s not successfully processed; marking %s" % (globusID, clowderDone))
                         task['status'] = clowderDone
+                        writeTaskToDatabase(task)
+                except SocketError as e:
+                    if e.errno != errno.ECONNRESET:
+                        logger.error("Exception processing task %s; marking ERROR (%s)" % (globusID, str(e)))
+                        task['status'] = 'ERROR'
+                        writeTaskToDatabase(task)
+                    else:
+                        logger.error("Connection reset on %s; marking RETRY (%s)" % (globusID, str(e)))
+                        task['status'] = 'RETRY'
                         writeTaskToDatabase(task)
                 except Exception as e:
                     logger.error("Exception processing task %s; marking ERROR" % globusID, str(e))
