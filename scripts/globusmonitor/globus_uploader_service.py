@@ -9,6 +9,7 @@
 import os, shutil, json, time, datetime, thread, copy, atexit, collections, fcntl
 import logging, logging.config, logstash
 import requests
+import signal
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from io import BlockingIOError
@@ -44,6 +45,8 @@ Config file has 2 important entries which do not have default values:
 """
 config = {}
 
+# Store any PENDING task ID here
+current_task = None
 
 # ----------------------------------------------------------
 # SHARED UTILS
@@ -224,6 +227,7 @@ def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
         logger.error("Exception fetching task: %s" % str(e))
 
     if nextTask:
+        current_task = nextTask['globus_id']
         logger.debug("Found task %s [%s]" % (nextTask['globus_id'], nextTask['completed']))
     else:
         logger.debug("No task found.")
@@ -254,6 +258,15 @@ def writeCollectionRecordToDatabase(collection_name, collection_id):
     curs.execute(q_insert)
     psql_conn.commit()
     curs.close()
+
+"""Remove PENDING status from any ongoing processing if this is killed"""
+def gracefulExit():
+    if current_task:
+        curs = psql_conn.cursor()
+        query = "update globus_tasks set STATUS='SUCCEEDED' where globus_id = %s;" % current_task
+        logger.debug("Gracefully resolving PENDING for %s" % current_task)
+        curs.execute(query)
+        curs.close()
 
 
 # ----------------------------------------------------------
@@ -576,6 +589,8 @@ def clowderSubmissionLoop():
             clowderWait = 0
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, gracefulExit)
+    
     # Try to load custom config file, falling back to default values where not overridden
     config = loadJsonFile(os.path.join(rootPath, "config_default.json"))
     if os.path.exists(os.path.join(rootPath, "data/config_custom.json")):
