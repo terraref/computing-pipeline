@@ -546,6 +546,10 @@ def clowderSubmissionLoop():
                         logger.error("Connection reset on %s; marking RETRY (%s)" % (globusID, str(e)))
                         task['status'] = 'RETRY'
                         writeTaskToDatabase(task)
+                except ConnectionError as e:
+                    logger.error("Connection error on %s; marking RETRY (%s)" % (globusID, str(e)))
+                    task['status'] = 'RETRY'
+                    writeTaskToDatabase(task)
                 except Exception as e:
                     logger.error("Exception processing task %s; marking ERROR (%s)" % (globusID, str(e)))
                     task['status'] = 'ERROR'
@@ -579,6 +583,10 @@ def clowderSubmissionLoop():
                         logger.error("Connection reset on %s; marking RETRY (%s)" % (globusID, str(e)))
                         task['status'] = 'RETRY'
                         writeTaskToDatabase(task)
+                except ConnectionError as e:
+                    logger.error("Connection error on %s; marking RETRY (%s)" % (globusID, str(e)))
+                    task['status'] = 'RETRY'
+                    writeTaskToDatabase(task)
                 except Exception as e:
                     logger.error("Exception processing task %s; marking ERROR" % globusID, str(e))
                     task['status'] = 'ERROR'
@@ -590,7 +598,7 @@ def clowderSubmissionLoop():
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, gracefulExit)
-    
+
     # Try to load custom config file, falling back to default values where not overridden
     config = loadJsonFile(os.path.join(rootPath, "config_default.json"))
     if os.path.exists(os.path.join(rootPath, "data/config_custom.json")):
