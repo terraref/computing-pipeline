@@ -358,12 +358,12 @@ def notifyClowderOfCompletedTask(task):
             if len(filesQueued)>0 or datasetMD:
                 # Try to clean metadata first
                 if datasetMD:
-                    # Upload metadata
+                    cleaned_dsmd = None
                     try:
                         cleaned_dsmd = clean_metadata(datasetMD, sensorname)
                     except Exception as e:
                         logger.error("[%s] could not clean md: %s" % (ds, str(e)))
-                        task['contents'][ds]['error'] = "Count not clean metadata: %s" % str(e)
+                        task['contents'][ds]['error'] = "Could not clean metadata: %s" % str(e)
                         # TODO: possible this could be recoverable with more info from clean_metadata
                         if response == "OK": response = "ERROR" # Don't overwrite a RETRY
 
@@ -406,15 +406,16 @@ def notifyClowderOfCompletedTask(task):
                         if not alreadyStored:
                             fileFormData.append(("file",'{"path":"%s"%s}' % (queued[0], queued[1])))
 
-                    if datasetMD:
+                    if datasetMD and cleaned_dsmd:
                         # Check for existing metadata from the site user
                         alreadyAttached = False
                         md_existing = download_metadata(None, hierarchy_host, clowder_key, dsid)
                         for mdobj in md_existing:
-                            if mdobj['agent']['user_id'] == "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_id:
-                                logger.info("   skipping metadata (already attached)")
-                                alreadyAttached = True
-                                break
+                            if 'agent' in mdobj and 'user_id' in mdobj['agent']:
+                                if mdobj['agent']['user_id'] == "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_id:
+                                    logger.info("   skipping metadata (already attached)")
+                                    alreadyAttached = True
+                                    break
                         if not alreadyAttached:
                             md = {
                                 "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
