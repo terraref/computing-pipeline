@@ -11,6 +11,7 @@ import logging, logging.config, logstash
 import requests
 import signal
 import psycopg2
+import socket
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
@@ -47,6 +48,7 @@ config = {}
 
 # Store any PENDING task ID here
 current_task = None
+
 
 # ----------------------------------------------------------
 # SHARED UTILS
@@ -226,6 +228,7 @@ def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
     except Exception as e:
         logger.error("Exception fetching task: %s" % str(e))
 
+    global current_task
     if nextTask:
         current_task = nextTask['globus_id']
         logger.debug("Found task %s [%s]" % (nextTask['globus_id'], nextTask['completed']))
@@ -261,12 +264,13 @@ def writeCollectionRecordToDatabase(collection_name, collection_id):
     curs.close()
 
 """Remove PENDING status from any ongoing processing if this is killed"""
-def gracefulExit():
+def gracefulExit(signum, frame):
     if current_task:
         curs = psql_conn.cursor()
-        query = "update globus_tasks set STATUS='SUCCEEDED' where globus_id = %s;" % current_task
+        query = "update globus_tasks set STATUS='SUCCEEDED' where globus_id = '%s';" % current_task
         logger.debug("Gracefully resolving PENDING for %s" % current_task)
         curs.execute(query)
+        psql_conn.commit()
         curs.close()
 
 
@@ -380,6 +384,7 @@ def notifyClowderOfCompletedTask(task):
                         c_date = c_date.split("__")[0].split("-")[2]
                 else:
                     c_sensor, c_date, c_year, c_month = ds, None, None, None
+
 
                 # Get dataset from clowder, or create & associate with collections
                 try:
@@ -539,7 +544,7 @@ def clowderSubmissionLoop():
                         logger.error("%s not successfully processed; marking %s" % (globusID, clowderDone))
                         task['status'] = clowderDone
                         writeTaskToDatabase(task)
-                except SocketError as e:
+                except socket.error as e:
                     if e.errno != errno.ECONNRESET:
                         logger.error("Exception processing task %s; marking ERROR (%s)" % (globusID, str(e)))
                         task['status'] = 'ERROR'
@@ -548,7 +553,7 @@ def clowderSubmissionLoop():
                         logger.error("Connection reset on %s; marking RETRY (%s)" % (globusID, str(e)))
                         task['status'] = 'RETRY'
                         writeTaskToDatabase(task)
-                except ConnectionError as e:
+                except requests.ConnectionError as e:
                     logger.error("Connection error on %s; marking RETRY (%s)" % (globusID, str(e)))
                     task['status'] = 'RETRY'
                     writeTaskToDatabase(task)
@@ -576,7 +581,7 @@ def clowderSubmissionLoop():
                         logger.error("%s not successfully processed; marking %s" % (globusID, clowderDone))
                         task['status'] = clowderDone
                         writeTaskToDatabase(task)
-                except SocketError as e:
+                except socket.error as e:
                     if e.errno != errno.ECONNRESET:
                         logger.error("Exception processing task %s; marking ERROR (%s)" % (globusID, str(e)))
                         task['status'] = 'ERROR'
@@ -585,7 +590,7 @@ def clowderSubmissionLoop():
                         logger.error("Connection reset on %s; marking RETRY (%s)" % (globusID, str(e)))
                         task['status'] = 'RETRY'
                         writeTaskToDatabase(task)
-                except ConnectionError as e:
+                except requests.ConnectionError as e:
                     logger.error("Connection error on %s; marking RETRY (%s)" % (globusID, str(e)))
                     task['status'] = 'RETRY'
                     writeTaskToDatabase(task)
@@ -599,8 +604,10 @@ def clowderSubmissionLoop():
             clowderWait = 0
 
 if __name__ == '__main__':
+
     signal.signal(signal.SIGINT, gracefulExit)
     signal.signal(signal.SIGTERM, gracefulExit)
+    
 
     # Try to load custom config file, falling back to default values where not overridden
     config = loadJsonFile(os.path.join(rootPath, "config_default.json"))
@@ -609,7 +616,7 @@ if __name__ == '__main__':
         config = updateNestedDict(config, loadJsonFile(os.path.join(rootPath, "data/config_custom.json")))
     else:
         print("...no custom configuration file found. using default values")
-
+                    
     # Initialize logger handlers
     with open(os.path.join(rootPath,"config_logging.json"), 'r') as f:
         log_config = json.load(f)
@@ -627,3 +634,4 @@ if __name__ == '__main__':
     logger.info("- initializing service")
     # Create thread for service to begin monitoring
     clowderSubmissionLoop()
+
