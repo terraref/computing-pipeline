@@ -484,7 +484,7 @@ def notifyClowderOfCompletedTask(task):
                             logger.error("[%s] failed to attach files (%s: %s)" % (ds, fi.status_code, fi.text))
                             updatedTask['contents'][ds]['files'][datasetMDFile]['retry'] = "%s: %s" % (fi.status_code, fi.text)
                             response = "RETRY"
-                        if fi.status_code != 200:
+                        elif fi.status_code != 200:
                             logger.error("[%s] failed to attach files (%s: %s)" % (ds, fi.status_code, fi.text))
                             updatedTask['contents'][ds]['files'][datasetMDFile]['error'] = "%s: %s" % (fi.status_code, fi.text)
                             response = "ERROR"
