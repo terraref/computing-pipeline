@@ -600,6 +600,7 @@ def clowderSubmissionLoop():
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, gracefulExit)
+    signal.signal(signal.SIGTERM, gracefulExit)
 
     # Try to load custom config file, falling back to default values where not overridden
     config = loadJsonFile(os.path.join(rootPath, "config_default.json"))
