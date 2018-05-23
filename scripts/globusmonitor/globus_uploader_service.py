@@ -394,7 +394,7 @@ def notifyClowderOfCompletedTask(task):
                     logger.info("   [%s] id: %s" % (ds, dsid))
                 except Exception as e:
                     logger.error("[%s] could not build hierarchy: %s" % (ds, str(e)))
-                    task['contents'][ds]['retry'] = "Count not build dataset hierarchy: %s" % str(e)
+                    task['contents'][ds]['retry'] = "Could not build dataset hierarchy: %s" % str(e)
                     response = "RETRY"
                     continue
 
