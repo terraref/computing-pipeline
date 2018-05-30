@@ -140,23 +140,42 @@ def connectToPostgres():
     psql_user = os.getenv("POSTGRES_USER", config['postgres']['username'])
     psql_pass = os.getenv("POSTGRES_PASSWORD", config['postgres']['password'])
 
-    try:
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
-    except:
-        # Attempt to create database if not found
-        conn = psycopg2.connect(dbname='postgres', host=psql_host)
-        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        curs = conn.cursor()
-        curs.execute('CREATE DATABASE %s;' % psql_db)
-        curs.close()
-        conn.commit()
-        conn.close()
+    connected = False
+    while not connected:
+        try:
+            conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
+            connected = True
+        except Exception as e:
+            """Attempt to create database if not found
+            conn = psycopg2.connect(dbname='postgres', host=psql_host)
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            curs = conn.cursor()
+            curs.execute('CREATE DATABASE %s;' % psql_db)
+            curs.close()
+            conn.commit()
+            conn.close()
 
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
-        initializeDatabase(conn)
+            conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
+            initializeDatabase(conn)
+            """
+            logger.error("Could not connect to PSQL: %s" % e.message)
+            time.sleep(10)
 
     logger.info("Connected to Postgres")
     return conn
+
+"""Safer way to call psql_conn.cursor()"""
+def getPostgresCursor():
+    global psql_conn
+
+    try:
+        curs = psql_conn.cursor()
+    except Exception as e:
+        logger.error("PSQL reconnecting; cursor error: %s" % e.message)
+        psql_conn = connectToPostgres()
+        curs = psql_conn.cursor()
+
+    return curs
 
 """Create PostgreSQL database tables"""
 def initializeDatabase(db_connection):
@@ -192,7 +211,7 @@ def readTaskFromDatabase(globus_id):
    q_fetch = "SELECT globus_id, status, received, completed, globus_user, " \
              "file_count, bytes, contents FROM globus_tasks WHERE globus_id = '%s'" % globus_id
 
-   curs = psql_conn.cursor()
+   curs = getPostgresCursor()
    logger.debug("Fetching task %s from PostgreSQL..." % globus_id)
    curs.execute(q_fetch)
    result = curs.fetchone()
@@ -231,7 +250,7 @@ def writeTaskToDatabase(task):
                "SET status='%s', received='%s', completed='%s', globus_user='%s', file_count=%s, bytes=%s, contents='%s';" % (
         gid, stat, recv, comp, guser, filecount, bytecount, jbody, stat, recv, comp, guser, filecount, bytecount, jbody)
 
-    curs = psql_conn.cursor()
+    curs = getPostgresCursor()
     #logger.debug("Writing task %s to PostgreSQL..." % gid)
     curs.execute(q_insert)
     psql_conn.commit()
@@ -256,7 +275,7 @@ def readTasksByStatus(status, id_only=False, limit=2500):
         results = {}
 
 
-    curs = psql_conn.cursor()
+    curs = getPostgresCursor()
     #logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
     curs.execute(q_fetch)
     for result in curs:
@@ -292,7 +311,7 @@ def countTasksByStatus(status):
     q_fetch = "SELECT count(1) FROM globus_tasks WHERE status = '%s';" % status
     count = -1
 
-    curs = psql_conn.cursor()
+    curs = getPostgresCursor()
     #logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
     curs.execute(q_fetch)
     for result in curs:
