@@ -133,6 +133,7 @@ def connectToPostgres():
     psql_pass = os.getenv("POSTGRES_PASSWORD", config['postgres']['password'])
 
     connected = False
+    total_retry = 0
     while not connected:
         try:
             conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
@@ -151,7 +152,11 @@ def connectToPostgres():
             initializeDatabase(conn)
             """
             logger.error("Could not connect to PSQL: %s" % e.message)
-            time.sleep(10)
+            if total_retry >= 600:
+                logger.error("Exceeded maximum number of retries")
+                raise
+            time.sleep(30)
+            total_retry += 30
 
     logger.info("Connected to Postgres")
     return conn
