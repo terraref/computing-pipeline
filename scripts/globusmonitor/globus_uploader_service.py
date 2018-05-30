@@ -426,6 +426,7 @@ def notifyClowderOfCompletedTask(task):
                                     "user_id": "https://terraref.ncsa.illinois.edu/clowder/api/users/%s" % clowder_id
                                 }
                             }
+
                             dsmd = sess.post(clowder_host+"/api/datasets/"+dsid+"/metadata.jsonld",
                                              headers={'Content-Type':'application/json'},
                                              data=json.dumps(md))
@@ -475,7 +476,7 @@ def notifyClowderOfCompletedTask(task):
                                        headers={'Content-Type':header},
                                        data=content)
 
-                        if fi.status_code in [500, 502, 504]:
+                        if fi.status_code in [104, 500, 502, 504]:
                             logger.error("[%s] failed to attach files (%s: %s)" % (ds, fi.status_code, fi.text))
                             updatedTask['contents'][ds]['files'][datasetMDFile]['retry'] = "%s: %s" % (fi.status_code, fi.text)
                             response = "RETRY"
