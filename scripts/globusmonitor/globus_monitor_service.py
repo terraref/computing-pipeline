@@ -104,10 +104,12 @@ def updateNestedDict(existing, new):
 """Return small JSON object with information about monitor health"""
 def getStatus():
     return {
-        "in_progress_tasks": countTasksByStatus("IN PROGRESS"),
-        "unprocessed_tasks": countTasksByStatus("SUCCEEDED"),
-        "processed_tasks": countTasksByStatus("PROCESSED"),
-        "errored_tasks": countTasksByStatus("ERROR")
+        "IN PROGRESS": countTasksByStatus("IN PROGRESS"),
+        "SUCCEEDED": countTasksByStatus("SUCCEEDED"),
+        "PENDING": countTasksByStatus("PENDING"),
+        "PROCESSED": countTasksByStatus("PROCESSED"),
+        "RETRY": countTasksByStatus("RETRY"),
+        "ERROR": countTasksByStatus("ERROR")
     }
 
 """Load contents of .json file into a JSON object"""
