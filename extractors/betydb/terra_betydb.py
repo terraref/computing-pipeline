@@ -9,9 +9,15 @@ from terrautils.betydb import add_arguments, get_sites, get_sites_by_latlon, sub
 from terrautils.metadata import get_extractor_metadata, get_terraref_metadata
 
 
+def add_local_arguments(parser):
+    # add any additional arguments to parser
+    add_arguments(parser)
+
 class BetyDBUploader(TerrarefExtractor):
     def __init__(self):
         super(BetyDBUploader, self).__init__()
+
+        add_local_arguments(self.parser)
 
         # parse command line and load default logging configuration
         self.setup(sensor='stereoTop_canopyCover')
