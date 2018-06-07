@@ -132,23 +132,47 @@ def connectToPostgres():
     psql_user = os.getenv("POSTGRES_USER", config['postgres']['username'])
     psql_pass = os.getenv("POSTGRES_PASSWORD", config['postgres']['password'])
 
-    try:
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
-    except:
-        # Attempt to create database if not found
-        conn = psycopg2.connect(dbname='postgres', host=psql_host)
-        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        curs = conn.cursor()
-        curs.execute('CREATE DATABASE %s;', (psql_db))
-        curs.close()
-        conn.commit()
-        conn.close()
+    connected = False
+    total_retry = 0
+    while not connected:
+        try:
+            conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
+            connected = True
+        except Exception as e:
+            """Attempt to create database if not found
+            conn = psycopg2.connect(dbname='postgres', host=psql_host)
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            curs = conn.cursor()
+            curs.execute('CREATE DATABASE %s;', (psql_db))
+            curs.close()
+            conn.commit()
+            conn.close()
 
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
-        initializeDatabase(conn)
+            conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
+            initializeDatabase(conn)
+            """
+            logger.error("Could not connect to PSQL: %s" % e.message)
+            if total_retry >= 600:
+                logger.error("Exceeded maximum number of retries")
+                raise
+            time.sleep(30)
+            total_retry += 30
 
     logger.info("Connected to Postgres")
     return conn
+
+"""Safer way to call psql_conn.cursor()"""
+def getPostgresCursor():
+    global psql_conn
+
+    try:
+        curs = psql_conn.cursor()
+    except Exception as e:
+        logger.error("PSQL reconnecting; cursor error: %s" % e.message)
+        psql_conn = connectToPostgres()
+        curs = psql_conn.cursor()
+
+    return curs
 
 """Create PostgreSQL database tables"""
 def initializeDatabase(db_connection):
@@ -192,7 +216,7 @@ def writeTaskToDatabase(task):
                "ON CONFLICT (globus_id) DO UPDATE " \
                "SET status=%s, received=%s, completed=%s, globus_user=%s, contents=%s;"
 
-    curs = psql_conn.cursor()
+    curs = getPostgresCursor()
     #logger.debug("Writing task %s to PostgreSQL..." % gid)
     curs.execute(q_insert, (gid, stat, recv, comp, guser, jbody, stat, recv, comp, guser, jbody))
     psql_conn.commit()
@@ -211,7 +235,7 @@ def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
     nextTask = None
 
     try:
-        curs = psql_conn.cursor()
+        curs = getPostgresCursor()
         logger.debug("Fetching next %s task from PostgreSQL..." % status)
         curs.execute(q_fetch, (status))
         for result in curs:
@@ -239,7 +263,7 @@ def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
 """Remove PENDING status from any ongoing processing if this is killed"""
 def gracefulExit(signum, frame):
     if current_task:
-        curs = psql_conn.cursor()
+        curs = getPostgresCursor()
         query = "update globus_tasks set STATUS='SUCCEEDED' where globus_id = %s;"
         logger.debug("Gracefully resolving PENDING for %s" % current_task)
         curs.execute(query, (current_task))
