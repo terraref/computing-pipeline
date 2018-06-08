@@ -317,7 +317,7 @@ def countTasksByStatus(status):
 
     curs = getPostgresCursor()
     #logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
-    curs.execute(q_fetch, (status))
+    curs.execute(q_fetch, (status,))
     for result in curs:
         count = result[0]
     curs.close()

@@ -237,7 +237,8 @@ def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
     try:
         curs = getPostgresCursor()
         logger.debug("Fetching next %s task from PostgreSQL..." % status)
-        curs.execute(q_fetch, (status))
+        logger.debug(q_fetch % status)
+        curs.execute(q_fetch, (status,))
         for result in curs:
             nextTask = {
                 "globus_id": result[0],
@@ -266,7 +267,7 @@ def gracefulExit(signum, frame):
         curs = getPostgresCursor()
         query = "update globus_tasks set STATUS='SUCCEEDED' where globus_id = %s;"
         logger.debug("Gracefully resolving PENDING for %s" % current_task)
-        curs.execute(query, (current_task))
+        curs.execute(query, (current_task,))
         psql_conn.commit()
         curs.close()
 
