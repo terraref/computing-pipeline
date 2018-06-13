@@ -506,7 +506,7 @@ def globusMonitorLoop():
                         try:
                             writeTaskToPostgres(task)
                             writeTaskToInflux(task)
-                        except:
+                        except Exception as e:
                             logger.debug("- error writing task: %s" % e)
                             logger.debug("- skipping remaining CREATED tasks this iteration")
                             break
