@@ -514,7 +514,6 @@ def globusMonitorLoop():
                         task['status'] = task_data['status']
                         try:
                             writeTaskToPostgres(task)
-                            writeTaskToInflux(task)
                         except Exception as e:
                             logger.debug("- error writing task: %s" % e)
                             logger.debug("- skipping remaining CREATED tasks this iteration")
@@ -545,7 +544,6 @@ def globusMonitorLoop():
                         task['status'] = task_data['status']
                         try:
                             writeTaskToPostgres(task)
-                            writeTaskToInflux(task)
                         except Exception as e:
                             logger.debug("- error writing task: %s" % e)
                             logger.debug("- skipping remaining IN PROGRESS tasks this iteration")
