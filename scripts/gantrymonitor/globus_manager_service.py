@@ -13,6 +13,7 @@ import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, colle
 import logging, logging.config, logstash
 import requests
 from dateutil.parser import parse
+from socket import gaierror
 import psycopg2
 
 from flask import Flask, request, Response
@@ -97,6 +98,9 @@ def getGlobusTaskData(task):
     try:
         logger.debug("%s requesting task data from Globus as %s" % (task['globus_id'], guser))
         status_code, status_message, task_data = api.task(task['globus_id'])
+    except gaierror as e:
+        logger.error("%s gaierror checking with Globus for transfer status: %s" % (task['globus_id'], e))
+        status_code = 404
     except Exception as e:
         if e.status_code == 404:
             return {"status": "NOT FOUND"}
@@ -106,6 +110,9 @@ def getGlobusTaskData(task):
             authToken = config['globus']['auth_token']
             api = TransferAPIClient(username=guser, goauth=authToken)
             status_code, status_message, task_data = api.task(task['globus_id'])
+        except gaierror as e:
+            logger.error("%s gaierror checking with Globus for transfer status: %s" % (task['globus_id'], e))
+            status_code = 404
         except Exception as e:
             if e.status_code == 404:
                 return {"status": "NOT FOUND"}
