@@ -1,6 +1,8 @@
 FROM terraref/terrautils:1.1
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
+# VERSION: terraref/globus-monitor-uploader:2.2
+
 RUN apt-get -y update \
     && apt-get -y install curl \
     && pip install flask-restful \
