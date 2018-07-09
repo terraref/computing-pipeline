@@ -527,7 +527,7 @@ def clowderSubmissionLoop():
         # Check with Globus for any status updates on monitored tasks
         if clowderWait >= config['clowder']['globus_processing_frequency']:
             # First handle all regular tasks
-            task = getNextUnprocessedTask()
+            task = getNextUnprocessedTask(reverse=True)
             while task:
                 globusID = task['globus_id']
                 try: 
@@ -561,7 +561,7 @@ def clowderSubmissionLoop():
                     task['status'] = 'ERROR'
                     writeTaskToDatabase(task)
    
-                task = getNextUnprocessedTask()
+                task = getNextUnprocessedTask(reverse=True)
   
             # Next attempt to handle any ERROR tasks a second time
             task = getNextUnprocessedTask("RETRY", reverse=True)
