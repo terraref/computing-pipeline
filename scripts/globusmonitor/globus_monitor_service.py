@@ -324,26 +324,6 @@ def countTasksByStatus(status):
 
     return count
 
-"""Save object into a log file from memory, moving existing file to .backup if it exists"""
-def writeStatusToDisk():
-    logPath = config["status_log_path"]
-    logData = getStatus()
-    logger.debug("- writing %s" % os.path.basename(logPath))
-
-    # Create directories if necessary
-    dirs = logPath.replace(os.path.basename(logPath), "")
-    if not os.path.exists(dirs):
-        os.makedirs(dirs)
-
-    # Move existing copy to .backup if it exists
-    if os.path.exists(logPath):
-        shutil.move(logPath, logPath+".backup")
-
-    f = open(logPath, 'w')
-    lockFile(f)
-    f.write(json.dumps(logData))
-    f.close()
-
 
 # ----------------------------------------------------------
 # API COMPONENTS
@@ -542,7 +522,6 @@ def globusMonitorLoop():
             logger.debug("- done checking for Globus updates")
 
             globWait = 0
-            writeStatusToDisk()
 
         # Refresh auth tokens periodically
         if authWait >= config['globus']['authentication_refresh_frequency_secs']:
@@ -561,12 +540,6 @@ if __name__ == '__main__':
     # Initialize logger handlers
     with open(os.path.join(rootPath,"config_logging.json"), 'r') as f:
         log_config = json.load(f)
-        main_log_file = os.path.join(config["log_path"], "log_monitor.txt")
-        log_config['handlers']['file']['filename'] = main_log_file
-        if not os.path.exists(config["log_path"]):
-            os.makedirs(config["log_path"])
-        if not os.path.isfile(main_log_file):
-            open(main_log_file, 'a').close()
         logging.config.dictConfig(log_config)
     logger = logging.getLogger('gantry')
 
