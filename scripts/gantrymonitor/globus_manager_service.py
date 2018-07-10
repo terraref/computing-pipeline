@@ -102,7 +102,7 @@ def getGlobusTaskData(task):
         logger.error("%s gaierror checking with Globus for transfer status: %s" % (task['globus_id'], e))
         status_code = 404
     except Exception as e:
-        if e.status_code == 404:
+        if hasattr(e, 'status_code') and e.status_code == 404:
             return {"status": "NOT FOUND"}
         try:
             # Refreshing auth tokens and retry
@@ -114,7 +114,7 @@ def getGlobusTaskData(task):
             logger.error("%s gaierror checking with Globus for transfer status: %s" % (task['globus_id'], e))
             status_code = 404
         except Exception as e:
-            if e.status_code == 404:
+            if hasattr(e, 'status_code') and e.status_code == 404:
                 return {"status": "NOT FOUND"}
 
             logger.error("%s error checking with Globus for transfer status" % task['globus_id'])
