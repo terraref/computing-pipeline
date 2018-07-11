@@ -35,55 +35,28 @@ class GeostreamsUploader(TerrarefExtractor):
     def process_message(self, connector, host, secret_key, resource, parameters):
         self.start_message(resource)
 
-        # Write the CSV to the same directory as the source file
-        ds_info = get_info(connector, host, secret_key, resource['parent']['id'])
-        timestamp = ds_info['name'].split(" - ")[1]
-
-        # Read CSV contents into dict
-        trait_data = {}
+        successful_plots = 0
         with open(resource['local_paths'][0], 'rb') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                trait_data[row['site']] = {}
-                for field in row:
-                    if field != 'site':
-                        trait_data[row['site']][field] = row[field]
+                centroid_lonlat = [row['lon'], row['lat']]
+                time_fmt = row['dp_time']
+                timestamp = row['timestamp']
+                dpmetadata = {
+                    "source": row['source'],
+                    "value": row['value']
+                }
+                trait = row['trait']
 
-        # Get full list of experiment plots using date as filter
-        all_plots = get_site_boundaries(timestamp, city='Maricopa')
-        self.log_info(resource, "found %s plots on %s" % (len(all_plots), timestamp))
-        successful_plots = 0
-        for plotname in all_plots:
-            if plotname in trait_data:
-                bounds = all_plots[plotname]
-
-                # Prepare and submit datapoint
-                centroid_lonlat = json.loads(centroid_from_geojson(bounds))["coordinates"]
-                time_fmt = timestamp+"T12:00:00-07:00"
-                dpmetadata = {"source": host + ("" if host.endswith("/") else "/") + "files/" + resource['id']}
-
-                ignored_fields = ['site', 'citation_author', 'citation_year', 'citation_title', 'access_level', 'method']
-                for field in trait_data[plotname]:
-                    if field not in ignored_fields:
-                        dpmetadata[field] = trait_data[plotname][field]
-                if 'method' in trait_data[plotname]:
-                    method_name = trait_data[plotname]['method']
-                else:
-                    # Get from last part of filename (e.g. _canopycover.csv)
-                    method_name = resource['local_paths'][0].replace(".csv", "").split("_")[-1]
-
-                create_datapoint_with_dependencies(connector, host, secret_key, method_name,
+                create_datapoint_with_dependencies(connector, host, secret_key, trait,
                                                    (centroid_lonlat[1], centroid_lonlat[0]), time_fmt, time_fmt,
                                                    dpmetadata, timestamp)
                 successful_plots += 1
-            else:
-                self.log_error(resource, '%s not found in CSV' % plotname)
 
         # Add metadata to original dataset indicating this was run
         self.log_info(resource, "updating file metadata (%s)" % resource['id'])
         ext_meta = build_metadata(host, self.extractor_info, resource['id'], {
             "plots_processed": successful_plots,
-            "plots_skipped": len(all_plots)-successful_plots
         }, 'file')
         upload_metadata(connector, host, secret_key, resource['id'], ext_meta)
 
