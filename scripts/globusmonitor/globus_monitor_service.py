@@ -140,23 +140,47 @@ def connectToPostgres():
     psql_user = os.getenv("POSTGRES_USER", config['postgres']['username'])
     psql_pass = os.getenv("POSTGRES_PASSWORD", config['postgres']['password'])
 
-    try:
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
-    except:
-        # Attempt to create database if not found
-        conn = psycopg2.connect(dbname='postgres', host=psql_host)
-        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        curs = conn.cursor()
-        curs.execute('CREATE DATABASE %s;' % psql_db)
-        curs.close()
-        conn.commit()
-        conn.close()
+    connected = False
+    total_retry = 0
+    while not connected:
+        try:
+            conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
+            connected = True
+        except Exception as e:
+            """Attempt to create database if not found
+            conn = psycopg2.connect(dbname='postgres', host=psql_host)
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            curs = conn.cursor()
+            curs.execute('CREATE DATABASE %s;', (psql_db))
+            curs.close()
+            conn.commit()
+            conn.close()
 
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
-        initializeDatabase(conn)
+            conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
+            initializeDatabase(conn)
+            """
+            logger.error("Could not connect to PSQL: %s" % e.message)
+            if total_retry >= 600:
+                logger.error("Exceeded maximum number of retries")
+                raise
+            time.sleep(30)
+            total_retry += 30
 
     logger.info("Connected to Postgres")
     return conn
+
+"""Safer way to call psql_conn.cursor()"""
+def getPostgresCursor():
+    global psql_conn
+
+    try:
+        curs = psql_conn.cursor()
+    except Exception as e:
+        logger.error("PSQL reconnecting; cursor error: %s" % e.message)
+        psql_conn = connectToPostgres()
+        curs = psql_conn.cursor()
+
+    return curs
 
 """Create PostgreSQL database tables"""
 def initializeDatabase(db_connection):
@@ -190,11 +214,11 @@ def initializeDatabase(db_connection):
 """Fetch a Globus task from PostgreSQL"""
 def readTaskFromDatabase(globus_id):
    q_fetch = "SELECT globus_id, status, received, completed, globus_user, " \
-             "file_count, bytes, contents FROM globus_tasks WHERE globus_id = '%s'" % globus_id
+             "file_count, bytes, contents FROM globus_tasks WHERE globus_id = %s;"
 
-   curs = psql_conn.cursor()
+   curs = getPostgresCursor()
    logger.debug("Fetching task %s from PostgreSQL..." % globus_id)
-   curs.execute(q_fetch)
+   curs.execute(q_fetch, (globus_id))
    result = curs.fetchone()
    curs.close()
 
@@ -226,14 +250,13 @@ def writeTaskToDatabase(task):
 
     # Attempt to insert, update if globus ID already exists
     q_insert = "INSERT INTO globus_tasks (globus_id, status, received, completed, globus_user, file_count, bytes, contents) " \
-               "VALUES ('%s', '%s', '%s', '%s', '%s', %s, %s, '%s') " \
+               "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) " \
                "ON CONFLICT (globus_id) DO UPDATE " \
-               "SET status='%s', received='%s', completed='%s', globus_user='%s', file_count=%s, bytes=%s, contents='%s';" % (
-        gid, stat, recv, comp, guser, filecount, bytecount, jbody, stat, recv, comp, guser, filecount, bytecount, jbody)
+               "SET status=%s, received=%s, completed=%s, globus_user=%s, file_count=%s, bytes=%s, contents=%s;"
 
-    curs = psql_conn.cursor()
+    curs = getPostgresCursor()
     #logger.debug("Writing task %s to PostgreSQL..." % gid)
-    curs.execute(q_insert)
+    curs.execute(q_insert, (gid, stat, recv, comp, guser, filecount, bytecount, jbody, stat, recv, comp, guser, filecount, bytecount, jbody))
     psql_conn.commit()
     curs.close()
 
@@ -248,17 +271,17 @@ def readTasksByStatus(status, id_only=False, limit=2500):
           ERROR (encountered error uploading into Clowder)
     """
     if id_only:
-        q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = '%s' limit %s;" % (status, limit)
+        q_fetch = "SELECT globus_id FROM globus_tasks WHERE status = %s limit %s;"
         results = []
     else:
         q_fetch = "SELECT globus_id, status, received, completed, globus_user, " \
-                  "file_count, bytes, contents FROM globus_tasks WHERE status = '%s' limit %s;" % (status, limit)
+                  "file_count, bytes, contents FROM globus_tasks WHERE status = %s limit %s;"
         results = {}
 
 
-    curs = psql_conn.cursor()
+    curs = getPostgresCursor()
     #logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
-    curs.execute(q_fetch)
+    curs.execute(q_fetch, (status, limit))
     for result in curs:
         if id_only:
             # Just add globus ID to list
@@ -289,12 +312,12 @@ def countTasksByStatus(status):
       SUCCEEDED (verified complete; not yet uploaded into Clowder)
       PROCESSED (complete & uploaded into Clowder)
     """
-    q_fetch = "SELECT count(1) FROM globus_tasks WHERE status = '%s';" % status
+    q_fetch = "SELECT count(1) FROM globus_tasks WHERE status = %s;"
     count = -1
 
-    curs = psql_conn.cursor()
+    curs = getPostgresCursor()
     #logger.debug("Fetching all %s tasks from PostgreSQL..." % status)
-    curs.execute(q_fetch)
+    curs.execute(q_fetch, (status,))
     for result in curs:
         count = result[0]
     curs.close()

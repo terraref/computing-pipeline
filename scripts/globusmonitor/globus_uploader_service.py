@@ -132,23 +132,47 @@ def connectToPostgres():
     psql_user = os.getenv("POSTGRES_USER", config['postgres']['username'])
     psql_pass = os.getenv("POSTGRES_PASSWORD", config['postgres']['password'])
 
-    try:
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
-    except:
-        # Attempt to create database if not found
-        conn = psycopg2.connect(dbname='postgres', host=psql_host)
-        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        curs = conn.cursor()
-        curs.execute('CREATE DATABASE %s;' % psql_db)
-        curs.close()
-        conn.commit()
-        conn.close()
+    connected = False
+    total_retry = 0
+    while not connected:
+        try:
+            conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
+            connected = True
+        except Exception as e:
+            """Attempt to create database if not found
+            conn = psycopg2.connect(dbname='postgres', host=psql_host)
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            curs = conn.cursor()
+            curs.execute('CREATE DATABASE %s;', (psql_db))
+            curs.close()
+            conn.commit()
+            conn.close()
 
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
-        initializeDatabase(conn)
+            conn = psycopg2.connect(dbname=psql_db, user=psql_user, password=psql_pass, host=psql_host)
+            initializeDatabase(conn)
+            """
+            logger.error("Could not connect to PSQL: %s" % e.message)
+            if total_retry >= 600:
+                logger.error("Exceeded maximum number of retries")
+                raise
+            time.sleep(30)
+            total_retry += 30
 
     logger.info("Connected to Postgres")
     return conn
+
+"""Safer way to call psql_conn.cursor()"""
+def getPostgresCursor():
+    global psql_conn
+
+    try:
+        curs = psql_conn.cursor()
+    except Exception as e:
+        logger.error("PSQL reconnecting; cursor error: %s" % e.message)
+        psql_conn = connectToPostgres()
+        curs = psql_conn.cursor()
+
+    return curs
 
 """Create PostgreSQL database tables"""
 def initializeDatabase(db_connection):
@@ -188,14 +212,13 @@ def writeTaskToDatabase(task):
 
     # Attempt to insert, update if globus ID already exists
     q_insert = "INSERT INTO globus_tasks (globus_id, status, received, completed, globus_user, contents) " \
-               "VALUES ('%s', '%s', '%s', '%s', '%s', '%s') " \
+               "VALUES (%s, %s, %s, %s, %s, %s) " \
                "ON CONFLICT (globus_id) DO UPDATE " \
-               "SET status='%s', received='%s', completed='%s', globus_user='%s', contents='%s';" % (
-                   gid, stat, recv, comp, guser, jbody, stat, recv, comp, guser, jbody)
+               "SET status=%s, received=%s, completed=%s, globus_user=%s, contents=%s;"
 
-    curs = psql_conn.cursor()
+    curs = getPostgresCursor()
     #logger.debug("Writing task %s to PostgreSQL..." % gid)
-    curs.execute(q_insert)
+    curs.execute(q_insert, (gid, stat, recv, comp, guser, jbody, stat, recv, comp, guser, jbody))
     psql_conn.commit()
     curs.close()
 
@@ -204,17 +227,18 @@ def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
 
     # Use Common Table Expression to update status to PENDING and return row at the same time
     if reverse:
-        q_fetch = "WITH cte AS (SELECT globus_id FROM globus_tasks where STATUS = '%s' ORDER BY completed DESC LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE globus_tasks gt  SET status = 'PENDING' FROM cte WHERE gt.globus_id = cte.globus_id RETURNING *" %status
+        q_fetch = "WITH cte AS (SELECT globus_id FROM globus_tasks where STATUS = %s ORDER BY completed DESC LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE globus_tasks gt  SET status = 'PENDING' FROM cte WHERE gt.globus_id = cte.globus_id RETURNING *"
 
     else:
-        q_fetch = "WITH cte AS (SELECT globus_id FROM globus_tasks where STATUS = '%s' ORDER BY completed ASC LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE globus_tasks gt  SET status = 'PENDING' FROM cte WHERE gt.globus_id = cte.globus_id RETURNING *" %status
+        q_fetch = "WITH cte AS (SELECT globus_id FROM globus_tasks where STATUS = %s ORDER BY completed ASC LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE globus_tasks gt  SET status = 'PENDING' FROM cte WHERE gt.globus_id = cte.globus_id RETURNING *"
 
     nextTask = None
 
     try:
-        curs = psql_conn.cursor()
+        curs = getPostgresCursor()
         logger.debug("Fetching next %s task from PostgreSQL..." % status)
-        curs.execute(q_fetch)
+        logger.debug(q_fetch % status)
+        curs.execute(q_fetch, (status,))
         for result in curs:
             nextTask = {
                 "globus_id": result[0],
@@ -237,39 +261,13 @@ def getNextUnprocessedTask(status="SUCCEEDED", reverse=False):
         logger.debug("No task found.")
     return nextTask
 
-"""Write dataset (name -> clowder_id) mapping to PostgreSQL database"""
-def writeDatasetRecordToDatabase(dataset_name, dataset_id):
-
-    q_insert = "INSERT INTO datasets (name, clowder_id) VALUES ('%s', '%s') " \
-               "ON CONFLICT (name) DO UPDATE SET clowder_id='%s';" % (
-                   dataset_name, dataset_id, dataset_id)
-
-    curs = psql_conn.cursor()
-    #logger.debug("Writing dataset %s to PostgreSQL..." % dataset_name)
-    curs.execute(q_insert)
-    psql_conn.commit()
-    curs.close()
-
-"""Write collection (name -> clowder_id) mapping to PostgreSQL database"""
-def writeCollectionRecordToDatabase(collection_name, collection_id):
-
-    q_insert = "INSERT INTO collections (name, clowder_id) VALUES ('%s', '%s') " \
-               "ON CONFLICT (name) DO UPDATE SET clowder_id='%s';" % (
-                   collection_name, collection_id, collection_id)
-
-    curs = psql_conn.cursor()
-    #logger.debug("Writing collection %s to PostgreSQL..." % collection_name)
-    curs.execute(q_insert)
-    psql_conn.commit()
-    curs.close()
-
 """Remove PENDING status from any ongoing processing if this is killed"""
 def gracefulExit(signum, frame):
     if current_task:
-        curs = psql_conn.cursor()
-        query = "update globus_tasks set STATUS='SUCCEEDED' where globus_id = '%s';" % current_task
+        curs = getPostgresCursor()
+        query = "update globus_tasks set STATUS='SUCCEEDED' where globus_id = %s;"
         logger.debug("Gracefully resolving PENDING for %s" % current_task)
-        curs.execute(query)
+        curs.execute(query, (current_task,))
         psql_conn.commit()
         curs.close()
 

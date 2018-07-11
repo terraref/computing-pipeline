@@ -13,6 +13,7 @@ import os, shutil, json, time, datetime, thread, copy, subprocess, atexit, colle
 import logging, logging.config, logstash
 import requests
 from dateutil.parser import parse
+from socket import gaierror
 import psycopg2
 
 from flask import Flask, request, Response
@@ -97,14 +98,25 @@ def getGlobusTaskData(task):
     try:
         logger.debug("%s requesting task data from Globus as %s" % (task['globus_id'], guser))
         status_code, status_message, task_data = api.task(task['globus_id'])
-    except:
+    except gaierror as e:
+        logger.error("%s gaierror checking with Globus for transfer status: %s" % (task['globus_id'], e))
+        status_code = 404
+    except Exception as e:
+        if hasattr(e, 'status_code') and e.status_code == 404:
+            return {"status": "NOT FOUND"}
         try:
             # Refreshing auth tokens and retry
             generateAuthToken()
             authToken = config['globus']['auth_token']
             api = TransferAPIClient(username=guser, goauth=authToken)
             status_code, status_message, task_data = api.task(task['globus_id'])
-        except:
+        except gaierror as e:
+            logger.error("%s gaierror checking with Globus for transfer status: %s" % (task['globus_id'], e))
+            status_code = 404
+        except Exception as e:
+            if hasattr(e, 'status_code') and e.status_code == 404:
+                return {"status": "NOT FOUND"}
+
             logger.error("%s error checking with Globus for transfer status" % task['globus_id'])
             status_code = 503
 
@@ -490,17 +502,29 @@ def globusMonitorLoop():
             for taskid in current_tasks:
                 task = current_tasks[taskid]
                 task_data = getGlobusTaskData(task)
-                if task_data and task_data['status'] in ["SUCCEEDED", "FAILED"]:
-                    task['status'] = task_data['status']
-                    task['started'] = task_data['request_time']
-                    task['completed'] = task_data['completion_time']
-                    task['file_count'] = task_data['files']
-                    task['bytes'] = task_data['bytes_transferred']
-                    try:
-                        writeTaskToInflux(task)
-                        writeTaskToPostgres(task)
-                    except:
-                        logger.debug("- skipping remaining CREATED tasks this iteration")
+                if task_data:
+                    logger.debug("- task status is %s" % task_data['status'])
+                    if task_data['status'] in ["SUCCEEDED", "FAILED"]:
+                        task['status'] = task_data['status']
+                        task['started'] = task_data['request_time']
+                        task['completed'] = task_data['completion_time']
+                        task['file_count'] = task_data['files']
+                        task['bytes'] = task_data['bytes_transferred']
+                        try:
+                            writeTaskToPostgres(task)
+                            writeTaskToInflux(task)
+                        except Exception as e:
+                            logger.debug("- error writing task: %s" % e)
+                            logger.debug("- skipping remaining CREATED tasks this iteration")
+                            break
+                    elif task_data['status'] in ["NOT FOUND"]:
+                        task['status'] = task_data['status']
+                        try:
+                            writeTaskToPostgres(task)
+                        except Exception as e:
+                            logger.debug("- error writing task: %s" % e)
+                            logger.debug("- skipping remaining CREATED tasks this iteration")
+                            break
 
             # IN PROGRESS -> NOTIFIED on completion, NCSA already notified
             #             -> FAILED on failure
@@ -508,17 +532,28 @@ def globusMonitorLoop():
             for taskid in current_tasks:
                 task = current_tasks[taskid]
                 task_data = getGlobusTaskData(task)
-                if task_data and task_data['status'] in ["SUCCEEDED", "FAILED"]:
-                    task['status'] = "NOTIFIED" if task_data['status'] == "SUCCEEDED" else "FAILED"
-                    task['started'] = task_data['request_time']
-                    task['completed'] = task_data['completion_time']
-                    task['file_count'] = task_data['files']
-                    task['bytes'] = task_data['bytes_transferred']
-                    try:
-                        writeTaskToInflux(task)
-                        writeTaskToPostgres(task)
-                    except:
-                        logger.debug("- skipping remaining IN PROGRESS tasks this iteration")
+                if task_data:
+                    logger.debug("- task status is %s" % task_data['status'])
+                    if task_data['status'] in ["SUCCEEDED", "FAILED"]:
+                        task['status'] = "NOTIFIED" if task_data['status'] == "SUCCEEDED" else "FAILED"
+                        task['started'] = task_data['request_time']
+                        task['completed'] = task_data['completion_time']
+                        task['file_count'] = task_data['files']
+                        task['bytes'] = task_data['bytes_transferred']
+                        try:
+                            writeTaskToPostgres(task)
+                            writeTaskToInflux(task)
+                        except Exception as e:
+                            logger.debug("- error writing task: %s" % e)
+                            logger.debug("- skipping remaining IN PROGRESS tasks this iteration")
+                            break
+                    elif task_data['status'] in ["NOT FOUND"]:
+                        task['status'] = task_data['status']
+                        try:
+                            writeTaskToPostgres(task)
+                        except Exception as e:
+                            logger.debug("- error writing task: %s" % e)
+                            logger.debug("- skipping remaining IN PROGRESS tasks this iteration")
 
             apiWait = config['ncsa_api']['api_check_frequency_secs']
 
