@@ -16,16 +16,36 @@ def get_counts_for_date(date_string):
     current_flir_ir_dir = flir_ir_dir + date_string
     current_ir_geotiff_dir = ir_geotiff_dir + date_string
 
-    stereotop_count = len(os.listdir(current_stereotop_dir))
+    stereotop_count = 0
+    rgb_geotiff_count = 0
+    flir_ir_count = 0
+    ir_geotiff_count = 0
+
+    if os.path.exists(current_stereotop_dir):
+        stereotop_count = len(os.listdir(current_stereotop_dir))
+    else:
+        print(current_stereotop_dir + ' does not exist')
     result += ','
-    result += stereotop_count
-    rgb_geotiff_count = len(os.listdir(current_rgb_geotiff_dir))
+    result += str(stereotop_count)
+
+    if os.path.exists(current_rgb_geotiff_dir):
+        rgb_geotiff_count = len(os.listdir(current_rgb_geotiff_dir))
+    else:
+        print(current_ir_geotiff_dir + ' does not exist')
     result += ','
     result += str(rgb_geotiff_count)
-    flir_ir_count = len(os.listdir(current_flir_ir_dir))
+
+    if os.path.exists(current_flir_ir_dir):
+        flir_ir_count = len(os.listdir(current_flir_ir_dir))
+    else:
+        print(current_flir_ir_dir + 'does not exist')
     result += ','
     result += str(flir_ir_count)
-    ir_geotiff_count = len(os.listdir(current_ir_geotiff_dir))
+
+    if os.path.exists(current_rgb_geotiff_dir):
+        ir_geotiff_count = len(os.listdir(current_ir_geotiff_dir))
+    else:
+        print(current_rgb_geotiff_dir + ' does not exist')
     result += ','
     result += str(ir_geotiff_count)
     return result
@@ -33,8 +53,8 @@ def get_counts_for_date(date_string):
 
 def main():
     command_line_arguments = sys.argv[1:]
+    #print(command_line_arguments)
     if len(command_line_arguments) == 1:
-        print('just one date')
         date_string = sys.argv[1]
         date_string = date_string.split('-')
         current_date = date(int(date_string[0]), int(date_string[1]), int(date_string[2]))
@@ -49,7 +69,8 @@ def main():
         end_date = date(int(end_date_string[0]), int(end_date_string[1]), int(end_date_string[2]))
         delta = end_date - start_date
         for i in range(delta.days + 1):
-            print(start_date + timedelta(i))
+            get_counts_for_date(str(start_date + timedelta(i)))
+            #print(start_date + timedelta(i))
 
     print(command_line_arguments)
 
