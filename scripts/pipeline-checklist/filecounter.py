@@ -52,12 +52,15 @@ def get_counts_for_date(date_string):
 
 
 def main():
+    all_counts = []
     command_line_arguments = sys.argv[1:]
     #print(command_line_arguments)
     if len(command_line_arguments) == 1:
         date_string = sys.argv[1]
         date_string = date_string.split('-')
         current_date = date(int(date_string[0]), int(date_string[1]), int(date_string[2]))
+        current_result = get_counts_for_date(str(current_date))
+        all_counts.append(current_result)
         print(current_date)
     else:
         start_date_string = sys.argv[1]
@@ -69,10 +72,12 @@ def main():
         end_date = date(int(end_date_string[0]), int(end_date_string[1]), int(end_date_string[2]))
         delta = end_date - start_date
         for i in range(delta.days + 1):
-            get_counts_for_date(str(start_date + timedelta(i)))
+            current_result = get_counts_for_date(str(start_date + timedelta(i)))
+            all_counts.append(current_result)
             #print(start_date + timedelta(i))
 
-    print(command_line_arguments)
+    for i in range(0, len(all_counts)):
+        print(all_counts[i])
 
 if __name__ == '__main__':
     main()
