@@ -12,6 +12,7 @@ import requests
 import signal
 import psycopg2
 import socket
+import re
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from io import BlockingIOError
 from urllib3.filepost import encode_multipart_formdata
@@ -51,7 +52,7 @@ config = {}
 current_task = None
 
 
-etcd_client = etcd.Client(host='etcd.terraref', port=4001)
+etcd_client = etcd.Client(host='etcd2.terraref', port=4001)
 
 # ----------------------------------------------------------
 # SHARED UTILS
@@ -386,9 +387,12 @@ def notifyClowderOfCompletedTask(task):
                 else:
                     c_sensor, c_date, c_year, c_month = ds, None, None, None
 
-                logger.info("Acquiring lock for %s" % ds)
-                lock = etcd.Lock(etcd_client, ds)
-                lock.acquire(blocking=True, lock_ttl=300)
+
+
+                lockname = re.sub(" |_|-", "", ds)
+                logger.info("Acquiring lock for task %s" % lockname)
+                lock = etcd.Lock(etcd_client, lockname)
+                lock.acquire(blocking=True, lock_ttl=300, timeout=60)
                 logger.info("Acquired lock")
 
                 # Get dataset from clowder, or create & associate with collections
@@ -403,10 +407,9 @@ def notifyClowderOfCompletedTask(task):
                     response = "RETRY"
                     continue
 
-
                 logger.info("Releasing lock")
                 lock.release()
-                logger.info("Lock release")
+                logger.info("Lock released")
 
                 if dsid:
                     dsFileList = fetchDatasetFileList(dsid, sess)
@@ -569,7 +572,6 @@ def clowderSubmissionLoop():
                     task['status'] = 'RETRY'
                     traceback.print_exc()
                     writeTaskToDatabase(task)
-                    time.sleep(10000)
                 except requests.ConnectionError as e:
                     logger.error("Connection error on %s; marking RETRY (%s)" % (globusID, str(e)))
                     task['status'] = 'RETRY'
@@ -612,7 +614,6 @@ def clowderSubmissionLoop():
                     task['status'] = 'RETRY'
                     traceback.print_exc()
                     writeTaskToDatabase(task)
-                    time.sleep(10000)
                 except requests.ConnectionError as e:
                     logger.error("Connection error on %s; marking RETRY (%s)" % (globusID, str(e)))
                     task['status'] = 'RETRY'
