@@ -1,0 +1,18 @@
+{
+  "@context": "http://clowder.ncsa.illinois.edu/contexts/extractors.jsonld",
+  "name": "terra.geostreams",
+  "version": "1.0",
+  "description": "Geostreams CSV uploader",
+  "author": "Max Burnette",
+  "contributors": [],
+  "contexts": [],
+  "repository": {"repType": "git", "repUrl": "https://github.com/terraref/computing-pipeline.git"},
+  "process": {
+    "file": [
+      "text.csv"
+    ]
+  },
+  "external_services": [],
+  "dependencies": [],
+  "bibtex": []
+}
