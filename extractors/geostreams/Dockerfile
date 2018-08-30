@@ -1,4 +1,4 @@
-FROM terraref/terrautils
+FROM terraref/terrautils:1.2
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
 # Install any programs needed

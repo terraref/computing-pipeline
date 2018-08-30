@@ -1,7 +1,7 @@
 {
   "@context": "http://clowder.ncsa.illinois.edu/contexts/extractors.jsonld",
   "name": "terra.betydb",
-  "version": "1.0",
+  "version": "1.1",
   "description": "BETYdb CSV uploader",
   "author": "Max Burnette",
   "contributors": [],
