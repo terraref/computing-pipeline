@@ -12,6 +12,7 @@ ir_geotiff_dir = '/terraref/sites/ua-mac/Level_1/ir_geotiff/'
 
 rgb_geotiff_csv = '2018 Pipeline Status - rgb_geotiff.csv'
 ir_geotiff_csv = '2018 Pipeline Status - ir_geotiff.csv'
+check_table_csv = '2018 Pipeline Status - CHECK_TABLE.csv'
 
 PERCENT_COMPLETE_MINIMUM = 0.99
 
@@ -39,14 +40,15 @@ def update_csv_file_rgb_geotiff(path_to_file, dates_to_check):
 
     for current_date in dates_to_check:
         if (df['Date'] == current_date).any():
-            percent_complete = float(df.loc[df['Date'] == current_date, 'Complete'].values[0])
+            percent_complete = float(df.loc[df['Date'] == current_date, 'bin2tif%'].values[0])
             if percent_complete < PERCENT_COMPLETE_MINIMUM:
                 num_stereotop_files = len(os.listdir(stereotop_dir + current_date))
                 num_rgb_geotiff_files = len(os.listdir(rgb_geotiff_dir + current_date))
                 new_percent_complete = float(num_rgb_geotiff_files/num_stereotop_files)
                 if new_percent_complete > percent_complete:
+                    df.loc[df['Date'] == current_date, 'stereoTop'] = num_stereotop_files
                     df.loc[df['Date'] == current_date, 'rgb_geotiff'] = num_rgb_geotiff_files
-                    df.loc[df['Date'] == current_date, 'Complete'] = new_percent_complete
+                    df.loc[df['Date'] == current_date, 'bin2tif%'] = new_percent_complete
         else:
             num_stereotop_files = len(os.listdir(stereotop_dir + current_date))
             num_rgb_geotiff_files = len(os.listdir(rgb_geotiff_dir + current_date))
@@ -67,14 +69,15 @@ def update_csv_file_ir_geotiff(path_to_file, dates_to_check):
 
     for current_date in dates_to_check:
         if (df['Date'] == current_date).any():
-            percent_complete = float(df.loc[df['Date'] == current_date, 'Complete'].values[0])
+            percent_complete = float(df.loc[df['Date'] == current_date, 'flir2tif%'].values[0])
             if percent_complete < PERCENT_COMPLETE_MINIMUM:
                 num_ir_files = len(os.listdir(ir_geotiff_dir + current_date))
                 num_ir_geotiff_files = len(os.listdir(ir_geotiff_dir + current_date))
                 new_percent_complete = float(num_ir_files/num_ir_geotiff_files)
                 if new_percent_complete > percent_complete:
+                    df.loc[df['Date'] == current_date, 'flirIrCamera'] = num_ir_files
                     df.loc[df['Date'] == current_date, 'ir_geotiff'] = num_ir_geotiff_files
-                    df.loc[df['Date'] == current_date, 'Complete'] = new_percent_complete
+                    df.loc[df['Date'] == current_date, 'flir2tif%'] = new_percent_complete
         else:
             num_ir_files = len(os.listdir(ir_geotiff_dir + current_date))
             num_ir_geotiff_files = len(os.listdir(ir_geotiff_dir + current_date))
@@ -87,8 +90,8 @@ def update_csv_file_ir_geotiff(path_to_file, dates_to_check):
 
 def main():
     dates_in_range = generate_dates_in_range(MINIMUM_DATE_STRING)
-    update_csv_file_rgb_geotiff(rgb_geotiff_csv, dates_in_range)
-    update_csv_file_ir_geotiff(ir_geotiff_csv, dates_in_range)
+    update_csv_file_rgb_geotiff(check_table_csv, dates_in_range)
+    update_csv_file_ir_geotiff(check_table_csv, dates_in_range)
 
 if __name__ == '__main__':
     main()
