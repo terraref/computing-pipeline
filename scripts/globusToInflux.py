@@ -41,7 +41,7 @@ class Influx():
         self.pass_ = pass_
 
 
-    def log_globus_status(self, extractorname, starttime, endtime, filecount, bytecount):
+    def log_globus_status(self):
 
         curr_time = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
 
