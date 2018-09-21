@@ -60,27 +60,27 @@ class Influx():
                                     self.pass_, self.db)
 
             client.write_points([{
-                "measurement": "in_progress",
+                "measurement": "globus_transfers",
                 "time": curr_time,
                 "fields": {"value": int(in_progress)}
             }], tags={"type": "in_progress"})
             client.write_points([{
-                "measurement": "retry",
+                "measurement": "globus_transfers",
                 "time": curr_time,
                 "fields": {"value": int(retry)}
             }], tags={"type": "retry"})
             client.write_points([{
-                "measurement": "processed",
+                "measurement": "globus_transfers",
                 "time": curr_time,
                 "fields": {"value": int(processed)}
             }], tags={"type": "processed"})
             client.write_points([{
-                "measurement": "error",
+                "measurement": "globus_transfers",
                 "time": curr_time,
                 "fields": {"value": int(error)}
             }], tags={"type": "error"})
             client.write_points([{
-                "measurement": "pending",
+                "measurement": "globus_transfers",
                 "time": curr_time,
                 "fields": {"value": int(pending)}
             }], tags={"type": "pending"})
