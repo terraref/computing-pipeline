@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import datetime
+import psycopg2
 
 stereotop_dir = '/data/terraref/sites/ua-mac/raw_data/stereoTop/'
 rgb_geotiff_dir = '/data/terraref/sites/ua-mac/Level_1/rgb_geotiff/'
@@ -30,6 +31,18 @@ def generate_dates_in_range(start_date_string):
         date_strings.append(current_date_string)
     return date_strings
 
+def update_csv_file_rulemonitor_rgb(path_to_file, dates_to_check):
+    conn = psycopg2.connect(dbname="rulemonitor", user="rulemonitor", host="192.168.5.169", password="BSJYngTW4k")
+    for current_date in dates_to_check:
+        output_string = 'Full Field -- RGB GeoTIFFs - ' + current_date + '%'
+        query = "select count(distinct file_path) from extractor_ids where output like '%s';"
+        query = query % (output_string)
+        curs = conn.cursor()
+        curs.execute(query)
+        results = []
+        for result in curs:
+            results.append(result)
+        return results
 
 def update_csv_file_rgb_geotiff(path_to_file, dates_to_check):
 
@@ -90,6 +103,7 @@ def update_csv_file_ir_geotiff(path_to_file, dates_to_check):
 
 def main():
     dates_in_range = generate_dates_in_range(MINIMUM_DATE_STRING)
+
     update_csv_file_rgb_geotiff(check_table_csv, dates_in_range)
     update_csv_file_ir_geotiff(check_table_csv, dates_in_range)
 
