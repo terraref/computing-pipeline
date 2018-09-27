@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import datetime
 import psycopg2
+from .counter_config import dbname, user, host, password
 
 stereotop_dir = '/data/terraref/sites/ua-mac/raw_data/stereoTop/'
 rgb_geotiff_dir = '/data/terraref/sites/ua-mac/Level_1/rgb_geotiff/'
@@ -32,16 +33,47 @@ def generate_dates_in_range(start_date_string):
     return date_strings
 
 def update_csv_file_rulemonitor_rgb(path_to_file, dates_to_check):
+    df = pd.read_csv(path_to_file)
+    # all_dates = df['Date'].tolist()
+
+    indices = list(df.column.values)
+
+    conn = psycopg2.connect(dbname=dbname, user=user, host=host, password=password)
     for current_date in dates_to_check:
-        output_string = 'Full Field -- RGB GeoTIFFs - ' + current_date + '%'
-        query = "select count(distinct file_path) from extractor_ids where output like '%s';"
-        query = query % (output_string)
-        curs = conn.cursor()
-        curs.execute(query)
-        results = []
-        for result in curs:
-            results.append(result)
-        return results
+        if (df['Date'] == current_date).any():
+            output_string = 'Full Field -- RGB GeoTIFFs - ' + current_date + '%'
+            query = "select count(distinct file_path) from extractor_ids where output like '%s';"
+            query = query % output_string
+            curs = conn.cursor()
+            curs.execute(query)
+            results = []
+            for result in curs:
+                results.append(result)
+            value = int(results[0][0])
+            df.loc[df['Date'] == current_date, 'rgb ruleDB'] = value
+    df.to_csv(path_to_file, index=False)
+
+def update_csv_file_rulemonitor_ir_ruledb(path_to_file, dates_to_check):
+    df = pd.read_csv(path_to_file)
+    # all_dates = df['Date'].tolist()
+
+    indices = list(df.column.values)
+
+    conn = psycopg2.connect(dbname=dbname, user=user, host=host, password=password)
+    for current_date in dates_to_check:
+        if (df['Date'] == current_date).any():
+            # TODO change name
+            output_string = 'Full Field -- RGB GeoTIFFs - ' + current_date + '%'
+            query = "select count(distinct file_path) from extractor_ids where output like '%s';"
+            query = query % output_string
+            curs = conn.cursor()
+            curs.execute(query)
+            results = []
+            for result in curs:
+                results.append(result)
+            value = int(results[0][0])
+            df.loc[df['Date'] == current_date, 'rgb ruleDB'] = value
+    df.to_csv(path_to_file, index=False)
 
 def update_csv_file_rgb_geotiff(path_to_file, dates_to_check):
 
@@ -105,6 +137,7 @@ def main():
 
     update_csv_file_rgb_geotiff(check_table_csv, dates_in_range)
     update_csv_file_ir_geotiff(check_table_csv, dates_in_range)
+    update_csv_file_rulemonitor_rgb(check_table_csv, dates_in_range)
 
 if __name__ == '__main__':
     main()
