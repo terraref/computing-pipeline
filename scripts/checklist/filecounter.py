@@ -32,7 +32,6 @@ def generate_dates_in_range(start_date_string):
     return date_strings
 
 def update_csv_file_rulemonitor_rgb(path_to_file, dates_to_check):
-    conn = psycopg2.connect(dbname="rulemonitor", user="rulemonitor", host="192.168.5.169", password="BSJYngTW4k")
     for current_date in dates_to_check:
         output_string = 'Full Field -- RGB GeoTIFFs - ' + current_date + '%'
         query = "select count(distinct file_path) from extractor_ids where output like '%s';"
