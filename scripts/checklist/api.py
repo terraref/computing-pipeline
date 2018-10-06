@@ -5,6 +5,8 @@ import os
 import json
 
 
+
+
 def create_app(test_config=None):
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
@@ -14,9 +16,9 @@ def create_app(test_config=None):
     )
 
     dataset = tablib.Dataset()
-    with open('CHECK_TABLE.csv') as f:
+    with open('stereoTop_PipelineWatch.csv') as f:
         dataset.csv = f.read()
-    df = pd.read_csv('CHECK_TABLE.csv')
+    df = pd.read_csv('stereoTop_PipelineWatch.csv')
 
     if test_config is None:
         # load the instance config, if it exists, when not testing
