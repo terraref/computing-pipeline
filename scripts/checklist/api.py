@@ -5,8 +5,6 @@ import os
 import json
 
 
-
-
 def create_app(test_config=None):
 
     path_to_flir_csv = os.getenv("FLIR_IR_CAMERA_CSV", 'flirIrCamera_PipelineWatch.csv')
@@ -23,8 +21,8 @@ def create_app(test_config=None):
     # with open('CHECK_TABLE.csv') as f:
     #     dataset.csv = f.read()
 
-    df_flirIr = pd.read_csv(path_to_flir_csv)
-    df_stereoTop = pd.read_csv(path_to_stereotop_csv)
+    df_flirIr = pd.read_csv(path_to_flir_csv, index_col=False)
+    df_stereoTop = pd.read_csv(path_to_stereotop_csv, index_col=False)
 
     if test_config is None:
         # load the instance config, if it exists, when not testing
@@ -40,30 +38,26 @@ def create_app(test_config=None):
         pass
 
     # a simple page that says hello
-    @app.route('/hello')
-    def hello():
-        return 'Hello, World! Saluton, Mondo!'
+    @app.route('/hello/',defaults={'name': 'Sammy'})
+    def hello(name):
+        return 'Hello, World! Saluton, Mondo!' + name
         # displays json string
 
-    @app.route('/showcsv/<sensor_name>/<showall>')
-    def showcsv(sensor_name, showall):
-
+    @app.route('/showcsv/<sensor_name>', defaults={'days': 14})
+    @app.route('/showcsv/<sensor_name>/<int:days>')
+    def showcsv(sensor_name, days):
         # data = dataset.html
-
-        if showall.lower() == 'true':
+        if days == 0:
             if sensor_name.lower() == 'stereotop':
                 return df_stereoTop.to_html()
             elif sensor_name.lower() == 'flirircamera':
                 return df_flirIr.to_html()
         else:
             if sensor_name.lower() == 'stereotop':
-                return df_stereoTop.tail(14).to_html()
+                return df_stereoTop.tail(days).to_html()
             elif sensor_name.lower() == 'flirircamera':
-                return df_flirIr.tail(14).to_html()
-
+                return df_flirIr.tail(days).to_html()
     return app
-
-
 
 app = create_app()
 app.run()
