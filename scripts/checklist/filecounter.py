@@ -70,6 +70,9 @@ count_defs = {
 MIN_PERCENT = 1
 MINIMUM_DATE_STRING = '2018-01-01'
 
+def get_sensor_names():
+    return count_defs.keys()
+
 
 def generate_dates_in_range(start_date_string):
     start_date = datetime.datetime.strptime(start_date_string, '%Y-%m-%d')
