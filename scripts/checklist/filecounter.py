@@ -1,4 +1,5 @@
-import os, thread
+import os, thread, json, collections
+import logging, logging.config, logstash
 import pandas as pd
 import datetime
 import psycopg2
@@ -72,6 +73,31 @@ count_defs = {
 
 MIN_PERCENT = 1
 MINIMUM_DATE_STRING = '2018-01-01'
+
+"""Load contents of .json file into a JSON object"""
+def loadJsonFile(filename):
+    try:
+        f = open(filename)
+        jsonObj = json.load(f)
+        f.close()
+        return jsonObj
+    except IOError:
+        logger.error("- unable to open %s" % filename)
+        return {}
+
+"""Nested update of python dictionaries for config parsing"""
+def updateNestedDict(existing, new):
+    # Adapted from http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+    for k, v in new.iteritems():
+        if isinstance(existing, collections.Mapping):
+            if isinstance(v, collections.Mapping):
+                r = updateNestedDict(existing.get(k, {}), v)
+                existing[k] = r
+            else:
+                existing[k] = new[k]
+        else:
+            existing = {k: new[k]}
+    return existing
 
 def create_app(test_config=None):
 
@@ -256,7 +282,29 @@ def main():
     #     update_file_counts(sensor, dates_in_range, conn)
 
     app = create_app()
+    apiPort = os.getenv('MONITOR_API_PORT', config['api']['port'])
+    logger.info("*** API now listening on %s:%s ***" % (config['api']['ip_address'], apiPort))
     app.run()
 
 if __name__ == '__main__':
+
+    config = loadJsonFile(os.path.join(sites_root, "config_default.json"))
+    if os.path.exists(os.path.join(sites_root, "data/config_custom.json")):
+        print("...loading configuration from config_custom.json")
+        config = updateNestedDict(config, loadJsonFile(os.path.join(sites_root, "data/config_custom.json")))
+    else:
+        print("...no custom configuration file found. using default values")
+
+    # Initialize logger handlers
+    with open(os.path.join(sites_root, "config_logging.json"), 'r') as f:
+        log_config = json.load(f)
+        main_log_file = os.path.join(config["log_path"], "log_monitor.txt")
+        log_config['handlers']['file']['filename'] = main_log_file
+        if not os.path.exists(config["log_path"]):
+            os.makedirs(config["log_path"])
+        if not os.path.isfile(main_log_file):
+            open(main_log_file, 'a').close()
+        logging.config.dictConfig(log_config)
+    logger = logging.getLogger('gantry')
+
     main()
