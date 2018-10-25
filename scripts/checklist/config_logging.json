@@ -1,0 +1,46 @@
+{
+  "version": 1,
+
+  "formatters": {
+    "default": {
+      "format": "%(asctime)-15s %(levelname)-7s : %(name)s - %(message)s"
+    }
+  },
+
+  "handlers": {
+    "console": {
+      "class": "logging.StreamHandler",
+      "formatter": "default",
+      "level": "DEBUG",
+      "stream": "ext://sys.stdout"
+    },
+    "file": {
+      "class": "logging.handlers.TimedRotatingFileHandler",
+      "formatter": "default",
+      "level": "DEBUG",
+      "filename": "filecounter.log",
+      "when": "D",
+      "encoding": "utf8"
+    },
+    "logstash": {
+      "class": "logstash.TCPLogstashHandler",
+      "level": "INFO",
+      "host": "logger.ncsa.illinois.edu",
+      "port": 5000,
+      "message_type": "gantry",
+      "version": 1
+    }
+  },
+
+  "loggers": {
+    "gantry": {
+      "level": "DEBUG",
+      "handlers": ["file"]
+    }
+  },
+
+  "root": {
+    "level": "INFO",
+    "handlers": ["console", "logstash"]
+  }
+}

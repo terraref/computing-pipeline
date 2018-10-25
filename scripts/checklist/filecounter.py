@@ -1,10 +1,13 @@
-import os
+import os, thread
 import pandas as pd
 import datetime
 import psycopg2
 import re
 from collections import OrderedDict
+from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
 
+
+config = {}
 
 """
 Dictionary of count definitions for various sensors.
@@ -70,6 +73,61 @@ count_defs = {
 MIN_PERCENT = 1
 MINIMUM_DATE_STRING = '2018-01-01'
 
+def create_app(test_config=None):
+
+    path_to_flir_csv = os.getenv("FLIR_IR_CAMERA_CSV", 'flirIrCamera_PipelineWatch.csv')
+    path_to_stereotop_csv = os.getenv("STEREOTOP_CSV", 'stereoTop_PipelineWatch.csv')
+    pipeline_location = os.getenv("PATH_TO_PIPELINE",'')
+
+    pipeline_csv = pipeline_location+"{}_PipelineWatch.csv"
+
+    sensor_names = get_sensor_names()
+
+    # create and configure the app
+    app = Flask(__name__, instance_relative_config=True)
+    app.config.from_mapping(
+        SECRET_KEY='dev',
+        DATABASE=os.path.join(app.instance_path, 'flaskr.sqlite'),
+    )
+
+    if test_config is None:
+        # load the instance config, if it exists, when not testing
+        app.config.from_pyfile('config.py', silent=True)
+    else:
+        # load the test config if passed in
+        app.config.from_mapping(test_config)
+
+    # ensure the instance folder exists
+    try:
+        os.makedirs(app.instance_path)
+    except OSError:
+        pass
+
+    @app.route('/sensors')
+    def sensors():
+        return render_template('sensors.html', sensors=sensor_names)
+
+    @app.route('/download/<sensor_name>')
+    def download(sensor_name):
+        current_csv = pipeline_csv.format(sensor_name)
+        current_csv_name = os.path.basename(current_csv)
+        return send_file(current_csv,
+                         mimetype='text/csv',
+                         attachment_filename=current_csv_name,
+                         as_attachment=True)
+
+    @app.route('/showcsv/<sensor_name>', defaults={'days': 14})
+    @app.route('/showcsv/<sensor_name>/<int:days>')
+    def showcsv(sensor_name, days):
+        # data = dataset.html
+        current_csv = pipeline_csv.format(sensor_name)
+        df =  pd.read_csv(current_csv, index_col=False)
+        if days == 0:
+            return df.to_html()
+        else:
+            return df.tail(days).to_html()
+    return app
+
 def get_sensor_names():
     return count_defs.keys()
 
@@ -111,6 +169,13 @@ def perform_count(target_def, date, conn):
             count = result[0]
 
     return count
+
+def run_update(conn):
+    dates_to_check = generate_dates_in_range(MINIMUM_DATE_STRING)
+
+    for sensor in count_defs:
+        update_file_counts(sensor, dates_to_check, conn)
+
 
 def update_file_counts(sensor, dates_to_check, conn):
     """Perform necessary counting to update CSV."""
@@ -177,11 +242,21 @@ def update_file_counts(sensor, dates_to_check, conn):
 
 
 def main():
-    conn = psycopg2.connect(dbname="rulemonitor", user="rulemonitor", host="192.168.5.169", password=SECRET)
-    dates_in_range = generate_dates_in_range(MINIMUM_DATE_STRING)
+    psql_db = os.getenv("POSTGRES_DATABASE", config['postgres']['database'])
+    psql_host = os.getenv("POSTGRES_HOST", config['postgres']['host'])
+    psql_user = os.getenv("POSTGRES_USER", config['postgres']['username'])
+    psql_pass = os.getenv("POSTGRES_PASSWORD", config['postgres']['password'])
 
-    for sensor in count_defs:
-        update_file_counts(sensor, dates_in_range, conn)
+    conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
+    # dates_in_range = generate_dates_in_range(MINIMUM_DATE_STRING)
+
+    thread.start_new_thread(run_update(conn), ())
+
+    # for sensor in count_defs:
+    #     update_file_counts(sensor, dates_in_range, conn)
+
+    app = create_app()
+    app.run()
 
 if __name__ == '__main__':
     main()
