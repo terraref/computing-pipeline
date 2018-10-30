@@ -17,6 +17,7 @@ from functools import wraps
 from flask import Flask, request, Response
 from flask_restful import Api, Resource
 from globusonline.transfer.api_client import TransferAPIClient, APIError, ClientError, goauth
+from influxdb import InfluxDBClient, SeriesHelper
 
 rootPath = "/home/globusmonitor"
 
@@ -344,6 +345,47 @@ def writeStatusToDisk():
     f.write(json.dumps(logData))
     f.close()
 
+def writeStatusToInflux():
+    curr_time = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    stats = getStatus()
+
+    host = os.getenv("INFLUXDB_HOST", "terra-logging.ncsa.illinois.edu")
+    port = os.getenv("INFLUXDB_PORT", 8086)
+    user = os.getenv("INFLUXDB_USER", "terra")
+    pasw = os.getenv("INFLUXDB_PASSWORD", '')
+    db   = os.getenv("INFLUXDB_DB", "extractor_db")
+
+    try:
+        client = InfluxDBClient(host, port, user, pasw, db)
+
+        client.write_points([{
+            "measurement": "globus_transfers",
+            "time": curr_time,
+            "fields": {"value": int(stats['IN PROGRESS'])}
+        }], tags={"type": "in_progress"})
+        client.write_points([{
+            "measurement": "globus_transfers",
+            "time": curr_time,
+            "fields": {"value": int(stats['RETRY'])}
+        }], tags={"type": "retry"})
+        client.write_points([{
+            "measurement": "globus_transfers",
+            "time": curr_time,
+            "fields": {"value": int(stats['PROCESSED'])}
+        }], tags={"type": "processed"})
+        client.write_points([{
+            "measurement": "globus_transfers",
+            "time": curr_time,
+            "fields": {"value": int(stats['ERROR'])}
+        }], tags={"type": "error"})
+        client.write_points([{
+            "measurement": "globus_transfers",
+            "time": curr_time,
+            "fields": {"value": int(stats['PENDING'])}
+        }], tags={"type": "pending"})
+    except:
+        # TODO: Allow sending critical error notification, e.g. email or Slack?
+        logger.error("Error uploading statistics to InfluxDB")
 
 # ----------------------------------------------------------
 # API COMPONENTS
@@ -473,10 +515,12 @@ def getGlobusTaskData(task):
 def globusMonitorLoop():
     authWait = 0
     globWait = 0
+    influxWait = 0
     while True:
         time.sleep(1)
         authWait += 1
         globWait += 1
+        influxWait += 1
 
         # Check with Globus for any status updates on monitored tasks
         if globWait >= config['globus']['transfer_update_frequency_secs']:
@@ -543,6 +587,10 @@ def globusMonitorLoop():
 
             globWait = 0
             writeStatusToDisk()
+
+        if influxWait >= config['globus']['influx_refresh_frequency_secs']:
+            writeStatusToInflux()
+            influxWait = 0
 
         # Refresh auth tokens periodically
         if authWait >= config['globus']['authentication_refresh_frequency_secs']:
