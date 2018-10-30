@@ -4,6 +4,7 @@
 
   "globus": {
     "incoming_files_path": "/home/globus",
+    "influx_refresh_frequency_secs": 900,
     "authentication_refresh_frequency_secs": 43200,
     "transfer_update_frequency_secs": 120,
     "valid_users": {}
