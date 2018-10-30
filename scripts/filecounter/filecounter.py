@@ -1,5 +1,6 @@
 import os, thread, json, collections
 import logging, logging.config, logstash
+import time
 import pandas as pd
 import datetime
 import psycopg2
@@ -23,7 +24,7 @@ Other fields:
     query:      postgres query to execute for psql counts
     parent:     previous count definition for % generation (e.g. bin2tif's parent is stereoTop)
 """
-sites_root = "/home/clowder/"
+sites_root = "/home/filecounter/"
 count_defs = {
     "stereoTop": OrderedDict([
         ("stereoTop", {
@@ -71,7 +72,6 @@ count_defs = {
     ])
 }
 
-MIN_PERCENT = 1
 MINIMUM_DATE_STRING = '2018-01-01'
 
 """Load contents of .json file into a JSON object"""
@@ -101,10 +101,7 @@ def updateNestedDict(existing, new):
 
 def create_app(test_config=None):
 
-    path_to_flir_csv = os.getenv("FLIR_IR_CAMERA_CSV", 'flirIrCamera_PipelineWatch.csv')
-    path_to_stereotop_csv = os.getenv("STEREOTOP_CSV", 'stereoTop_PipelineWatch.csv')
     pipeline_location = os.getenv("PATH_TO_PIPELINE",'')
-
     pipeline_csv = pipeline_location+"{}_PipelineWatch.csv"
 
     sensor_names = get_sensor_names()
@@ -152,11 +149,11 @@ def create_app(test_config=None):
             return df.to_html()
         else:
             return df.tail(days).to_html()
+
     return app
 
 def get_sensor_names():
     return count_defs.keys()
-
 
 def generate_dates_in_range(start_date_string):
     start_date = datetime.datetime.strptime(start_date_string, '%Y-%m-%d')
@@ -196,17 +193,28 @@ def perform_count(target_def, date, conn):
 
     return count
 
-def run_update(conn):
-    dates_to_check = generate_dates_in_range(MINIMUM_DATE_STRING)
+def run_update():
+    psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
+    psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
+    psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
+    psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
 
-    for sensor in count_defs:
-        update_file_counts(sensor, dates_to_check, conn)
+    conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
 
+    while True:
+        # TODO: Get this dynamically from current date?
+        dates_to_check = generate_dates_in_range(MINIMUM_DATE_STRING)
+
+        for sensor in count_defs:
+            update_file_counts(sensor, dates_to_check, conn)
+
+        # Wait 1 hour for next iteration
+        time.sleep(3600)
 
 def update_file_counts(sensor, dates_to_check, conn):
     """Perform necessary counting to update CSV."""
 
-    output_file = sensor+"_PipelineWatch.csv"
+    output_file = os.path.join(config['csv_path'], sensor+"_PipelineWatch.csv")
     print("Updating counts for %s into %s" % (sensor, output_file))
     targets = count_defs[sensor]
 
@@ -241,7 +249,7 @@ def update_file_counts(sensor, dates_to_check, conn):
                 else:
                     percentages[target_count] = 0
         # If this date already has a row, just update
-        if (df['Date'] == current_date).any():
+        if 'Date' in df.index and (df['Date'] == current_date).any():
             for target_count in targets:
                 target_def = targets[target_count]
                 df.loc[df['date'] == current_date, target_count] = counts[target_count]
@@ -268,23 +276,13 @@ def update_file_counts(sensor, dates_to_check, conn):
 
 
 def main():
-    psql_db = os.getenv("POSTGRES_DATABASE", config['postgres']['database'])
-    psql_host = os.getenv("POSTGRES_HOST", config['postgres']['host'])
-    psql_user = os.getenv("POSTGRES_USER", config['postgres']['username'])
-    psql_pass = os.getenv("POSTGRES_PASSWORD", config['postgres']['password'])
+    logger.info("Starting update thread")
+    thread.start_new_thread(run_update, ())
 
-    conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
-    # dates_in_range = generate_dates_in_range(MINIMUM_DATE_STRING)
-
-    thread.start_new_thread(run_update(conn), ())
-
-    # for sensor in count_defs:
-    #     update_file_counts(sensor, dates_in_range, conn)
-
-    app = create_app()
     apiPort = os.getenv('MONITOR_API_PORT', config['api']['port'])
     logger.info("*** API now listening on %s:%s ***" % (config['api']['ip_address'], apiPort))
-    app.run()
+    app = create_app()
+    app.run(port=apiPort)
 
 if __name__ == '__main__':
 
@@ -298,13 +296,13 @@ if __name__ == '__main__':
     # Initialize logger handlers
     with open(os.path.join(sites_root, "config_logging.json"), 'r') as f:
         log_config = json.load(f)
-        main_log_file = os.path.join(config["log_path"], "log_monitor.txt")
+        main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
         log_config['handlers']['file']['filename'] = main_log_file
         if not os.path.exists(config["log_path"]):
             os.makedirs(config["log_path"])
         if not os.path.isfile(main_log_file):
             open(main_log_file, 'a').close()
         logging.config.dictConfig(log_config)
-    logger = logging.getLogger('gantry')
+    logger = logging.getLogger('counter')
 
     main()

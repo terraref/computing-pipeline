@@ -5,9 +5,10 @@ RUN apt-get -y update \
     && apt-get -y install curl \
     && pip install flask-restful \
         python-logstash \
-        psycopg2
+        psycopg2 \
+        pandas
 
-COPY *.py /home/pipelinewatch/
+COPY *.py *.json /home/filecounter/
 
 ENV MONITOR_API_PORT 5454
-CMD ["python", "/home/pipelinewatch/filecounter.py"]
+CMD ["python", "/home/filecounter/filecounter.py"]

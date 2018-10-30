@@ -1,6 +1,6 @@
 {
   "log_path": "/home/filecounter/data/log",
-  "status_log_path": "/home/filecounter/data/log/filecounter.json",
+  "csv_path": "/home/clowder/sites/ua-mac/reporting",
 
   "api": {
     "port": "5454",
