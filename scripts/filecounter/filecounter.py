@@ -24,7 +24,8 @@ Other fields:
     query:      postgres query to execute for psql counts
     parent:     previous count definition for % generation (e.g. bin2tif's parent is stereoTop)
 """
-sites_root = "/home/filecounter/"
+app_dir = "/home/filecounter/"
+sites_root = "/home/clowder/"
 count_defs = {
     "stereoTop": OrderedDict([
         ("stereoTop", {
@@ -43,9 +44,9 @@ count_defs = {
             "type": 'regex',
             "regex": "^.*\d+_rgb_.*thumb.tif"}),
         ("canopycover", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_1/fullfield/'),
+            "path": os.path.join(sites_root, 'sites/ua-mac/Level_2/rgb_canopycover/'),
             "type": 'regex',
-            "regex": '',
+            "regex": '.*_canopycover_bety.csv',
             "parent": "fullfield"})
     ]),
     "flirIrCamera": OrderedDict([
@@ -65,9 +66,9 @@ count_defs = {
             "type": 'regex',
             "regex": "^.*\d+_ir_.*thumb.tif"}),
         ("meantemp", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_1/fullfield/'),
+            "path": os.path.join(sites_root, 'sites/ua-mac/Level_2/ir_meantemp/'),
             "type": 'regex',
-            "regex": '',
+            "regex": '.*_meantemp_bety.csv',
             "parent": "fullfield"})
     ])
 }
@@ -101,8 +102,7 @@ def updateNestedDict(existing, new):
 
 def create_app(test_config=None):
 
-    pipeline_location = os.getenv("PATH_TO_PIPELINE",'')
-    pipeline_csv = pipeline_location+"{}_PipelineWatch.csv"
+    pipeline_csv = os.path.join(config['csv_path'], "{}.csv")
 
     sensor_names = get_sensor_names()
 
@@ -166,25 +166,34 @@ def generate_dates_in_range(start_date_string):
         date_strings.append(current_date_string)
     return date_strings
 
-def perform_count(target_def, date, conn):
+def perform_count(target_count, target_def, date, conn):
     """Return count of specified type"""
 
     count = 0
     if target_def["type"] == "timestamp":
         date_dir = os.path.join(target_def["path"], date)
         if os.path.exists(date_dir):
+            logging.info("   [%s] counting timestamps in %s" % (target_count, date_dir))
             count = len(os.listdir(date_dir))
 
     elif target_def["type"] == "regex":
         date_dir = os.path.join(target_def["path"], date)
         if os.path.exists(date_dir):
-            for timestamp in os.listdir(date_dir):
-                ts_dir = os.path.join(date_dir, timestamp)
-                for file in os.listdir(ts_dir):
-                    if re.match(target_def["regex"], file):
+            logging.info("   [%s] matching regex against %s" % (target_count, date_dir))
+            for date_content in os.listdir(date_dir):
+                if os.path.isdir(date_content):
+                    # This is timestamp-level search
+                    ts_dir = os.path.join(date_dir, date_content)
+                    for file in os.listdir(ts_dir):
+                        if re.match(target_def["regex"], file):
+                            count += 1
+                else:
+                    # No timestamp (e.g. fullfield)
+                    if re.match(target_def["regex"], date_content):
                         count += 1
 
     elif target_def["type"] == "psql":
+        logging.info("   [%s] querying PSQL records for %s" % (target_count, date))
         query_string = target_def["query"] % date
         curs = conn.cursor()
         curs.execute(query_string)
@@ -204,10 +213,9 @@ def run_update():
     while True:
         # TODO: Get this dynamically from current date?
         dates_to_check = generate_dates_in_range(MINIMUM_DATE_STRING)
-        logging.info("Checking counts for dates", MINIMUM_DATE_STRING, dates_to_check[-1])
+        logging.info("Checking counts for dates %s - %s" % (MINIMUM_DATE_STRING, dates_to_check[-1]))
 
         for sensor in count_defs:
-            logging.info("Preparing to update counts for sensor ", sensor)
             update_file_counts(sensor, dates_to_check, conn)
 
         # Wait 1 hour for next iteration
@@ -216,7 +224,7 @@ def run_update():
 def update_file_counts(sensor, dates_to_check, conn):
     """Perform necessary counting to update CSV."""
 
-    output_file = os.path.join(config['csv_path'], sensor+"_PipelineWatch.csv")
+    output_file = os.path.join(config['csv_path'], sensor+".csv")
     logging.info("Updating counts for %s into %s" % (sensor, output_file))
     targets = count_defs[sensor]
 
@@ -235,21 +243,22 @@ def update_file_counts(sensor, dates_to_check, conn):
         df = pd.DataFrame(columns=cols)
 
     for current_date in dates_to_check:
-        print("...scanning %s" % current_date)
+        logging.info("[%s] %s" % (sensor, current_date))
         counts = {}
         percentages = {}
 
         # Populate count and percentage (if applicable) for each target count
         for target_count in targets:
             target_def = targets[target_count]
-            counts[target_count] = perform_count(target_def, current_date, conn)
+            counts[target_count] = perform_count(target_count, target_def, current_date, conn)
             if "parent" in target_def:
                 if target_def["parent"] not in counts:
                     counts[target_def["parent"]] = perform_count(targets[target_def["parent"]], current_date, conn)
                 if counts[target_def["parent"]] > 0:
-                    percentages[target_count] = float(counts[target_count]/counts[target_def["parent"]])
+                    percentages[target_count] = (counts[target_count]*1.0)/(counts[target_def["parent"]]*1.0)
                 else:
-                    percentages[target_count] = 0
+                    percentages[target_count] = 0.0
+
         # If this date already has a row, just update
         if 'date' in df.index and (df['date'] == current_date).any():
             for target_count in targets:
@@ -274,29 +283,30 @@ def update_file_counts(sensor, dates_to_check, conn):
 
             df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
 
+    logging.info("Writing %s" % output_file)
     df.to_csv(output_file, index=False)
 
 
 def main():
-    logger.info("Starting update thread")
     thread.start_new_thread(run_update, ())
 
-    apiPort = os.getenv('MONITOR_API_PORT', config['api']['port'])
-    logger.info("*** API now listening on %s:%s ***" % (config['api']['ip_address'], apiPort))
+    apiIP = os.getenv('COUNTER_API_IP', "0.0.0.0")
+    apiPort = os.getenv('COUNTER_API_PORT', "5454")
     app = create_app()
-    app.run(port=apiPort)
+    logger.info("*** API now listening on %s:%s ***" % (apiIP, apiPort))
+    app.run(host=apiIP, port=apiPort)
 
 if __name__ == '__main__':
 
-    config = loadJsonFile(os.path.join(sites_root, "config_default.json"))
-    if os.path.exists(os.path.join(sites_root, "data/config_custom.json")):
+    config = loadJsonFile(os.path.join(app_dir, "config_default.json"))
+    if os.path.exists(os.path.join(app_dir, "data/config_custom.json")):
         print("...loading configuration from config_custom.json")
-        config = updateNestedDict(config, loadJsonFile(os.path.join(sites_root, "data/config_custom.json")))
+        config = updateNestedDict(config, loadJsonFile(os.path.join(app_dir, "data/config_custom.json")))
     else:
         print("...no custom configuration file found. using default values")
 
     # Initialize logger handlers
-    with open(os.path.join(sites_root, "config_logging.json"), 'r') as f:
+    with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
         log_config = json.load(f)
         main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
         log_config['handlers']['file']['filename'] = main_log_file

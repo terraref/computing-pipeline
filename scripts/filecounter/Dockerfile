@@ -9,6 +9,6 @@ RUN apt-get -y update \
         pandas
 
 COPY *.py *.json /home/filecounter/
+COPY templates /home/filecounter/templates
 
-ENV MONITOR_API_PORT 5454
 CMD ["python", "/home/filecounter/filecounter.py"]
