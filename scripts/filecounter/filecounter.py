@@ -72,7 +72,7 @@ count_defs = {
     ])
 }
 
-MINIMUM_DATE_STRING = '2018-01-01'
+MINIMUM_DATE_STRING = '2018-09-01'
 
 """Load contents of .json file into a JSON object"""
 def loadJsonFile(filename):
@@ -204,8 +204,10 @@ def run_update():
     while True:
         # TODO: Get this dynamically from current date?
         dates_to_check = generate_dates_in_range(MINIMUM_DATE_STRING)
+        logging.info("Checking counts for dates", MINIMUM_DATE_STRING, dates_to_check[-1])
 
         for sensor in count_defs:
+            logging.info("Preparing to update counts for sensor ", sensor)
             update_file_counts(sensor, dates_to_check, conn)
 
         # Wait 1 hour for next iteration
@@ -215,7 +217,7 @@ def update_file_counts(sensor, dates_to_check, conn):
     """Perform necessary counting to update CSV."""
 
     output_file = os.path.join(config['csv_path'], sensor+"_PipelineWatch.csv")
-    print("Updating counts for %s into %s" % (sensor, output_file))
+    logging.info("Updating counts for %s into %s" % (sensor, output_file))
     targets = count_defs[sensor]
 
     # Load data frame from existing CSV or create a new one
@@ -249,7 +251,7 @@ def update_file_counts(sensor, dates_to_check, conn):
                 else:
                     percentages[target_count] = 0
         # If this date already has a row, just update
-        if 'Date' in df.index and (df['Date'] == current_date).any():
+        if 'date' in df.index and (df['date'] == current_date).any():
             for target_count in targets:
                 target_def = targets[target_count]
                 df.loc[df['date'] == current_date, target_count] = counts[target_count]
