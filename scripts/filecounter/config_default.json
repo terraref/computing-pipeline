@@ -1,6 +1,6 @@
 {
   "log_path": "/home/filecounter/data/log",
-  "csv_path": "/home/clowder/sites/ua-mac/reporting",
+  "csv_path": "/home/extractor/sites/ua-mac/reporting",
 
   "api": {
     "port": "5454",
