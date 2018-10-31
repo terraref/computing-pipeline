@@ -239,7 +239,7 @@ def run_update():
         # Determine two weeks before current date by default
         today = datetime.datetime.now()
         two_weeks = today - datetime.timedelta(days=14)
-        start_date_string = os.getend('START_SCAN_DATE', two_weeks.strftime("%Y-%m-%d"))
+        start_date_string = os.getenv('START_SCAN_DATE', two_weeks.strftime("%Y-%m-%d"))
         dates_to_check = generate_dates_in_range(start_date_string)
 
         logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
@@ -250,6 +250,7 @@ def run_update():
 
 def update_file_counts(sensors, dates_to_check, conn):
     """Perform necessary counting to update CSV."""
+    global SCAN_LOCK
 
     while SCAN_LOCK:
         logging.info("Another thread currently locking database; waiting 60 seconds to retry")
