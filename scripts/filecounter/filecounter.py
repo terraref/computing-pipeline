@@ -26,7 +26,7 @@ Other fields:
 """
 app_dir = "/home/filecounter/"
 sites_root = "/home/clowder/"
-count_defs = {
+SENSOR_COUNT_DEFINITIONS = {
     "stereoTop": OrderedDict([
         ("stereoTop", {
             "path": os.path.join(sites_root, 'sites/ua-mac/raw_data/stereoTop/'),
@@ -74,6 +74,7 @@ count_defs = {
 }
 
 MINIMUM_DATE_STRING = '2018-09-01'
+SCAN_LOCK = False
 
 """Load contents of .json file into a JSON object"""
 def loadJsonFile(filename):
@@ -150,15 +151,40 @@ def create_app(test_config=None):
         else:
             return df.tail(days).to_html()
 
+    @app.route('/schedule/<sensor_name>/<start_range>', defaults={'end_range': None})
+    @app.route('/schedule/<sensor_name>/<start_range>/<end_range>')
+    def schedule_count(sensor_name, start_range, end_range):
+        if sensor_name.lower() == "all":
+            sensors = get_sensor_names()
+        else:
+            sensors = [sensor_name]
+
+        dates_in_range = generate_dates_in_range(start_range, end_range)
+
+        psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
+        psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
+        psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
+        psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
+
+        conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
+
+        thread.start_new_thread(update_file_counts, (sensors, dates_in_range, conn))
+
+        return "Custom scan scheduled for %s sensors and %s dates" % (len(sensors), len(dates_in_range))
+
     return app
 
 def get_sensor_names():
-    return count_defs.keys()
+    return SENSOR_COUNT_DEFINITIONS.keys()
 
-def generate_dates_in_range(start_date_string):
+def generate_dates_in_range(start_date_string, end_date_string=None):
     start_date = datetime.datetime.strptime(start_date_string, '%Y-%m-%d')
-    todays_date = datetime.datetime.now()
-    days_between = (todays_date - start_date).days
+    if not end_date_string:
+        end_date = datetime.datetime.now()
+    else:
+        end_date = datetime.datetime.strptime(end_date_string, '%Y-%m-%d')
+    days_between = (end_date - start_date).days
+
     date_strings = []
     for i in range(0, days_between+1):
         current_date = start_date + datetime.timedelta(days=i)
@@ -214,78 +240,84 @@ def run_update():
         # TODO: Get this dynamically from current date?
         dates_to_check = generate_dates_in_range(MINIMUM_DATE_STRING)
         logging.info("Checking counts for dates %s - %s" % (MINIMUM_DATE_STRING, dates_to_check[-1]))
-
-        for sensor in count_defs:
-            update_file_counts(sensor, dates_to_check, conn)
+        update_file_counts(get_sensor_names(), dates_to_check, conn)
 
         # Wait 1 hour for next iteration
         time.sleep(3600)
 
-def update_file_counts(sensor, dates_to_check, conn):
+def update_file_counts(sensors, dates_to_check, conn):
     """Perform necessary counting to update CSV."""
 
-    output_file = os.path.join(config['csv_path'], sensor+".csv")
-    logging.info("Updating counts for %s into %s" % (sensor, output_file))
-    targets = count_defs[sensor]
+    while SCAN_LOCK:
+        logging.info("Another thread currently locking database; waiting 60 seconds to retry")
+        time.sleep(60)
 
-    # Load data frame from existing CSV or create a new one
-    if os.path.exists(output_file):
-        df = pd.read_csv(output_file)
-    else:
-        cols = ["date"]
-        for target_count in targets:
-            target_def = targets[target_count]
+    logging.info("Locking scan for %s sensors and %s dates" % (len(sensors), len(dates_to_check)))
+    SCAN_LOCK = True
+    for sensor in sensors:
+        output_file = os.path.join(config['csv_path'], sensor+".csv")
+        logging.info("Updating counts for %s into %s" % (sensor, output_file))
+        targets = SENSOR_COUNT_DEFINITIONS[sensor]
 
-            cols.append(target_count)
-            if "parent" in target_def:
-                cols.append(target_count+'%')
-
-        df = pd.DataFrame(columns=cols)
-
-    for current_date in dates_to_check:
-        logging.info("[%s] %s" % (sensor, current_date))
-        counts = {}
-        percentages = {}
-
-        # Populate count and percentage (if applicable) for each target count
-        for target_count in targets:
-            target_def = targets[target_count]
-            counts[target_count] = perform_count(target_count, target_def, current_date, conn)
-            if "parent" in target_def:
-                if target_def["parent"] not in counts:
-                    counts[target_def["parent"]] = perform_count(targets[target_def["parent"]], current_date, conn)
-                if counts[target_def["parent"]] > 0:
-                    percentages[target_count] = (counts[target_count]*1.0)/(counts[target_def["parent"]]*1.0)
-                else:
-                    percentages[target_count] = 0.0
-
-        # If this date already has a row, just update
-        if 'date' in df.index and (df['date'] == current_date).any():
-            for target_count in targets:
-                target_def = targets[target_count]
-                df.loc[df['date'] == current_date, target_count] = counts[target_count]
-                if "parent" in target_def:
-                    df.loc[df['date'] == current_date, target_count+'%'] = percentages[target_count+'%']
-
-        # If not, create a new row
+        # Load data frame from existing CSV or create a new one
+        if os.path.exists(output_file):
+            df = pd.read_csv(output_file)
         else:
-            new_entry = [current_date]
-            indices = ["date"]
-
+            cols = ["date"]
             for target_count in targets:
                 target_def = targets[target_count]
 
-                indices.append(target_count)
-                new_entry.append(counts[target_count])
+                cols.append(target_count)
                 if "parent" in target_def:
-                    indices.append(target_count+'%')
-                    new_entry.append(percentages[target_count])
+                    cols.append(target_count+'%')
 
-            df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
+            df = pd.DataFrame(columns=cols)
 
-    logging.info("Writing %s" % output_file)
-    df.to_csv(output_file, index=False)
+        for current_date in dates_to_check:
+            logging.info("[%s] %s" % (sensor, current_date))
+            counts = {}
+            percentages = {}
 
+            # Populate count and percentage (if applicable) for each target count
+            for target_count in targets:
+                target_def = targets[target_count]
+                counts[target_count] = perform_count(target_count, target_def, current_date, conn)
+                if "parent" in target_def:
+                    if target_def["parent"] not in counts:
+                        counts[target_def["parent"]] = perform_count(targets[target_def["parent"]], current_date, conn)
+                    if counts[target_def["parent"]] > 0:
+                        percentages[target_count] = (counts[target_count]*1.0)/(counts[target_def["parent"]]*1.0)
+                    else:
+                        percentages[target_count] = 0.0
+
+            # If this date already has a row, just update
+            if 'date' in df.index and (df['date'] == current_date).any():
+                for target_count in targets:
+                    target_def = targets[target_count]
+                    df.loc[df['date'] == current_date, target_count] = counts[target_count]
+                    if "parent" in target_def:
+                        df.loc[df['date'] == current_date, target_count+'%'] = percentages[target_count+'%']
+
+            # If not, create a new row
+            else:
+                new_entry = [current_date]
+                indices = ["date"]
+
+                for target_count in targets:
+                    target_def = targets[target_count]
+
+                    indices.append(target_count)
+                    new_entry.append(counts[target_count])
+                    if "parent" in target_def:
+                        indices.append(target_count+'%')
+                        new_entry.append(percentages[target_count])
+
+                df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
+
+        logging.info("Writing %s" % output_file)
+        df.to_csv(output_file, index=False)
+
+    SCAN_LOCK = False
 
 def main():
     thread.start_new_thread(run_update, ())
