@@ -73,7 +73,6 @@ SENSOR_COUNT_DEFINITIONS = {
     ])
 }
 
-MINIMUM_DATE_STRING = '2018-09-01'
 SCAN_LOCK = False
 
 """Load contents of .json file into a JSON object"""
@@ -237,9 +236,13 @@ def run_update():
     conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
 
     while True:
-        # TODO: Get this dynamically from current date?
-        dates_to_check = generate_dates_in_range(MINIMUM_DATE_STRING)
-        logging.info("Checking counts for dates %s - %s" % (MINIMUM_DATE_STRING, dates_to_check[-1]))
+        # Determine two weeks before current date by default
+        today = datetime.datetime.now()
+        two_weeks = today - datetime.timedelta(days=14)
+        start_date_string = os.getend('START_SCAN_DATE', two_weeks.strftime("%Y-%m-%d"))
+        dates_to_check = generate_dates_in_range(start_date_string)
+
+        logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
         update_file_counts(get_sensor_names(), dates_to_check, conn)
 
         # Wait 1 hour for next iteration
