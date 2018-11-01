@@ -266,6 +266,9 @@ def update_file_counts(sensors, dates_to_check, conn):
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
             df = pd.read_csv(output_file)
+            df.set_index('date')
+            df.sort_values(by=['date'], inplace=True, ascending=True)
+            # TODO sort by dates
         else:
             cols = ["date"]
             for target_count in targets:
@@ -295,7 +298,8 @@ def update_file_counts(sensors, dates_to_check, conn):
                         percentages[target_count] = 0.0
 
             # If this date already has a row, just update
-            if 'date' in df.index and (df['date'] == current_date).any():
+            if current_date in df['date'].values:
+                logging.info(current_date, 'is already in the table, updating...')
                 for target_count in targets:
                     target_def = targets[target_count]
                     df.loc[df['date'] == current_date, target_count] = counts[target_count]
@@ -304,6 +308,7 @@ def update_file_counts(sensors, dates_to_check, conn):
 
             # If not, create a new row
             else:
+                logging.info(current_date, 'is not already in the table, making new entry')
                 new_entry = [current_date]
                 indices = ["date"]
 
@@ -316,9 +321,13 @@ def update_file_counts(sensors, dates_to_check, conn):
                         indices.append(target_count+'%')
                         new_entry.append(percentages[target_count])
 
-                df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
+                # TODO fix adding new row, fix sorting by date
+                # df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
+                # new way of adding a row
+                df.loc[len(df)] = new_entry
 
         logging.info("Writing %s" % output_file)
+        df.sort_values(by=['date'], inplace=True, ascending=True)
         df.to_csv(output_file, index=False)
 
     SCAN_LOCK = False
