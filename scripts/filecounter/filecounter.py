@@ -267,8 +267,6 @@ def update_file_counts(sensors, dates_to_check, conn):
         if os.path.exists(output_file):
             df = pd.read_csv(output_file)
             df.set_index('date')
-            df.sort_values(by=['date'], inplace=True, ascending=True)
-            # TODO sort by dates
         else:
             cols = ["date"]
             for target_count in targets:
@@ -315,16 +313,21 @@ def update_file_counts(sensors, dates_to_check, conn):
                 for target_count in targets:
                     target_def = targets[target_count]
 
-                    indices.append(target_count)
+                    #indices.append(target_count)
                     new_entry.append(counts[target_count])
                     if "parent" in target_def:
                         indices.append(target_count+'%')
                         new_entry.append(percentages[target_count])
 
-                # TODO fix adding new row, fix sorting by date
-                # df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
-                # new way of adding a row
-                df.loc[len(df)] = new_entry
+                        # TODO fix adding new row, fix sorting by date
+                            # df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
+                        # new way of adding a row
+                        if current_date not in df['date'].values:
+                            logging.info('adding new entry for date', current_date)
+                            df.loc[len(df)] = new_entry
+                        else:
+                            logging.info('updating entry for date', current_date)
+                            df.loc[df['date'] == current_date] = new_entry
 
         logging.info("Writing %s" % output_file)
         df.sort_values(by=['date'], inplace=True, ascending=True)
