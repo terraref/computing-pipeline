@@ -318,10 +318,6 @@ def update_file_counts(sensors, dates_to_check, conn):
                     if "parent" in target_def:
                         indices.append(target_count+'%')
                         new_entry.append(percentages[target_count])
-
-                        # TODO fix adding new row, fix sorting by date
-                            # df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
-                        # new way of adding a row
                         if current_date not in df['date'].values:
                             logging.info('adding new entry for date', current_date)
                             df.loc[len(df)] = new_entry
