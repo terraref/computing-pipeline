@@ -243,7 +243,7 @@ def run_update():
         dates_to_check = generate_dates_in_range(start_date_string)
 
         logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
-        update_file_counts(get_sensor_names(), dates_to_check, conn)
+        update_file_counts(get_sensor_names(), ['2018-11-01'], conn)
 
         # Wait 1 hour for next iteration
         time.sleep(3600)
@@ -334,7 +334,10 @@ def update_file_counts(sensors, dates_to_check, conn):
                         else:
                             logging.info('updating entry for date' + current_date)
                             logging.info('the new entry is ' + str(new_entry))
-                            logging.info(len(df) + ' is the length of the dataframe')
+                            logging.info(len(df.columns) + ' is the length of the dataframe')
+                            if len(df.columns > len(new_entry)):
+                                for i in range(0, (len(df.columns) - len(new_entry))):
+                                    new_entry.append(0)
                             df.loc[df['date'] == current_date] = new_entry
 
         logging.info("Writing %s" % output_file)
