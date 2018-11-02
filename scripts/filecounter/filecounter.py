@@ -337,6 +337,8 @@ def update_file_counts(sensors, dates_to_check, conn):
                 df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
 
         logging.info("Writing %s" % output_file)
+        df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+        df.sort_values(by=['date'], inplace=True, ascending=True)
         df.to_csv(output_file, index=False)
 
     SCAN_LOCK = False
