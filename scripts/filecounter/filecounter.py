@@ -319,7 +319,7 @@ def update_file_counts(sensors, dates_to_check, conn):
                         indices.append(target_count+'%')
                         new_entry.append(percentages[target_count])
                         if current_date not in df['date'].values:
-                            logging.info('adding new entry for date', current_date)
+                            logging.info('adding new entry for date' + current_date)
                             df.loc[len(df)] = new_entry
                         else:
                             logging.info('updating entry for date', current_date)
