@@ -268,10 +268,10 @@ def update_file_counts(sensors, dates_to_check, conn):
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
             df = pd.read_csv(output_file)
-            # REMOVE LATER - this resets to only the first row
-            # df = df.head(1)
-            # df.to_csv(output_file, index=False)
-            # df = pd.read_csv(output_file)
+            #REMOVE LATER - this resets to only the first row
+            df = df.head(1)
+            df.to_csv(output_file, index=False)
+            df = pd.read_csv(output_file)
 
         else:
             cols = ["date"]
