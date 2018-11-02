@@ -306,7 +306,7 @@ def update_file_counts(sensors, dates_to_check, conn):
 
             # If not, create a new row
             else:
-                logging.info(current_date, 'is not already in the table, making new entry')
+                logging.info(current_date + 'is not already in the table, making new entry')
                 new_entry = [current_date]
                 indices = ["date"]
 
