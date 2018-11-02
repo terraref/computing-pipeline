@@ -268,6 +268,11 @@ def update_file_counts(sensors, dates_to_check, conn):
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
             df = pd.read_csv(output_file)
+            # REMOVE LATER - this resets to only the first row
+            df = df.head(1)
+            df.to_csv(output_file, index=False)
+            df = pd.read_csv(output_file)
+
         else:
             cols = ["date"]
             for target_count in targets:
@@ -297,7 +302,8 @@ def update_file_counts(sensors, dates_to_check, conn):
                         percentages[target_count] = 0.0
 
             # If this date already has a row, just update
-            if 'date' in df.index and (df['date'] == current_date).any():
+            if current_date in df['date'].values:
+                logging.info("Already have data for date " + current_date)
                 for target_count in targets:
                     target_def = targets[target_count]
                     df.loc[df['date'] == current_date, target_count] = counts[target_count]
@@ -306,6 +312,7 @@ def update_file_counts(sensors, dates_to_check, conn):
 
             # If not, create a new row
             else:
+                logging.info("No data for date " + current_date + ' adding to dataframe')
                 new_entry = [current_date]
                 indices = ["date"]
 
