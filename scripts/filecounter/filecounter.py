@@ -243,7 +243,9 @@ def run_update():
         dates_to_check = generate_dates_in_range(start_date_string)
 
         logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
-        update_file_counts(get_sensor_names(), ['2018-11-01'], conn)
+
+        update_file_counts(get_sensor_names(), dates_to_check, conn)
+        #update_file_counts(['flirIrCamera'], dates_to_check, conn)
 
         # Wait 1 hour for next iteration
         time.sleep(3600)
@@ -266,7 +268,6 @@ def update_file_counts(sensors, dates_to_check, conn):
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
             df = pd.read_csv(output_file)
-            df.set_index('date')
         else:
             cols = ["date"]
             for target_count in targets:
@@ -278,7 +279,6 @@ def update_file_counts(sensors, dates_to_check, conn):
 
             df = pd.DataFrame(columns=cols)
 
-        logging.info('the dataframe has columns' + str(list(df)))
         for current_date in dates_to_check:
             logging.info("[%s] %s" % (sensor, current_date))
             counts = {}
@@ -288,7 +288,6 @@ def update_file_counts(sensors, dates_to_check, conn):
             for target_count in targets:
                 target_def = targets[target_count]
                 counts[target_count] = perform_count(target_count, target_def, current_date, conn)
-                logger.info("Doing count and percentage for " + str(sensor) + " " + str(target_def) + " " + str(current_date))
                 if "parent" in target_def:
                     if target_def["parent"] not in counts:
                         counts[target_def["parent"]] = perform_count(targets[target_def["parent"]], current_date, conn)
@@ -298,47 +297,38 @@ def update_file_counts(sensors, dates_to_check, conn):
                         percentages[target_count] = 0.0
 
             # If this date already has a row, just update
-            logging.info('here are the counts ' + str(counts))
-            logging.info('here are the percentages ' + str(percentages))
             if current_date in df['date'].values:
-                logging.info(current_date +  'is already in the table, updating...')
+                logging.info("Already have data for date " + current_date)
+                updated_entry = [current_date]
                 for target_count in targets:
                     target_def = targets[target_count]
-                    df.loc[df['date'] == current_date, target_count] = counts[target_count]
+                    updated_entry.append(counts[target_count])
                     if "parent" in target_def:
-                        df.loc[df['date'] == current_date, target_count+'%'] = percentages[target_count+'%']
+                        updated_entry.append(percentages[target_count])
+                df.loc[df['date'] == current_date] = updated_entry
+
+
+                # for target_count in targets:
+                #     target_def = targets[target_count]
+                #     df.loc[df['date'] == current_date, target_count] = counts[target_count]
+                #     if "parent" in target_def:
+                #         df.loc[df['date'] == current_date, target_count+'%'] = percentages[target_count+'%']
 
             # If not, create a new row
             else:
-                logging.info(current_date + 'i s not already in the table, making new entry')
+                logging.info("No data for date " + current_date + ' adding to dataframe')
                 new_entry = [current_date]
                 indices = ["date"]
 
                 for target_count in targets:
                     target_def = targets[target_count]
 
-                    #indices.append(target_count)
+                    indices.append(target_count)
                     new_entry.append(counts[target_count])
-                    logging.info("The new entry after counts added " + str(new_entry))
                     if "parent" in target_def:
-                        #indices.append(target_count+'%')
-                        logging.info("Percentages " + str(percentages[target_count]))
+                        indices.append(target_count+'%')
                         new_entry.append(percentages[target_count])
-                        logging.info('The new entry after percentages added ' + str(new_entry))
-                        if current_date not in df['date'].values:
-                            logging.info('adding new entry for date ' + current_date)
-                            logging.info('the new entry is ' + str(new_entry))
-                            logging.info('the length of the new entry is ' + str(len(new_entry)))
-                            logging.info(str(len(df)) + ' is the length of the dataframe')
-                            df.loc[len(df)] = new_entry
-                        else:
-                            logging.info('updating entry for date' + current_date)
-                            logging.info('the new entry is ' + str(new_entry))
-                            logging.info(len(df.columns) + ' is the length of the dataframe')
-                            if len(df.columns > len(new_entry)):
-                                for i in range(0, (len(df.columns) - len(new_entry))):
-                                    new_entry.append(0)
-                            df.loc[df['date'] == current_date] = new_entry
+                df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
 
         logging.info("Writing %s" % output_file)
         df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
