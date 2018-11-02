@@ -297,7 +297,7 @@ def update_file_counts(sensors, dates_to_check, conn):
 
             # If this date already has a row, just update
             if current_date in df['date'].values:
-                logging.info(current_date, 'is already in the table, updating...')
+                logging.info(current_date +  'is already in the table, updating...')
                 for target_count in targets:
                     target_def = targets[target_count]
                     df.loc[df['date'] == current_date, target_count] = counts[target_count]
@@ -322,7 +322,7 @@ def update_file_counts(sensors, dates_to_check, conn):
                             logging.info('adding new entry for date' + current_date)
                             df.loc[len(df)] = new_entry
                         else:
-                            logging.info('updating entry for date', current_date)
+                            logging.info('updating entry for date' + current_date)
                             df.loc[df['date'] == current_date] = new_entry
 
         logging.info("Writing %s" % output_file)
