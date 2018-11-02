@@ -322,12 +322,12 @@ def update_file_counts(sensors, dates_to_check, conn):
                         if current_date not in df['date'].values:
                             logging.info('adding new entry for date ' + current_date)
                             logging.info('the new entry is ' + str(new_entry))
-                            logging.info(str(len(df)))
+                            logging.info(len(df) + ' is the length of the dataframe')
                             df.loc[len(df)] = new_entry
                         else:
                             logging.info('updating entry for date' + current_date)
                             logging.info('the new entry is ' + str(new_entry))
-                            logging.info(str(len(df)))
+                            logging.info(len(df) + ' is the length of the dataframe')
                             df.loc[df['date'] == current_date] = new_entry
 
         logging.info("Writing %s" % output_file)
