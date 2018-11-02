@@ -322,12 +322,13 @@ def update_file_counts(sensors, dates_to_check, conn):
                     logging.info("The new entry after counts added " + str(new_entry))
                     if "parent" in target_def:
                         #indices.append(target_count+'%')
-                        logging.info("Percentages " + percentages[target_count])
+                        logging.info("Percentages " + str(percentages[target_count]))
                         new_entry.append(percentages[target_count])
                         logging.info('The new entry after percentages added ' + str(new_entry))
                         if current_date not in df['date'].values:
                             logging.info('adding new entry for date ' + current_date)
                             logging.info('the new entry is ' + str(new_entry))
+                            logging.info('the length of the new entry is ' + str(len(new_entry)))
                             logging.info(str(len(df)) + ' is the length of the dataframe')
                             df.loc[len(df)] = new_entry
                         else:
