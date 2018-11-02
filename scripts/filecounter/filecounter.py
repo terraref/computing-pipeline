@@ -288,7 +288,7 @@ def update_file_counts(sensors, dates_to_check, conn):
             for target_count in targets:
                 target_def = targets[target_count]
                 counts[target_count] = perform_count(target_count, target_def, current_date, conn)
-                logger.info("Doing count and percentage for " + str(sensor) + " " + str(target_def))
+                logger.info("Doing count and percentage for " + str(sensor) + " " + str(target_def) + " " + str(current_date))
                 if "parent" in target_def:
                     if target_def["parent"] not in counts:
                         counts[target_def["parent"]] = perform_count(targets[target_def["parent"]], current_date, conn)
