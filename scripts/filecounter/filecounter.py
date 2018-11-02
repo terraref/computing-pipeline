@@ -326,6 +326,7 @@ def update_file_counts(sensors, dates_to_check, conn):
                             df.loc[df['date'] == current_date] = new_entry
 
         logging.info("Writing %s" % output_file)
+        df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df.to_csv(output_file, index=False)
 
