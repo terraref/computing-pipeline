@@ -304,11 +304,21 @@ def update_file_counts(sensors, dates_to_check, conn):
             # If this date already has a row, just update
             if current_date in df['date'].values:
                 logging.info("Already have data for date " + current_date)
+                updated_entry = [current_date]
                 for target_count in targets:
                     target_def = targets[target_count]
-                    df.loc[df['date'] == current_date, target_count] = counts[target_count]
+                    updated_entry.append(counts[target_count])
                     if "parent" in target_def:
-                        df.loc[df['date'] == current_date, target_count+'%'] = percentages[target_count+'%']
+                        indices.append(target_count+'%')
+                        updated_entry.append(percentages[target_count])
+                df.loc[df['date'] == current_date] = updated_entry
+
+
+                # for target_count in targets:
+                #     target_def = targets[target_count]
+                #     df.loc[df['date'] == current_date, target_count] = counts[target_count]
+                #     if "parent" in target_def:
+                #         df.loc[df['date'] == current_date, target_count+'%'] = percentages[target_count+'%']
 
             # If not, create a new row
             else:
@@ -324,7 +334,6 @@ def update_file_counts(sensors, dates_to_check, conn):
                     if "parent" in target_def:
                         indices.append(target_count+'%')
                         new_entry.append(percentages[target_count])
-
                 df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
 
         logging.info("Writing %s" % output_file)
