@@ -243,7 +243,9 @@ def run_update():
         dates_to_check = generate_dates_in_range(start_date_string)
 
         logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
-        update_file_counts(get_sensor_names(), dates_to_check, conn)
+
+        #update_file_counts(get_sensor_names(), dates_to_check, conn)
+        update_file_counts(['flirIrCamera'], dates_to_check, conn)
 
         # Wait 1 hour for next iteration
         time.sleep(3600)
