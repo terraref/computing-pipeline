@@ -278,7 +278,7 @@ def update_file_counts(sensors, dates_to_check, conn):
 
             df = pd.DataFrame(columns=cols)
 
-        logging.info('the dataframe has columns' + list(df))
+        logging.info('the dataframe has columns' + str(list(df)))
         for current_date in dates_to_check:
             logging.info("[%s] %s" % (sensor, current_date))
             counts = {}
