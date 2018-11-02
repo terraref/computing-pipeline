@@ -328,10 +328,12 @@ def update_file_counts(sensors, dates_to_check, conn):
                 for target_count in targets:
                     target_def = targets[target_count]
 
+                    indices.append(target_count)
                     new_entry.append(counts[target_count])
                     if "parent" in target_def:
+                        indices.append(target_count+'%')
                         new_entry.append(percentages[target_count])
-                df = df.append(pd.Series(new_entry), ignore_index=True)
+                df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
 
         logging.info("Writing %s" % output_file)
         df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
