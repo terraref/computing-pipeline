@@ -10,6 +10,7 @@
     </li>
     <br>
     <form action="#" method="post">
+        {{ form.csrf_token }}
         {{ form.start_date(class='datepicker') }}
         {{ form.end_date(class='datepicker') }}
         {{ form.submit }}

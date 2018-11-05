@@ -7,9 +7,10 @@ import psycopg2
 import re
 from collections import OrderedDict
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
-from flask_wtf import Form
+from flask_wtf import FlaskForm as Form
 from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
 from wtforms.fields.html5 import DateField
+from wtforms.validators import DataRequired
 
 config = {}
 
@@ -130,13 +131,17 @@ def create_app(test_config=None):
         pass
 
     class ExampleForm(Form):
-        start_date = DateField('Start', format='%Y-%m-%d')
+        start_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
         end_date = DateField('End', format='%Y-%m-%d')
-        submit = SubmitField('Submit')
+        submit = SubmitField('Count files for these days',validators=[DataRequired()])
 
     @app.route('/sensors')
     def sensors():
         return render_template('sensors.html', sensors=sensor_names)
+
+    @app.route('/test')
+    def test():
+        return 'this is only a test'
 
     @app.route('/download/<sensor_name>')
     def download(sensor_name):
@@ -162,9 +167,11 @@ def create_app(test_config=None):
     def dateoptions():
         form = ExampleForm(request.form)
         if form.validate_on_submit():
-            return form.start_date.data.strftime('%Y-%m-%d')
+            return redirect(url_for('schedule_count',
+                                    sensor_name='all',
+                                    start_range=str(form.start_date.data.strftime('%Y-%m-%d')),
+                                    end_range=str(form.end_date.data.strftime('%Y-%m-%d'))))
         return render_template('dateoptions.html', form=form)
-        #return render_template('dateoptions.html', sensors=sensor_names)
 
     @app.route('/schedule/<sensor_name>/<start_range>', defaults={'end_range': None})
     @app.route('/schedule/<sensor_name>/<start_range>/<end_range>')
