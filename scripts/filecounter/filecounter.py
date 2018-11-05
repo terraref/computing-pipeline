@@ -7,7 +7,9 @@ import psycopg2
 import re
 from collections import OrderedDict
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
-
+from flask_wtf import Form
+from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
+from wtforms.fields.html5 import DateField
 
 config = {}
 
@@ -25,6 +27,7 @@ Other fields:
     parent:     previous count definition for % generation (e.g. bin2tif's parent is stereoTop)
 """
 app_dir = "/home/filecounter/"
+app_dir = ""
 sites_root = "/home/clowder/"
 SENSOR_COUNT_DEFINITIONS = {
     "stereoTop": OrderedDict([
@@ -126,6 +129,11 @@ def create_app(test_config=None):
     except OSError:
         pass
 
+    class ExampleForm(Form):
+        start_date = DateField('Start', format='%Y-%m-%d')
+        end_date = DateField('End', format='%Y-%m-%d')
+        submit = SubmitField('Submit')
+
     @app.route('/sensors')
     def sensors():
         return render_template('sensors.html', sensors=sensor_names)
@@ -149,6 +157,14 @@ def create_app(test_config=None):
             return df.to_html()
         else:
             return df.tail(days).to_html()
+
+    @app.route('/dateoptions', methods=['POST','GET'])
+    def dateoptions():
+        form = ExampleForm(request.form)
+        if form.validate_on_submit():
+            return form.start_date.data.strftime('%Y-%m-%d')
+        return render_template('dateoptions.html', form=form)
+        #return render_template('dateoptions.html', sensors=sensor_names)
 
     @app.route('/schedule/<sensor_name>/<start_range>', defaults={'end_range': None})
     @app.route('/schedule/<sensor_name>/<start_range>/<end_range>')
@@ -348,6 +364,8 @@ def main():
 
 if __name__ == '__main__':
 
+    logger = logging.getLogger('counter')
+
     config = loadJsonFile(os.path.join(app_dir, "config_default.json"))
     if os.path.exists(os.path.join(app_dir, "data/config_custom.json")):
         print("...loading configuration from config_custom.json")
@@ -356,15 +374,15 @@ if __name__ == '__main__':
         print("...no custom configuration file found. using default values")
 
     # Initialize logger handlers
-    with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
-        log_config = json.load(f)
-        main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
-        log_config['handlers']['file']['filename'] = main_log_file
-        if not os.path.exists(config["log_path"]):
-            os.makedirs(config["log_path"])
-        if not os.path.isfile(main_log_file):
-            open(main_log_file, 'a').close()
-        logging.config.dictConfig(log_config)
-    logger = logging.getLogger('counter')
+    # with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
+    #     log_config = json.load(f)
+    #     main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
+    #     log_config['handlers']['file']['filename'] = main_log_file
+    #     if not os.path.exists(config["log_path"]):
+    #         os.makedirs(config["log_path"])
+    #     if not os.path.isfile(main_log_file):
+    #         open(main_log_file, 'a').close()
+    #     logging.config.dictConfig(log_config)
+
 
     main()
