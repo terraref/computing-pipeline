@@ -28,7 +28,6 @@ Other fields:
     parent:     previous count definition for % generation (e.g. bin2tif's parent is stereoTop)
 """
 app_dir = "/home/filecounter/"
-app_dir = ""
 sites_root = "/home/clowder/"
 SENSOR_COUNT_DEFINITIONS = {
     "stereoTop": OrderedDict([
@@ -381,15 +380,15 @@ if __name__ == '__main__':
         print("...no custom configuration file found. using default values")
 
     # Initialize logger handlers
-    # with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
-    #     log_config = json.load(f)
-    #     main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
-    #     log_config['handlers']['file']['filename'] = main_log_file
-    #     if not os.path.exists(config["log_path"]):
-    #         os.makedirs(config["log_path"])
-    #     if not os.path.isfile(main_log_file):
-    #         open(main_log_file, 'a').close()
-    #     logging.config.dictConfig(log_config)
+    with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
+        log_config = json.load(f)
+        main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
+        log_config['handlers']['file']['filename'] = main_log_file
+        if not os.path.exists(config["log_path"]):
+            os.makedirs(config["log_path"])
+        if not os.path.isfile(main_log_file):
+            open(main_log_file, 'a').close()
+        logging.config.dictConfig(log_config)
 
 
     main()
