@@ -134,9 +134,10 @@ def create_app(test_config=None):
         end_date = DateField('End', format='%Y-%m-%d')
         submit = SubmitField('Count files for these days',validators=[DataRequired()])
 
-    @app.route('/sensors')
-    def sensors():
-        return render_template('sensors.html', sensors=sensor_names)
+    @app.route('/sensors', defaults={'message': "Available Sensors and Options"})
+    @app.route('/sensors/<string:message>')
+    def sensors(message):
+        return render_template('sensors.html', sensors=sensor_names, message=message)
 
     @app.route('/test')
     def test():
@@ -191,7 +192,8 @@ def create_app(test_config=None):
 
         thread.start_new_thread(update_file_counts, (sensors, dates_in_range, conn))
 
-        return "Custom scan scheduled for %s sensors and %s dates" % (len(sensors), len(dates_in_range))
+        message = "Custom scan scheduled for %s sensors and %s dates" % (len(sensors), len(dates_in_range))
+        return redirect(url_for('sensors', message=message))
 
     return app
 
