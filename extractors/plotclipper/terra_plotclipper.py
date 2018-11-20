@@ -31,11 +31,11 @@ class PlotClipper(TerrarefExtractor):
         # files_to_process[filename] = local_path
 
         timestamp = resource['dataset_info']['name'].split(" - ")[1]
+        all_plots = get_site_boundaries(timestamp.split("__")[0], city='Maricopa')
 
         for filename in files_to_process:
             self.log_info(resource, "Attempting to clip into plot shards")
 
-            all_plots = get_site_boundaries(timestamp.split("__")[0], city='Maricopa')
             for plotname in all_plots:
                 if plotname.find("KSU") > -1:
                     continue
