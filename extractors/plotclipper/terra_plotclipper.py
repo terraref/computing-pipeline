@@ -48,13 +48,15 @@ class PlotClipper(TerrarefExtractor):
                 if 'bounding_box' in spatial_metadata:
                     intersecting_plots = find_plots_intersect_boundingbox(spatial_metadata['bounding_box'], all_plots)
                 elif 'left' in spatial_metadata and 'right' in spatial_metadata:
+                    # TODO how to handle left and right?
                     intersecting_left = find_plots_intersect_boundingbox(spatial_metadata['left']['bounding_box'], all_plots)
                     intersecting_right = find_plots_intersect_boundingbox(spatial_metadata['right']['bounding_box'], all_plots)
+                    intersecting_plots = intersecting_left
 
         for filename in files_to_process:
             self.log_info(resource, "Attempting to clip into plot shards")
 
-            for plotname in all_plots:
+            for plotname in intersecting_plots:
                 if plotname.find("KSU") > -1:
                     continue
 
