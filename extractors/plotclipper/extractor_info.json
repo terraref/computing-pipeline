@@ -1,0 +1,18 @@
+{
+  "@context": "http://clowder.ncsa.illinois.edu/contexts/extractors.jsonld",
+  "name": "terra.plotclipper",
+  "version": "1.0",
+  "description": "TERRA-REF plot clipper",
+  "author": "Max Burnette",
+  "contributors": [],
+  "contexts": [],
+  "repository": {"repType": "git", "repUrl": "https://github.com/terraref/computing-pipeline.git"},
+  "process": {
+    "dataset": [
+      "file.added"
+    ]
+  },
+  "external_services": [],
+  "dependencies": [],
+  "bibtex": []
+}
