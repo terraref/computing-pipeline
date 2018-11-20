@@ -1,6 +1,9 @@
 <html>
 <h2>List of Sensors</h2>
 <body>
+    <p>
+        {{message}}
+    </p>
     {% for sensor in sensors %}
 
             <li>{{sensor}}
@@ -10,5 +13,6 @@
             </li>
 
          {% endfor %}
+     <a href="{{ url_for('dateoptions')}}">Select dates for new file count</a>
 </body>
 </html>

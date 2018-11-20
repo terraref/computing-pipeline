@@ -7,7 +7,10 @@ import psycopg2
 import re
 from collections import OrderedDict
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
-
+from flask_wtf import FlaskForm as Form
+from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
+from wtforms.fields.html5 import DateField
+from wtforms.validators import DataRequired
 
 config = {}
 
@@ -126,9 +129,19 @@ def create_app(test_config=None):
     except OSError:
         pass
 
-    @app.route('/sensors')
-    def sensors():
-        return render_template('sensors.html', sensors=sensor_names)
+    class ExampleForm(Form):
+        start_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
+        end_date = DateField('End', format='%Y-%m-%d')
+        submit = SubmitField('Count files for these days',validators=[DataRequired()])
+
+    @app.route('/sensors', defaults={'message': "Available Sensors and Options"})
+    @app.route('/sensors/<string:message>')
+    def sensors(message):
+        return render_template('sensors.html', sensors=sensor_names, message=message)
+
+    @app.route('/test')
+    def test():
+        return 'this is only a test'
 
     @app.route('/download/<sensor_name>')
     def download(sensor_name):
@@ -150,6 +163,16 @@ def create_app(test_config=None):
         else:
             return df.tail(days).to_html()
 
+    @app.route('/dateoptions', methods=['POST','GET'])
+    def dateoptions():
+        form = ExampleForm(request.form)
+        if form.validate_on_submit():
+            return redirect(url_for('schedule_count',
+                                    sensor_name='all',
+                                    start_range=str(form.start_date.data.strftime('%Y-%m-%d')),
+                                    end_range=str(form.end_date.data.strftime('%Y-%m-%d'))))
+        return render_template('dateoptions.html', form=form)
+
     @app.route('/schedule/<sensor_name>/<start_range>', defaults={'end_range': None})
     @app.route('/schedule/<sensor_name>/<start_range>/<end_range>')
     def schedule_count(sensor_name, start_range, end_range):
@@ -169,7 +192,8 @@ def create_app(test_config=None):
 
         thread.start_new_thread(update_file_counts, (sensors, dates_in_range, conn))
 
-        return "Custom scan scheduled for %s sensors and %s dates" % (len(sensors), len(dates_in_range))
+        message = "Custom scan scheduled for %s sensors and %s dates" % (len(sensors), len(dates_in_range))
+        return redirect(url_for('sensors', message=message))
 
     return app
 
@@ -243,7 +267,9 @@ def run_update():
         dates_to_check = generate_dates_in_range(start_date_string)
 
         logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
+
         update_file_counts(get_sensor_names(), dates_to_check, conn)
+        #update_file_counts(['flirIrCamera'], dates_to_check, conn)
 
         # Wait 1 hour for next iteration
         time.sleep(3600)
@@ -266,7 +292,6 @@ def update_file_counts(sensors, dates_to_check, conn):
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
             df = pd.read_csv(output_file)
-            df.set_index('date')
         else:
             cols = ["date"]
             for target_count in targets:
@@ -297,33 +322,37 @@ def update_file_counts(sensors, dates_to_check, conn):
 
             # If this date already has a row, just update
             if current_date in df['date'].values:
-                logging.info(current_date + ' is already in the table, updating...')
+                logging.info("Already have data for date " + current_date)
+                updated_entry = [current_date]
                 for target_count in targets:
                     target_def = targets[target_count]
-                    df.loc[df['date'] == current_date, target_count] = counts[target_count]
+                    updated_entry.append(counts[target_count])
                     if "parent" in target_def:
-                        df.loc[df['date'] == current_date, target_count+'%'] = percentages[target_count+'%']
+                        updated_entry.append(percentages[target_count])
+                df.loc[df['date'] == current_date] = updated_entry
+
+
+                # for target_count in targets:
+                #     target_def = targets[target_count]
+                #     df.loc[df['date'] == current_date, target_count] = counts[target_count]
+                #     if "parent" in target_def:
+                #         df.loc[df['date'] == current_date, target_count+'%'] = percentages[target_count+'%']
 
             # If not, create a new row
             else:
-                logging.info(current_date + ' is not already in the table, making new entry')
+                logging.info("No data for date " + current_date + ' adding to dataframe')
                 new_entry = [current_date]
                 indices = ["date"]
 
                 for target_count in targets:
                     target_def = targets[target_count]
 
-                    #indices.append(target_count)
+                    indices.append(target_count)
                     new_entry.append(counts[target_count])
                     if "parent" in target_def:
                         indices.append(target_count+'%')
                         new_entry.append(percentages[target_count])
-                        if current_date not in df['date'].values:
-                            logging.info('adding new entry for date ' + current_date)
-                            df.loc[len(df)] = new_entry
-                        else:
-                            logging.info('updating entry for date ' + current_date)
-                            df.loc[df['date'] == current_date] = new_entry
+                df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
 
         logging.info("Writing %s" % output_file)
         df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
@@ -343,6 +372,8 @@ def main():
 
 if __name__ == '__main__':
 
+    logger = logging.getLogger('counter')
+
     config = loadJsonFile(os.path.join(app_dir, "config_default.json"))
     if os.path.exists(os.path.join(app_dir, "data/config_custom.json")):
         print("...loading configuration from config_custom.json")
@@ -360,6 +391,6 @@ if __name__ == '__main__':
         if not os.path.isfile(main_log_file):
             open(main_log_file, 'a').close()
         logging.config.dictConfig(log_config)
-    logger = logging.getLogger('counter')
+
 
     main()
