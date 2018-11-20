@@ -1,0 +1,23 @@
+{
+  "log_path": "/home/filecounter/data/log",
+  "csv_path": "/home/extractor/sites/ua-mac/reporting",
+
+  "api": {
+    "port": "5454",
+    "ip_address": "0.0.0.0"
+  },
+
+  "clowder": {
+    "host": "http://localhost:9000",
+    "secret_key": "r1ek3rs",
+    "user_map": {},
+    "primary_space": ""
+  },
+
+  "postgres": {
+    "database": "rulemonitor",
+    "username": "rulemonitor",
+    "password": "",
+    "host": "192.168.5.169"
+  }
+}
