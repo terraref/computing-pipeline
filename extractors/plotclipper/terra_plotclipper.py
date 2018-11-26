@@ -60,9 +60,6 @@ class PlotClipper(TerrarefExtractor):
                 if plotname.find("KSU") > -1:
                     continue
 
-                bounds = all_plots[plotname]
-                tuples = geojson_to_tuples_betydb(yaml.safe_load(bounds))
-
                 out_img = self.sensors.create_sensor_path(timestamp, plot=plotname, filename=filename)
 
                 if not os.path.exists(os.path.dirname(out_img)):
