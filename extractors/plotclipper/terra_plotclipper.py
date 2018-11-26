@@ -5,7 +5,7 @@ import yaml
 
 from pyclowder.utils import CheckMessage
 from terrautils.extractors import TerrarefExtractor, is_latest_file, load_json_file, \
-    build_metadata, build_dataset_hierarchy
+    build_metadata, build_dataset_hierarchy, file_exists
 from terrautils.betydb import add_arguments, get_sites, get_sites_by_latlon, submit_traits, \
     get_site_boundaries
 from terrautils.gdal import clip_raster, centroid_from_geojson
@@ -42,6 +42,7 @@ class PlotClipper(TerrarefExtractor):
         files_to_process = {}
         for f in resource['local_paths']:
             if f.startswith("ir_geotiff") and f.endswith(".tif"):
+                sensor_name = "ir_geotiff"
                 filename = os.path.basename(f)
                 files_to_process[filename] = {
                     "path": f,
@@ -49,6 +50,7 @@ class PlotClipper(TerrarefExtractor):
                 }
 
             elif f.startswith("rgb_geotiff") and f.endswith(".tif"):
+                sensor_name = "rgb_geotiff"
                 filename = os.path.basename(f)
                 if f.endswith("_left.tif"): side = "left"
                 else:                       side = "right"
@@ -77,11 +79,12 @@ class PlotClipper(TerrarefExtractor):
                 bounds = overlap_plots[plotname]
                 tuples = geojson_to_tuples_betydb(yaml.safe_load(bounds))
 
-                out_img = self.sensors.create_sensor_path(timestamp, plot=plotname, filename=filename)
+                out_img = self.sensors.create_sensor_path(timestamp, plot=plotname, sensor=sensor_name, filename=filename)
                 if not os.path.exists(os.path.dirname(out_img)):
                     os.makedirs(os.path.dirname(out_img))
 
-                clip_raster(file_path, tuples, out_path=out_img)
+                if not file_exists(out_img) or self.overwrite:
+                    clip_raster(file_path, tuples, out_path=out_img)
 
         self.end_message(resource)
 
