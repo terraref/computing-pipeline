@@ -1,8 +1,11 @@
-FROM terraref/terrautils:1.2
+FROM terraref/terrautils:1.4
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
 # Install any programs needed
 RUN useradd -u 49044 extractor
+
+# Install laser3d science package
+RUN pip install laspy terraref-laser3d
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/

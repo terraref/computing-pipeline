@@ -8,7 +8,7 @@ from terrautils.extractors import TerrarefExtractor, is_latest_file, load_json_f
     build_metadata, build_dataset_hierarchy, file_exists
 from terrautils.betydb import add_arguments, get_sites, get_sites_by_latlon, submit_traits, \
     get_site_boundaries
-from terrautils.gdal import clip_raster, centroid_from_geojson
+from terrautils.gdal import clip_raster, clip_las, centroid_from_geojson
 from terrautils.spatial import geojson_to_tuples_betydb
 from terrautils.metadata import get_terraref_metadata
 from terrautils.gdal import find_plots_intersect_boundingbox
@@ -59,7 +59,14 @@ class PlotClipper(TerrarefExtractor):
                     "bounds": spatial_meta[side]['bounding_box']
                 }
 
-            # TODO: Add case for laser3d LAS file
+            elif f.endswith(".las"):
+                sensor_name = "laser3d_las"
+                filename = os.path.basename(f)
+                files_to_process[filename] = {
+                    "path": f,
+                    "bounds": spatial_meta["merged"]["bounding_box"]
+                }
+
             # TODO: Add case for laser3d heightmap
 
         timestamp = resource['dataset_info']['name'].split(" - ")[1]
@@ -79,12 +86,15 @@ class PlotClipper(TerrarefExtractor):
                 bounds = overlap_plots[plotname]
                 tuples = geojson_to_tuples_betydb(yaml.safe_load(bounds))
 
-                out_img = self.sensors.create_sensor_path(timestamp, plot=plotname, sensor=sensor_name, filename=filename)
-                if not os.path.exists(os.path.dirname(out_img)):
-                    os.makedirs(os.path.dirname(out_img))
+                out_file = self.sensors.create_sensor_path(timestamp, plot=plotname, subsensor=sensor_name, filename=filename)
+                if not os.path.exists(os.path.dirname(out_file)):
+                    os.makedirs(os.path.dirname(out_file))
 
-                if not file_exists(out_img) or self.overwrite:
-                    clip_raster(file_path, tuples, out_path=out_img)
+                if not file_exists(out_file) or self.overwrite:
+                    if filename.endswith(".tif"):
+                        clip_raster(file_path, tuples, out_path=out_file)
+                    elif filename.endswith(".las"):
+                        clip_las(file_path, tuples, out_path=out_file)
 
         self.end_message(resource)
 
