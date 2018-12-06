@@ -34,8 +34,8 @@ function main() {
     print("NAME,TYPE,STATUS,ID,OWNER,PARENT_TARGET,PARENT_ACTUAL,NOTES");
 
     // WARNING: The first two Files methods are slow on a large db
-    //cleanFiles();
-    //removeMissingFiles();
+    cleanFiles();
+    removeMissingFiles();
     cleanCollections();
     cleanDatasets();
     healMisnamed();
