@@ -4,14 +4,16 @@ import os
 import yaml
 
 from pyclowder.utils import CheckMessage
+from pyclowder.files import upload_to_dataset
+from pyclowder.datasets import upload_metadata, remove_metadata
 from terrautils.extractors import TerrarefExtractor, is_latest_file, load_json_file, \
-    build_metadata, build_dataset_hierarchy, file_exists
+    build_metadata, build_dataset_hierarchy_crawl, file_exists, check_file_in_dataset
 from terrautils.betydb import add_arguments, get_sites, get_sites_by_latlon, submit_traits, \
     get_site_boundaries
-from terrautils.gdal import clip_raster, clip_las, centroid_from_geojson
-from terrautils.spatial import geojson_to_tuples_betydb
-from terrautils.metadata import get_terraref_metadata
-from terrautils.gdal import find_plots_intersect_boundingbox
+from terrautils.spatial import geojson_to_tuples_betydb, find_plots_intersect_boundingbox, \
+    get_las_extents, clip_raster, clip_las, centroid_from_geojson
+from terrautils.metadata import get_terraref_metadata, get_season_and_experiment
+
 
 class PlotClipper(TerrarefExtractor):
     def __init__(self):
@@ -64,13 +66,19 @@ class PlotClipper(TerrarefExtractor):
                 filename = os.path.basename(f)
                 files_to_process[filename] = {
                     "path": f,
-                    "bounds": spatial_meta["merged"]["bounding_box"]
+                    "bounds": get_las_extents(f)
                 }
 
             # TODO: Add case for laser3d heightmap
 
+        # Fetch experiment name from terra metadata
         timestamp = resource['dataset_info']['name'].split(" - ")[1]
+        season_name, experiment_name, updated_experiment = get_season_and_experiment(timestamp, 'plotclipper', terra_md_full)
+        if None in [season_name, experiment_name]:
+            raise ValueError("season and experiment could not be determined")
+
         all_plots = get_site_boundaries(timestamp.split("__")[0], city='Maricopa')
+        uploaded_file_ids = []
 
         for filename in files_to_process:
             self.log_info(resource, "Attempting to clip into plot shards")
@@ -80,12 +88,19 @@ class PlotClipper(TerrarefExtractor):
             overlap_plots = find_plots_intersect_boundingbox(file_bounds, all_plots)
 
             for plotname in overlap_plots:
-                if plotname.find("KSU") > -1:
+                if plotname.find("KSU") > -1 or plotname.endwith(" E") or plotname.endwith(" W"):
                     continue
 
-                bounds = overlap_plots[plotname]
-                tuples = geojson_to_tuples_betydb(yaml.safe_load(bounds))
+                plot_bounds = overlap_plots[plotname]
+                tuples = geojson_to_tuples_betydb(yaml.safe_load(plot_bounds))
 
+                plot_display_name = self.sensors.get_display_name(sensor=sensor_name) + " (By Plot)"
+                leaf_dataset = plot_display_name + ' - ' + plotname + " - " + timestamp.split("__")[0]
+                self.log_info(resource, "Hierarchy: %s / %s / %s / %s / %s / %s / %s" % (season_name, experiment_name, plot_display_name,
+                                                                                         timestamp[:4], timestamp[5:7], timestamp[8:10], leaf_dataset))
+                target_dsid = build_dataset_hierarchy_crawl(host, secret_key, self.clowder_user, self.clowder_pass, self.clowderspace,
+                                                            season_name, experiment_name, plot_display_name,
+                                                            timestamp[:4], timestamp[5:7], timestamp[8:10], leaf_ds_name=leaf_dataset)
                 out_file = self.sensors.create_sensor_path(timestamp, plot=plotname, subsensor=sensor_name, filename=filename)
                 if not os.path.exists(os.path.dirname(out_file)):
                     os.makedirs(os.path.dirname(out_file))
@@ -95,6 +110,21 @@ class PlotClipper(TerrarefExtractor):
                         clip_raster(file_path, tuples, out_path=out_file)
                     elif filename.endswith(".las"):
                         clip_las(file_path, tuples, out_path=out_file)
+
+                    found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_file, remove=self.overwrite)
+                    if not found_in_dest or self.overwrite:
+                        fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_file)
+                        uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+                    self.created += 1
+                    self.bytes += os.path.getsize(out_file)
+
+        # Tell Clowder this is completed so subsequent file updates don't daisy-chain
+        extractor_md = build_metadata(host, self.extractor_info, target_dsid, {
+            "files_created": uploaded_file_ids
+        }, 'dataset')
+        self.log_info(resource, "uploading extractor metadata to Level_1 dataset")
+        remove_metadata(connector, host, secret_key, resource['id'], self.extractor_info['name'])
+        upload_metadata(connector, host, secret_key, resource['id'], extractor_md)
 
         self.end_message(resource)
 
