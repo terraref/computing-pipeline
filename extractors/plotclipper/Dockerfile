@@ -7,6 +7,10 @@ RUN useradd -u 49044 extractor
 # Install laser3d science package
 RUN pip install laspy terraref-laser3d
 
+# Install PDAL
+RUN apt-get update \
+    && apt-get install -y pdal
+
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/
 

@@ -81,45 +81,46 @@ class PlotClipper(TerrarefExtractor):
         uploaded_file_ids = []
 
         for filename in files_to_process:
-            self.log_info(resource, "Attempting to clip into plot shards")
-
             file_path = files_to_process[filename]["path"]
             file_bounds = files_to_process[filename]["bounds"]
-            overlap_plots = find_plots_intersect_boundingbox(file_bounds, all_plots)
 
-            for plotname in overlap_plots:
-                if plotname.find("KSU") > -1 or plotname.endwith(" E") or plotname.endwith(" W"):
-                    continue
+            overlap_plots = find_plots_intersect_boundingbox(file_bounds, all_plots, fullmac=True)
 
-                plot_bounds = overlap_plots[plotname]
-                tuples = geojson_to_tuples_betydb(yaml.safe_load(plot_bounds))
+            if len(overlap_plots) > 0:
+                self.log_info(resource, "Attempting to clip %s into %s plot shards" % (filename, len(overlap_plots)))
+                for plotname in overlap_plots:
+                    plot_bounds = overlap_plots[plotname]
+                    tuples = geojson_to_tuples_betydb(yaml.safe_load(plot_bounds))
 
-                plot_display_name = self.sensors.get_display_name(sensor=sensor_name) + " (By Plot)"
-                leaf_dataset = plot_display_name + ' - ' + plotname + " - " + timestamp.split("__")[0]
-                self.log_info(resource, "Hierarchy: %s / %s / %s / %s / %s / %s / %s" % (season_name, experiment_name, plot_display_name,
-                                                                                         timestamp[:4], timestamp[5:7], timestamp[8:10], leaf_dataset))
-                target_dsid = build_dataset_hierarchy_crawl(host, secret_key, self.clowder_user, self.clowder_pass, self.clowderspace,
-                                                            season_name, experiment_name, plot_display_name,
-                                                            timestamp[:4], timestamp[5:7], timestamp[8:10], leaf_ds_name=leaf_dataset)
-                out_file = self.sensors.create_sensor_path(timestamp, plot=plotname, subsensor=sensor_name, filename=filename)
-                if not os.path.exists(os.path.dirname(out_file)):
-                    os.makedirs(os.path.dirname(out_file))
+                    plot_display_name = self.sensors.get_display_name(sensor=sensor_name) + " (By Plot)"
+                    leaf_dataset = plot_display_name + ' - ' + plotname + " - " + timestamp.split("__")[0]
+                    self.log_info(resource, "Hierarchy: %s / %s / %s / %s / %s / %s / %s" % (season_name, experiment_name, plot_display_name,
+                                                                                             timestamp[:4], timestamp[5:7], timestamp[8:10], leaf_dataset))
+                    target_dsid = build_dataset_hierarchy_crawl(host, secret_key, self.clowder_user, self.clowder_pass, self.clowderspace,
+                                                                season_name, experiment_name, plot_display_name,
+                                                                timestamp[:4], timestamp[5:7], timestamp[8:10], leaf_ds_name=leaf_dataset)
+                    out_file = self.sensors.create_sensor_path(timestamp, plot=plotname, subsensor=sensor_name, filename=filename)
+                    if not os.path.exists(os.path.dirname(out_file)):
+                        os.makedirs(os.path.dirname(out_file))
 
-                if not file_exists(out_file) or self.overwrite:
-                    if filename.endswith(".tif"):
-                        clip_raster(file_path, tuples, out_path=out_file)
-                    elif filename.endswith(".las"):
-                        clip_las(file_path, tuples, out_path=out_file)
+                    if not file_exists(out_file) or self.overwrite:
+                        if filename.endswith(".tif"):
+                            clip_raster(file_path, tuples, out_path=out_file)
+                        elif filename.endswith(".las"):
+                            clip_las(file_path, tuples, out_path=out_file)
+                            out_file = os.path.join(os.path.dirname(out_file), "merged_plot.las")
 
-                    found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_file, remove=self.overwrite)
-                    if not found_in_dest or self.overwrite:
-                        fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_file)
-                        uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
-                    self.created += 1
-                    self.bytes += os.path.getsize(out_file)
+                        # TODO: How to handle separate scans per day?
+
+                        found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_file, remove=self.overwrite)
+                        if not found_in_dest or self.overwrite:
+                            fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_file)
+                            uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+                        self.created += 1
+                        self.bytes += os.path.getsize(out_file)
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
-        extractor_md = build_metadata(host, self.extractor_info, target_dsid, {
+        extractor_md = build_metadata(host, self.extractor_info, resource['id'], {
             "files_created": uploaded_file_ids
         }, 'dataset')
         self.log_info(resource, "uploading extractor metadata to Level_1 dataset")
