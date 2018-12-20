@@ -77,6 +77,14 @@ class PlotClipper(TerrarefExtractor):
         if None in [season_name, experiment_name]:
             raise ValueError("season and experiment could not be determined")
 
+        # Determine script name
+        target_scan = "unknown_scan"
+        if 'gantry_variable_metadata' in terra_md_full:
+            if 'script_name' in terra_md_full['gantry_variable_metadata']:
+                target_scan = terra_md_full['gantry_variable_metadata']['script_name']
+                if 'script_hash' in terra_md_full['gantry_variable_metadata']:
+                    target_scan += ' '+terra_md_full['gantry_variable_metadata']['script_hash']
+
         all_plots = get_site_boundaries(timestamp.split("__")[0], city='Maricopa')
         uploaded_file_ids = []
 
@@ -99,25 +107,46 @@ class PlotClipper(TerrarefExtractor):
                     target_dsid = build_dataset_hierarchy_crawl(host, secret_key, self.clowder_user, self.clowder_pass, self.clowderspace,
                                                                 season_name, experiment_name, plot_display_name,
                                                                 timestamp[:4], timestamp[5:7], timestamp[8:10], leaf_ds_name=leaf_dataset)
+
                     out_file = self.sensors.create_sensor_path(timestamp, plot=plotname, subsensor=sensor_name, filename=filename)
                     if not os.path.exists(os.path.dirname(out_file)):
                         os.makedirs(os.path.dirname(out_file))
 
-                    if not file_exists(out_file) or self.overwrite:
-                        if filename.endswith(".tif"):
-                            clip_raster(file_path, tuples, out_path=out_file)
-                        elif filename.endswith(".las"):
-                            clip_las(file_path, tuples, out_path=out_file)
-                            out_file = os.path.join(os.path.dirname(out_file), "merged_plot.las")
+                    if filename.endswith(".tif") and (not file_exists(out_file) or self.overwrite):
+                        """If file is a geoTIFF, simply clip it and upload it to Clowder"""
+                        clip_raster(file_path, tuples, out_path=out_file)
 
-                        # TODO: How to handle separate scans per day?
-
-                        found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_file, remove=self.overwrite)
+                        found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, merged_out, remove=self.overwrite)
                         if not found_in_dest or self.overwrite:
-                            fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_file)
+                            fileid = upload_to_dataset(connector, host, secret_key, target_dsid, merged_out)
                             uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
                         self.created += 1
-                        self.bytes += os.path.getsize(out_file)
+                        self.bytes += os.path.getsize(merged_out)
+
+                    elif filename.endswith(".las"):
+                        """If file is LAS, we can merge with any existing scan+plot output safely"""
+                        merged_out = os.path.join(os.path.dirname(out_file), target_scan+"_merged.las")
+                        merged_txt = merged_out.replace(".las", "_contents.txt")
+
+                        already_merged = False
+                        if os.path.exists(merged_txt):
+                            # Check if contents
+                            with open(merged_txt, 'r') as contents:
+                                for entry in contents.readlines():
+                                    if entry.strip() == file_path:
+                                        already_merged = True
+                                        break
+                        if not already_merged:
+                            clip_las(file_path, tuples, out_path=out_file, merged_path=merged_out)
+                            with open(merged_txt, 'a') as contents:
+                                contents.write(file_path+"\n")
+
+                        found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, merged_out, remove=self.overwrite)
+                        if not found_in_dest or self.overwrite:
+                            fileid = upload_to_dataset(connector, host, secret_key, target_dsid, merged_out)
+                            uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+                        self.created += 1
+                        self.bytes += os.path.getsize(merged_out)
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
         extractor_md = build_metadata(host, self.extractor_info, resource['id'], {
