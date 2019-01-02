@@ -5,7 +5,7 @@ import yaml
 
 from pyclowder.utils import CheckMessage
 from pyclowder.files import upload_to_dataset
-from pyclowder.datasets import upload_metadata, remove_metadata
+from pyclowder.datasets import upload_metadata, remove_metadata, submit_extraction
 from terrautils.extractors import TerrarefExtractor, is_latest_file, load_json_file, \
     build_metadata, build_dataset_hierarchy_crawl, file_exists, check_file_in_dataset
 from terrautils.betydb import add_arguments, get_sites, get_sites_by_latlon, submit_traits, \
@@ -141,12 +141,25 @@ class PlotClipper(TerrarefExtractor):
                             with open(merged_txt, 'a') as contents:
                                 contents.write(file_path+"\n")
 
+                        # Upload the individual plot shards for optimizing las2height later
+                        found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_file, remove=self.overwrite)
+                        if not found_in_dest or self.overwrite:
+                            fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_file)
+                            uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+                        self.created += 1
+                        self.bytes += os.path.getsize(out_file)
+
+                        # Upload the merged result if necessary
                         found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, merged_out, remove=self.overwrite)
                         if not found_in_dest or self.overwrite:
                             fileid = upload_to_dataset(connector, host, secret_key, target_dsid, merged_out)
                             uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
                         self.created += 1
                         self.bytes += os.path.getsize(merged_out)
+
+                        # Trigger las2height extractor
+                        submit_extraction(connector, host, secret_key, target_dsid, "terra.3dscanner.las2height")
+
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain
         extractor_md = build_metadata(host, self.extractor_info, resource['id'], {
