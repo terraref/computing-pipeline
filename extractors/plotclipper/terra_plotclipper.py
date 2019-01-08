@@ -142,23 +142,25 @@ class PlotClipper(TerrarefExtractor):
                                 contents.write(file_path+"\n")
 
                         # Upload the individual plot shards for optimizing las2height later
-                        found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_file, remove=self.overwrite)
-                        if not found_in_dest or self.overwrite:
-                            fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_file)
-                            uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
-                        self.created += 1
-                        self.bytes += os.path.getsize(out_file)
+                        if os.path.exists(out_file):
+                            found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_file, remove=self.overwrite)
+                            if not found_in_dest or self.overwrite:
+                                fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_file)
+                                uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+                            self.created += 1
+                            self.bytes += os.path.getsize(out_file)
 
                         # Upload the merged result if necessary
-                        found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, merged_out, remove=self.overwrite)
-                        if not found_in_dest or self.overwrite:
-                            fileid = upload_to_dataset(connector, host, secret_key, target_dsid, merged_out)
-                            uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
-                        self.created += 1
-                        self.bytes += os.path.getsize(merged_out)
+                        if os.path.exists(merged_out):
+                            found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, merged_out, remove=self.overwrite)
+                            if not found_in_dest or self.overwrite:
+                                fileid = upload_to_dataset(connector, host, secret_key, target_dsid, merged_out)
+                                uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+                            self.created += 1
+                            self.bytes += os.path.getsize(merged_out)
 
-                        # Trigger las2height extractor
-                        submit_extraction(connector, host, secret_key, target_dsid, "terra.3dscanner.las2height")
+                            # Trigger las2height extractor
+                            submit_extraction(connector, host, secret_key, target_dsid, "terra.3dscanner.las2height")
 
 
         # Tell Clowder this is completed so subsequent file updates don't daisy-chain

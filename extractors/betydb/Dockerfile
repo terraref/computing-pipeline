@@ -1,10 +1,8 @@
-FROM terraref/terrautils:1.2
+FROM terraref/terrautils:1.4
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
 # Install any programs needed
-RUN useradd -u 49044 extractor \
-    && mkdir -p /home/extractor/sites/ua-mac \
-    && chown -R extractor /home/extractor
+RUN useradd -u 49044 extractor
 
 # command to run when starting docker
 COPY entrypoint.sh extractor_info.json *.py /home/extractor/
