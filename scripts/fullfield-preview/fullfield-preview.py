@@ -16,6 +16,8 @@ config = {}
 app_dir = "/home/fullfield-preview/"
 sites_root = "/home/clowder/"
 
+PEOPLE_FOLDER = os.path.join('static', 'images')
+
 def create_app(test_config=None):
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
@@ -23,6 +25,8 @@ def create_app(test_config=None):
         SECRET_KEY='dev',
         DATABASE=os.path.join(app.instance_path, 'flaskr.sqlite'),
     )
+
+    app.config['UPLOAD_FOLDER'] = PEOPLE_FOLDER
 
     if test_config is None:
         # load the instance config, if it exists, when not testing
@@ -39,7 +43,10 @@ def create_app(test_config=None):
 
     @app.route('/test')
     def test():
-        return 'this is only a test'
+        full_filename = os.path.join(app.config['UPLOAD_FOLDER'], 'test-plant-image.jpg')
+
+        return render_template("show_image.html", user_image=full_filename)
+        #return 'this is only a test'
 
     return app
 
