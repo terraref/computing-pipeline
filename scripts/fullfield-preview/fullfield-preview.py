@@ -1,5 +1,7 @@
 import os
 import logging
+import tempfile
+import shutil
 import time
 import datetime
 import psycopg2
@@ -10,17 +12,62 @@ from flask_wtf import FlaskForm as Form
 from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
+from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
+from PIL import Image
+
+
 
 config = {}
 
 app_dir = "/home/fullfield-preview/"
 sites_root = "/home/clowder/"
 
+ir_fullfield_dir = '/ua-mac/Level_2/ir_fullfield/'
+
 PEOPLE_FOLDER = os.path.join('static', 'images')
+
+
+def scale_image(input_image_path,
+                output_image_path,
+                width=None,
+                height=None
+                ):
+    original_image = Image.open(input_image_path)
+    w, h = original_image.size
+    print('The original image size is {wide} wide x {height} '
+          'high'.format(wide=w, height=h))
+
+    if width and height:
+        max_size = (width, height)
+    elif width:
+        max_size = (width, h)
+    elif height:
+        max_size = (w, height)
+    else:
+        # No width or height specified
+        raise RuntimeError('Width or height required!')
+
+    original_image.thumbnail(max_size, Image.ANTIALIAS)
+    original_image.save(output_image_path)
+
+    scaled_image = Image.open(output_image_path)
+    width, height = scaled_image.size
+    print('The scaled image size is {wide} wide x {height} '
+          'high'.format(wide=width, height=height))
 
 def create_app(test_config=None):
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+    # No caching at all for API endpoints.
+    @app.after_request
+    def add_header(response):
+        # response.cache_control.no_store = True
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post - check = 0, pre - check = 0, max - age = 0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '-1'
+        return response
     app.config.from_mapping(
         SECRET_KEY='dev',
         DATABASE=os.path.join(app.instance_path, 'flaskr.sqlite'),
@@ -41,12 +88,46 @@ def create_app(test_config=None):
     except OSError:
         pass
 
-    @app.route('/test')
-    def test():
-        full_filename = os.path.join(app.config['UPLOAD_FOLDER'], 'test-plant-image.jpg')
+    class ExampleForm(Form):
+        selected_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
+        submit = SubmitField('Show Available Fullfields', validators=[DataRequired()])
 
-        return render_template("show_image.html", user_image=full_filename)
+    @app.route('/')
+    def test():
+        full_filename = os.path.join(app.config['UPLOAD_FOLDER'], 'monolith_2001.jpg')
+        scaled_image_filename_100 = os.path.join(app.config['UPLOAD_FOLDER'], 'resized_image_100.jpg')
+        scaled_image_filename_300 = os.path.join(app.config['UPLOAD_FOLDER'], 'resized_image_300.jpg')
+
+        t_100 = tempfile.NamedTemporaryFile(dir=os.path.join(app.config['UPLOAD_FOLDER']), suffix='.jpg')
+        t_300 = tempfile.NamedTemporaryFile(dir=os.path.join(app.config['UPLOAD_FOLDER']), suffix='.jpg' )
+
+        if os.path.isfile(scaled_image_filename_100):
+            os.remove(scaled_image_filename_100)
+        if os.path.isfile(scaled_image_filename_300):
+            os.remove(scaled_image_filename_300)
+
+        scale_image(full_filename,t_100, width=100)
+        scale_image(full_filename, t_300, width=300)
+        shutil.copy(t_100.name, scaled_image_filename_100)
+        shutil.copy(t_300.name, scaled_image_filename_300)
+
+        return render_template("show_image.html", user_image=full_filename, resized_image=scaled_image_filename_100, resized_image_2 =scaled_image_filename_300)
+        #resp.cache_control.no_cache = True
+        #return resp
         #return 'this is only a test'
+
+    @app.route('/dateoptions', methods=['POST','GET'])
+    def dateoptions():
+        form = ExampleForm(request.form)
+        if form.validate_on_submit():
+            return redirect(url_for('show_fullfield',
+                                    selected_date=str(form.selected_date.data.strftime('%Y-%m-%d'))))
+            return render_template('dateoptions.html', form=form)
+        return render_template('dateoptions.html', form=form)
+
+    @app.route('/show_fullfield')
+    def show_fullfield():
+        return 'this is the fullfield'
 
     return app
 
@@ -59,6 +140,7 @@ def main():
     app.run(host=apiIP, port=apiPort)
 
 if __name__ == '__main__':
+
 
     logger = logging.getLogger('counter')
 

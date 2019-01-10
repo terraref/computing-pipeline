@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Date Options</title>
+</head>
+<body>
+    <li>
+        Select dates to see fullfield thumbnails
+    </li>
+    <br>
+    <form action="#" method="post">
+        {{ form.csrf_token }}
+        {{ form.selected_date(class='datepicker') }}
+        {{ form.submit }}
+    </form>
+</body>
+</html>
