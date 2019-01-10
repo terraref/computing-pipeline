@@ -125,9 +125,16 @@ def create_app(test_config=None):
             return render_template('dateoptions.html', form=form)
         return render_template('dateoptions.html', form=form)
 
-    @app.route('/show_fullfield')
-    def show_fullfield():
-        return 'this is the fullfield'
+    @app.route('/show_fullfield/<selected_date>')
+    def show_fullfield(selected_date):
+        ir_fullfield_dir_for_date = ir_fullfield_dir + selected_date + '/'
+        files_in_dir = os.listdir(ir_fullfield_dir_for_date)
+        ir_fullfield_thumbnails = []
+        for f in files_in_dir:
+            if f.endswith('_thumb.tif') or f.endswith('_thumb.tiff'):
+                if 'rgb' in f:
+                    ir_fullfield_thumbnails.append(f)
+        return 'this is the thumbnails :  ' + ir_fullfield_thumbnails
 
     return app
 
