@@ -3,8 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <title>Season Slider</title>
+    <script>
+    function outputUpdate(age) {
+        document.querySelector('#selected-age').value = age;
+    }
+</script>
 </head>
 <body>
     {{message}}
+    <div>
+        {{dateslider}}
+    </div>
+
+    <br>
+    <form>
+        <p>
+           {{ form.age.label }}:
+           {{ form.age(min=0, max=100, oninput="outputUpdate(value)") }}
+           <output for="age" id="selected-age">{{ form.age.data }}</output>
+        </p>
+    </form>
+    <div class="col-md-8">
+        <div class="slidecontainer">
+          <input type="range" min="0" max="100" value="50" class="slider" id="dateslider">
+          <br>
+        </div>
+    </div>
 </body>
 </html>

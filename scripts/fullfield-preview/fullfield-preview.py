@@ -13,6 +13,7 @@ from wtforms import TextField, TextAreaField, validators, StringField, SubmitFie
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
+from wtforms.fields.html5 import DecimalRangeField
 from PIL import Image
 
 
@@ -26,6 +27,8 @@ ir_fullfield_dir = '/ua-mac/Level_2/ir_fullfield/'
 
 PEOPLE_FOLDER = os.path.join('static', 'images')
 
+class TestForm(Form):
+    age = DecimalRangeField('Age', default=0)
 
 def scale_image(input_image_path,
                 output_image_path,
@@ -54,6 +57,9 @@ def scale_image(input_image_path,
     width, height = scaled_image.size
     print('The scaled image size is {wide} wide x {height} '
           'high'.format(wide=width, height=height))
+
+def get_daterange_for_season(season):
+    print('getting date range for seasons : ' + season)
 
 def create_app(test_config=None):
     # create and configure the app
@@ -145,7 +151,8 @@ def create_app(test_config=None):
     def display_season():
         select = request.form.get('season_select')
         message = "we are finding dates for seasons : " + str(select)
-        return render_template('display_season.html', message=message)
+        form = TestForm(csrf_enabled=False)
+        return render_template('display_season.html', message=message, form=form)
 
     return app
 
