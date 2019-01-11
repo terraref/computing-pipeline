@@ -7,13 +7,15 @@ import datetime
 import psycopg2
 import re
 from collections import OrderedDict
+import flask
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
 from flask_wtf import FlaskForm as Form
 from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
+from flask import session
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
-from wtforms.fields.html5 import DecimalRangeField
+from wtforms.fields.html5 import DecimalRangeField, IntegerRangeField
 from PIL import Image
 
 
@@ -27,8 +29,11 @@ ir_fullfield_dir = '/ua-mac/Level_2/ir_fullfield/'
 
 PEOPLE_FOLDER = os.path.join('static', 'images')
 
+five_item_list = ['apple', 'banana', 'cranberry', 'date', 'eggplant']
+
+
 class TestForm(Form):
-    age = DecimalRangeField('Age', default=0)
+    day = IntegerRangeField('Day', default=0)
 
 def scale_image(input_image_path,
                 output_image_path,
@@ -118,9 +123,6 @@ def create_app(test_config=None):
         shutil.copy(t_300.name, scaled_image_filename_300)
 
         return render_template("show_image.html", user_image=full_filename, resized_image=scaled_image_filename_100, resized_image_2 =scaled_image_filename_300)
-        #resp.cache_control.no_cache = True
-        #return resp
-        #return 'this is only a test'
 
     @app.route('/dateoptions', methods=['POST','GET'])
     def dateoptions():
@@ -151,8 +153,31 @@ def create_app(test_config=None):
     def display_season():
         select = request.form.get('season_select')
         message = "we are finding dates for seasons : " + str(select)
+        flask.session['count'] = 0
         form = TestForm(csrf_enabled=False)
-        return render_template('display_season.html', message=message, form=form)
+        return render_template('display_season.html', message=message, form=form, image_list=five_item_list)
+
+    @app.route('/display_page', methods=['GET'])
+    def display_page():
+        files = os.listdir(app.config['UPLOAD_FOLDER'])
+        '''function to return the HTML page to display the images'''
+        flask.session['count'] = 0
+        _files = files
+        current_file  = os.path.join(app.config['UPLOAD_FOLDER'],_files[0])
+        return flask.render_template('photo_display.html', photo=current_file)
+
+    @app.route('/get_photo', methods=['GET'])
+    def get_photo():
+        files = os.listdir(app.config['UPLOAD_FOLDER'])
+
+        _direction = flask.request.args.get('direction')
+        flask.session['count'] = flask.session['count'] + (1 if _direction == 'f' else - 1)
+        _files = files
+        current_file  = os.path.join(app.config['UPLOAD_FOLDER'],_files[flask.session['count']])
+
+        return flask.jsonify(
+            {'photo': current_file, 'forward': str(flask.session['count'] + 1 < len(_files)),
+             'back': str(bool(flask.session['count']))})
 
     return app
 

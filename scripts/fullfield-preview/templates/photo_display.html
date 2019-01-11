@@ -1,0 +1,49 @@
+<html>
+  <head>
+   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+   </head>
+   <body>
+      <div class='image_display'>
+        <img src="{{photo}}" id='photo_display' height="100" width="100">
+        <table>
+         <tr>
+           <td class='back'></td>
+           <td class='forward'><button id='go_forward' class='navigate'>Forward</button></td>
+         </tr>
+        </table>
+      </div>
+   </body>
+   <script>
+    $(document).ready(function(){
+      $('.image_display').on('click', '.navigate', function(){
+        var direction = 'b';
+        if ($(this).prop('id') === 'go_forward'){
+          direction = 'f';
+        }
+
+        $.ajax({
+         url: "/get_photo",
+         type: "get",
+         data: {direction: direction},
+         success: function(response) {
+           $('#photo_display').attr('src', response.photo);
+           if (response.back === "True"){
+             $('.back').html("<button id='go_back' class='navigate'>Back</button>")
+           }
+           else{
+             $('#go_back').remove();
+           }
+           if (response.forward === "True"){
+             $('.forward').html("<button id='go_forward' class='navigate'>Forward</button>")
+           }
+           else{
+             $('#go_forward').remove();
+           }
+
+         },
+
+       });
+      });
+    });
+   </script>
+</html>

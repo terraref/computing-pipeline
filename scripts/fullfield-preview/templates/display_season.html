@@ -4,10 +4,26 @@
     <meta charset="UTF-8">
     <title>Season Slider</title>
     <script>
-    function outputUpdate(age) {
-        document.querySelector('#selected-age').value = age;
+    function outputUpdate(day) {
+        document.querySelector('#selected-day').value = day;
     }
-</script>
+    </script>
+    <script>
+    function onClickNext() {
+        console.log("clicking next")
+        var counter = $('#TextBox').val();
+        counter++ ;
+        $('#TextBox').val(counter);
+    }
+    </script>
+      <script>
+    function onClickPrevious() {
+        console.log("clicking next")
+        var counter = $('#TextBox').val();
+        counter-- ;
+        $('#TextBox').val(counter);
+    }
+    </script>
 </head>
 <body>
     {{message}}
@@ -18,16 +34,47 @@
     <br>
     <form>
         <p>
-           {{ form.age.label }}:
-           {{ form.age(min=0, max=100, oninput="outputUpdate(value)") }}
-           <output for="age" id="selected-age">{{ form.age.data }}</output>
+        <input type="text" name="TextBox" id="TextBox" value="0" />
+        <!--<input type="Button" id='AddButton' value="+" />-->
+        <!--<input type="Button" id='SubtractButton' value="-" />-->
+
+        <script src="http://code.jquery.com/jquery-1.4.3.min.js"></script>
+        <script>
+            $(document).ready(function(){
+                $('#AddButton').click( function() {
+                    var counter = $('#TextBox').val();
+                    counter++ ;
+                    $('#TextBox').val(counter);
+                });
+                  $('#SubtractButton').click( function() {
+                    var counter = $('#TextBox').val();
+                    counter-- ;
+                    $('#TextBox').val(counter);
+                });
+                  $('#SubtractButton').click( function() {
+                    var counter = $('#TextBox').val();
+                    counter-- ;
+                    $('#TextBox').val(counter);
+                });
+            });
+        </script>
+            <output for="day" id="selected-day">{{ form.day.data }}</output>
+            <br>
+           {{ form.day.label }}:
+           {{ form.day(min=0, max=5, oninput="outputUpdate(value)") }}
         </p>
     </form>
-    <div class="col-md-8">
-        <div class="slidecontainer">
-          <input type="range" min="0" max="100" value="50" class="slider" id="dateslider">
-          <br>
-        </div>
-    </div>
+    <button type="button" onclick="onClickPrevious(this)" name="enable">Previous</button>
+    <button type="button" onclick="onClickNext(this)" name="enable">Next</button>
+
+    <br>
+
+
+    <!--<div class="col-md-8">-->
+        <!--<div class="slidecontainer">-->
+          <!--<input type="range" min="0" max="100" value="50" class="slider" id="dateslider">-->
+          <!--<br>-->
+        <!--</div>-->
+    <!--</div>-->
 </body>
 </html>
