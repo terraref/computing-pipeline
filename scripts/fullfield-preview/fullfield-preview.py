@@ -136,6 +136,17 @@ def create_app(test_config=None):
                     ir_fullfield_thumbnails.append(f)
         return 'this is the thumbnails :  ' + ir_fullfield_thumbnails
 
+    @app.route('/select')
+    def select():
+        available_seasons = [1, 2, 3, 4, 5, 6]
+        return render_template('main_selection.html', seasons=available_seasons)
+
+    @app.route('/display_season/', methods=['GET', 'POST'])
+    def display_season():
+        select = request.form.get('season_select')
+        message = "we are finding dates for seasons : " + str(select)
+        return render_template('display_season.html', message=message)
+
     return app
 
 def main():

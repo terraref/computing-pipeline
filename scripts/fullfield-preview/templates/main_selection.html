@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Main Selection</title>
+</head>
+<body>
+<h3>Select Seasons</h3>
+<form class="form-inline" method="POST" action="{{ url_for('display_season') }}">
+    <div class="form-group">
+        <div class="input-group">
+            <div>
+                <span class="input-group-addon">Please select season</span>
+            </div>
+            <select name="season_select" class="selectpicker form-control">
+              {% for season in seasons %}
+              <option value="{{season }}" SELECTED>Season {{season}}</option>
+              {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-default">Go</button>
+    </div>
+</form>
+</body>
+</html>
