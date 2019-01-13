@@ -18,6 +18,19 @@ from flask import Flask, render_template, send_file, request, url_for, redirect,
 from wtforms.fields.html5 import DecimalRangeField, IntegerRangeField
 from PIL import Image
 
+import errno
+
+
+def copy(src, dest):
+    try:
+        shutil.copytree(src, dest)
+    except OSError as e:
+        # If the error was caused because the source wasn't a directory
+        if e.errno == errno.ENOTDIR:
+            shutil.copy(src, dest)
+        else:
+            print('Directory not copied. Error: %s' % e)
+
 
 
 config = {}
@@ -26,6 +39,8 @@ app_dir = "/home/fullfield-preview/"
 sites_root = "/home/clowder/"
 
 ir_fullfield_dir = '/ua-mac/Level_2/ir_fullfield/'
+
+fullfield_thumbnails_directory = '/Users/helium/terraref-globus/thumbnails/'
 
 PEOPLE_FOLDER = os.path.join('static', 'images')
 
@@ -106,8 +121,13 @@ def create_app(test_config=None):
     @app.route('/')
     def test():
         full_filename = os.path.join(app.config['UPLOAD_FOLDER'], 'monolith_2001.jpg')
+        full_filename = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails','temporary','fullfield_L1_ua-mac_2017-01-01_rgb_thumb.png')
+
         scaled_image_filename_100 = os.path.join(app.config['UPLOAD_FOLDER'], 'resized_image_100.jpg')
         scaled_image_filename_300 = os.path.join(app.config['UPLOAD_FOLDER'], 'resized_image_300.jpg')
+
+        new_full_filename = '/Users/helium/Desktop/unicorn.jpg'
+
 
         t_100 = tempfile.NamedTemporaryFile(dir=os.path.join(app.config['UPLOAD_FOLDER']), suffix='.jpg')
         t_300 = tempfile.NamedTemporaryFile(dir=os.path.join(app.config['UPLOAD_FOLDER']), suffix='.jpg' )
@@ -119,7 +139,7 @@ def create_app(test_config=None):
 
         scale_image(full_filename,t_100, width=100)
         scale_image(full_filename, t_300, width=300)
-        shutil.copy(t_100.name, scaled_image_filename_100)
+        shutil.copy(new_full_filename, scaled_image_filename_100)
         shutil.copy(t_300.name, scaled_image_filename_300)
 
         return render_template("show_image.html", user_image=full_filename, resized_image=scaled_image_filename_100, resized_image_2 =scaled_image_filename_300)
@@ -157,14 +177,45 @@ def create_app(test_config=None):
         form = TestForm(csrf_enabled=False)
         return render_template('display_season.html', message=message, form=form, image_list=five_item_list)
 
-    @app.route('/display_page', methods=['GET'])
-    def display_page():
-        files = os.listdir(app.config['UPLOAD_FOLDER'])
+    @app.route('/preview_season/', methods=['GET', 'POST'])
+    def preview_season():
+        select = request.form.get('season_select')
+        message = "we are finding dates for seasons : " + str(select)
+
+        #thumbnail_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'thumbnails')
+        thumbnail_dir = app.config['UPLOAD_FOLDER']
+        files = os.listdir(thumbnail_dir)
+
+        print("all the files are")
+        print(files)
         '''function to return the HTML page to display the images'''
         flask.session['count'] = 0
         _files = files
-        current_file  = os.path.join(app.config['UPLOAD_FOLDER'],_files[0])
+        current_file = os.path.join(app.config['UPLOAD_FOLDER'], 'thumbnails', _files[0])
+        return flask.render_template('preview_season.html', photo=current_file, current_season=select, message=message)
+
+    @app.route('/display_page', methods=['GET'])
+    def display_page():
+        files = os.listdir(app.config['UPLOAD_FOLDER'])
+        print("all the files are")
+        print(files)
+        '''function to return the HTML page to display the images'''
+        flask.session['count'] = 0
+        _files = files
+        current_file  = os.path.join(app.config['UPLOAD_FOLDER'], _files[0])
         return flask.render_template('photo_display.html', photo=current_file)
+
+    @app.route('/display_page_2', methods=['GET'])
+    def display_page_2():
+        thumbnail_dir = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails')
+        files = os.listdir(thumbnail_dir)
+        print("all the files are")
+        print(files)
+        '''function to return the HTML page to display the images'''
+        flask.session['count'] = 0
+        _files = files
+        current_file  = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails', _files[0])
+        return flask.render_template('photo_display_2.html', photo=current_file)
 
     @app.route('/get_photo', methods=['GET'])
     def get_photo():
@@ -173,8 +224,24 @@ def create_app(test_config=None):
         _direction = flask.request.args.get('direction')
         flask.session['count'] = flask.session['count'] + (1 if _direction == 'f' else - 1)
         _files = files
-        current_file  = os.path.join(app.config['UPLOAD_FOLDER'],_files[flask.session['count']])
+        current_file = os.path.join(app.config['UPLOAD_FOLDER'], _files[flask.session['count']])
 
+        return flask.jsonify(
+            {'photo': current_file, 'forward': str(flask.session['count'] + 1 < len(_files)),
+             'back': str(bool(flask.session['count']))})
+
+
+    @app.route('/get_thumbnail', methods=['GET'])
+    def get_thumbnail():
+        files = os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], 'thumbnails'))
+        #files = os.listdir(app.config['UPLOAD_FOLDER'])
+        _direction = flask.request.args.get('direction')
+        flask.session['count'] = flask.session['count'] + (1 if _direction == 'f' else - 1)
+        _files = files
+        current_file = os.path.join(app.config['UPLOAD_FOLDER'], 'thumbnails', _files[flask.session['count']])
+        #current_file = os.path.join(app.config['UPLOAD_FOLDER'], _files[flask.session['count']])
+
+        print(current_file, 'is the current file and the count is ',flask.session['count'])
         return flask.jsonify(
             {'photo': current_file, 'forward': str(flask.session['count'] + 1 < len(_files)),
              'back': str(bool(flask.session['count']))})
