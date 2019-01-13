@@ -41,6 +41,7 @@ sites_root = "/home/clowder/"
 ir_fullfield_dir = '/ua-mac/Level_2/ir_fullfield/'
 
 fullfield_thumbnails_directory = '/Users/helium/terraref-globus/thumbnails/'
+LOCAL_THUMBNAIL_DIRECTORY = os.path.join('static', 'images', 'local-thumbnails')
 
 PEOPLE_FOLDER = os.path.join('static', 'images')
 
@@ -100,6 +101,7 @@ def create_app(test_config=None):
     )
 
     app.config['UPLOAD_FOLDER'] = PEOPLE_FOLDER
+    app.config['LOCAL_THUMBNAILS'] = LOCAL_THUMBNAIL_DIRECTORY
 
     if test_config is None:
         # load the instance config, if it exists, when not testing
@@ -114,14 +116,16 @@ def create_app(test_config=None):
     except OSError:
         pass
 
+    copy(fullfield_thumbnails_directory, LOCAL_THUMBNAIL_DIRECTORY)
+
     class ExampleForm(Form):
         selected_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
         submit = SubmitField('Show Available Fullfields', validators=[DataRequired()])
 
     @app.route('/')
-    def test():
+    def test():#
         full_filename = os.path.join(app.config['UPLOAD_FOLDER'], 'monolith_2001.jpg')
-        full_filename = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails','temporary','fullfield_L1_ua-mac_2017-01-01_rgb_thumb.png')
+        #full_filename = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails','temporary','fullfield_L1_ua-mac_2017-01-01_rgb_thumb.png')
 
         scaled_image_filename_100 = os.path.join(app.config['UPLOAD_FOLDER'], 'resized_image_100.jpg')
         scaled_image_filename_300 = os.path.join(app.config['UPLOAD_FOLDER'], 'resized_image_300.jpg')
@@ -177,26 +181,25 @@ def create_app(test_config=None):
         form = TestForm(csrf_enabled=False)
         return render_template('display_season.html', message=message, form=form, image_list=five_item_list)
 
-    @app.route('/preview_season/', methods=['GET', 'POST'])
+    @app.route('/preview_season', methods=['GET','POST'])
     def preview_season():
         select = request.form.get('season_select')
-        message = "we are finding dates for seasons : " + str(select)
 
-        #thumbnail_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'thumbnails')
-        thumbnail_dir = app.config['UPLOAD_FOLDER']
-        files = os.listdir(thumbnail_dir)
-
+        files = app.config['LOCAL_THUMBNAILS']
         print("all the files are")
         print(files)
         '''function to return the HTML page to display the images'''
         flask.session['count'] = 0
         _files = files
-        current_file = os.path.join(app.config['UPLOAD_FOLDER'], 'thumbnails', _files[0])
-        return flask.render_template('preview_season.html', photo=current_file, current_season=select, message=message)
+        current_file = os.path.join(app.config['LOCAL_THUMBNAILS'], _files[0])
+
+        message = "we are finding dates for seasons : " + str(select)
+        return flask.render_template('season_display.html', photo=current_file, current_season=select, message=message)
 
     @app.route('/display_page', methods=['GET'])
     def display_page():
         files = os.listdir(app.config['UPLOAD_FOLDER'])
+        #files = os.listdir(app.config['LOCAL_THUMBNAILS'])
         print("all the files are")
         print(files)
         '''function to return the HTML page to display the images'''
@@ -214,13 +217,12 @@ def create_app(test_config=None):
         '''function to return the HTML page to display the images'''
         flask.session['count'] = 0
         _files = files
-        current_file  = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails', _files[0])
+        current_file = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails', _files[0])
         return flask.render_template('photo_display_2.html', photo=current_file)
 
     @app.route('/get_photo', methods=['GET'])
     def get_photo():
         files = os.listdir(app.config['UPLOAD_FOLDER'])
-
         _direction = flask.request.args.get('direction')
         flask.session['count'] = flask.session['count'] + (1 if _direction == 'f' else - 1)
         _files = files
@@ -233,13 +235,11 @@ def create_app(test_config=None):
 
     @app.route('/get_thumbnail', methods=['GET'])
     def get_thumbnail():
-        files = os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], 'thumbnails'))
-        #files = os.listdir(app.config['UPLOAD_FOLDER'])
+        files = os.listdir(LOCAL_THUMBNAIL_DIRECTORY)
         _direction = flask.request.args.get('direction')
         flask.session['count'] = flask.session['count'] + (1 if _direction == 'f' else - 1)
         _files = files
-        current_file = os.path.join(app.config['UPLOAD_FOLDER'], 'thumbnails', _files[flask.session['count']])
-        #current_file = os.path.join(app.config['UPLOAD_FOLDER'], _files[flask.session['count']])
+        current_file = os.path.join(app.config['LOCAL_THUMBNAILS'],  _files[flask.session['count']])
 
         print(current_file, 'is the current file and the count is ',flask.session['count'])
         return flask.jsonify(

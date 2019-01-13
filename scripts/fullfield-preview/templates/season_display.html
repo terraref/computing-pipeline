@@ -1,13 +1,13 @@
 <html>
   <head>
    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
-  </head>
+   </head>
    <body>
         <div>
             {{message}}
         </div>
       <div class='image_display'>
-        <img src="{{photo}}" id='photo_display'>
+        <img src="{{photo}}" id='season_display' height="300">
         <table>
          <tr>
            <td class='back'></td>
@@ -25,11 +25,11 @@
         }
 
         $.ajax({
-         url: "/get_photo",
+         url: "/get_thumbnail",
          type: "get",
          data: {direction: direction},
          success: function(response) {
-           $('#photo_display').attr('src', response.photo);
+           $('#season_display').attr('src', response.photo);
            if (response.back === "True"){
              $('.back').html("<button id='go_back' class='navigate'>Back</button>")
            }
