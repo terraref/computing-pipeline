@@ -116,7 +116,6 @@ def create_app(test_config=None):
     except OSError:
         pass
 
-    copy(fullfield_thumbnails_directory, LOCAL_THUMBNAIL_DIRECTORY)
 
     class ExampleForm(Form):
         selected_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
@@ -184,7 +183,7 @@ def create_app(test_config=None):
     @app.route('/preview_season', methods=['GET','POST'])
     def preview_season():
         select = request.form.get('season_select')
-
+        copy(fullfield_thumbnails_directory, LOCAL_THUMBNAIL_DIRECTORY)
         files = app.config['LOCAL_THUMBNAILS']
         print("all the files are")
         print(files)
