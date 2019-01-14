@@ -78,7 +78,9 @@
         <!--<input type="text" id="textInput" value="">-->
         <br>
         <output id="amount" name="amount" for="rangeInput">0</output>
-
+        <br>
+        <p>Testbelow</p>
+        <output type="text" name="test" id="test" value="0" />
         <script>
             function updateTextInput(val) {
             document.getElementById('textInput').value=val;
@@ -97,6 +99,7 @@
                 success: function(response) {
                 console.log(response);
                 $('#SlideValue').val(response.value);
+                document.getElementById('test').value = $(".slider").val()
 
 
             },

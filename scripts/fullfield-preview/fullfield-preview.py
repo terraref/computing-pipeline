@@ -295,8 +295,10 @@ def create_app(test_config=None):
         current_file = os.path.join(app.config['LOCAL_THUMBNAILS'],  _files[flask.session['count']])
 
         print(current_file, 'is the current file and the count is ',flask.session['count'])
+        current_filename = _files[flask.session['count']]
+        print(current_filename)
         return flask.jsonify(
-            {'photo': current_file, 'forward': str(flask.session['count'] + 1 < len(_files)),
+            {'photo': current_file, 'file_name':current_filename, 'forward': str(flask.session['count'] + 1 < len(_files)),
              'back': str(bool(flask.session['count']))})
 
     return app
