@@ -239,9 +239,9 @@ def create_app(test_config=None):
         flask.session['count'] = 0
         _files = files
         current_file = os.path.join(app.config['LOCAL_THUMBNAILS'], _files[0])
-
+        current_filename = _files[0]
         message = "we are finding dates for seasons : " + str(select)
-        return flask.render_template('season_display.html', photo=current_file, current_season=select, message=message)
+        return flask.render_template('season_display.html', photo=current_file,file_name=current_filename, current_season=select, message=message)
 
     @app.route('/display_page', methods=['GET'])
     def display_page():
