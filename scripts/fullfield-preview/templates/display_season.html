@@ -28,7 +28,11 @@
 <body>
     {{message}}
     <div>
-        {{dateslider}}
+        {{dateslider}} is dateslider
+    </div>
+    <div class="val_of_slider">
+
+        <input type="text" name="SlideValue" id="SlideValue" value="0" />
     </div>
 
     <br>
@@ -69,12 +73,51 @@
 
     <br>
 
+    <div class="col-md-8">
+        <input class = "slider" type="range" id="rangeInput" min="0" max="100" value="50" oninput="amount.value=rangeInput.value" onchange="updateTextInput(this.value);">
+        <!--<input type="text" id="textInput" value="">-->
+        <br>
+        <output id="amount" name="amount" for="rangeInput">0</output>
 
-    <!--<div class="col-md-8">-->
-        <!--<div class="slidecontainer">-->
-          <!--<input type="range" min="0" max="100" value="50" class="slider" id="dateslider">-->
-          <!--<br>-->
-        <!--</div>-->
-    <!--</div>-->
+        <script>
+            function updateTextInput(val) {
+            document.getElementById('textInput').value=val;
+        }
+        </script>
+        <br>
+    </div>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script>
+        $(".slider").change(function() {
+            console.log('slider value', $(".slider").val());
+            $.ajax({
+                url: "/get_slider_value",
+                type: "get",
+                data: {value: $(".slider").val()},
+                success: function(response) {
+                console.log(response);
+                $('#SlideValue').val(response.value);
+
+            },
+
+       });
+        });
+    </script>
+    <form>
+            <input class="target" type="text" value="Field 1">
+            <select class="target"><option value="option1" selected="selected">Option 1</option>
+            <option value="option2">Option 2</option>
+            </select>
+    </form>
+    <div id="other">
+        Trigger the handler
+    </div>
+    <script>
+        $( ".target" ).change(function() {
+            alert( "Handler for .change() called." );
+
+        });
+    </script>
+
 </body>
 </html>

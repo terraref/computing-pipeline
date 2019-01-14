@@ -8,12 +8,15 @@ import psycopg2
 import re
 from collections import OrderedDict
 import flask
-from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
+from flask import Flask, session, render_template, send_file, request, url_for, redirect, make_response
+from flask_session import Session
+
 from flask_wtf import FlaskForm as Form
 from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
 from flask import session
+#from flask.ext.session import Session
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
 from wtforms.fields.html5 import DecimalRangeField, IntegerRangeField
 from PIL import Image
@@ -87,6 +90,8 @@ def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
+    app.config['SESSION_TYPE'] = 'redis'
+
     # No caching at all for API endpoints.
     @app.after_request
     def add_header(response):
@@ -121,7 +126,49 @@ def create_app(test_config=None):
         selected_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
         submit = SubmitField('Show Available Fullfields', validators=[DataRequired()])
 
-    @app.route('/')
+    @app.route('/',methods=['POST','GET'])
+    def index():
+        session['key'] = 'value'
+        print(session, 'is the session')
+        if 'username' in session:
+            print('username is in session')
+            username = session['username']
+            return 'Logged in as ' + username + '<br>' + \
+                   "<b><a href = '/logout'>click here to log out</a></b>"
+
+        return "You are not logged in <br><a href = '/login'></b>" + \
+           "click here to log in</b></a>"
+
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        print('doing login', request.method)
+        if request.method == 'POST':
+            print(request.form['username'], 'in post')
+            session['username'] = request.form['username']
+            return redirect(url_for('index'))
+        return render_template('login.html')
+
+    @app.route('/testlogin', methods=['GET', 'POST'])
+    def testlogin():
+        if request.method == 'POST':
+            print('we are posting')
+            username = request.form['username']
+            result = 'post' + ' ' + username
+            return result
+
+    @app.route('/sessionstuff')
+    def sessionstuff():
+        # remove the username from the session if it is there
+        print(session['key'])
+        return 'this is to test session'
+
+    @app.route('/logout')
+    def logout():
+        # remove the username from the session if it is there
+        session.pop('username', None)
+        return redirect(url_for('index'))
+
+    @app.route('/test')
     def test():#
         full_filename = os.path.join(app.config['UPLOAD_FOLDER'], 'monolith_2001.jpg')
         #full_filename = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails','temporary','fullfield_L1_ua-mac_2017-01-01_rgb_thumb.png')
@@ -178,7 +225,8 @@ def create_app(test_config=None):
         message = "we are finding dates for seasons : " + str(select)
         flask.session['count'] = 0
         form = TestForm(csrf_enabled=False)
-        return render_template('display_season.html', message=message, form=form, image_list=five_item_list)
+        slider_val_default = 0
+        return render_template('display_season.html', message=message, form=form, image_list=five_item_list, slider_val=slider_val_default)
 
     @app.route('/preview_season', methods=['GET','POST'])
     def preview_season():
@@ -219,6 +267,11 @@ def create_app(test_config=None):
         current_file = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails', _files[0])
         return flask.render_template('photo_display_2.html', photo=current_file)
 
+    @app.route('/get_slider_value', methods=['GET'])
+    def get_slider_value():
+        _slider_value = flask.request.args['value']
+        return flask.jsonify({'value': _slider_value})
+
     @app.route('/get_photo', methods=['GET'])
     def get_photo():
         files = os.listdir(app.config['UPLOAD_FOLDER'])
@@ -252,6 +305,7 @@ def main():
     apiIP = os.getenv('FULLFIELD_PREVIEW_API_IP', "0.0.0.0")
     apiPort = os.getenv('FULLFIELD_PREVIEW_API_PORT', "5454")
     app = create_app()
+    app.secret_key = os.urandom(24)
     logger.info("*** API now listening on %s:%s ***" % (apiIP, apiPort))
     app.run(host=apiIP, port=apiPort)
 
