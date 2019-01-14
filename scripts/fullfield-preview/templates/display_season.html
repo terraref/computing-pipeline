@@ -74,7 +74,7 @@
     <br>
 
     <div class="col-md-8">
-        <input class = "slider" type="range" id="rangeInput" min="0" max="100" value="50" oninput="amount.value=rangeInput.value" onchange="updateTextInput(this.value);">
+        <input class = "slider" type="range" id="rangeInput" min="0" max="100" value="0" oninput="amount.value=rangeInput.value" onchange="updateTextInput(this.value);">
         <!--<input type="text" id="textInput" value="">-->
         <br>
         <output id="amount" name="amount" for="rangeInput">0</output>
@@ -98,20 +98,21 @@
                 console.log(response);
                 $('#SlideValue').val(response.value);
 
+
             },
 
        });
         });
     </script>
-    <form>
-            <input class="target" type="text" value="Field 1">
-            <select class="target"><option value="option1" selected="selected">Option 1</option>
-            <option value="option2">Option 2</option>
-            </select>
-    </form>
-    <div id="other">
-        Trigger the handler
-    </div>
+    <!--<form>-->
+            <!--<input class="target" type="text" value="Field 1">-->
+            <!--<select class="target"><option value="option1" selected="selected">Option 1</option>-->
+            <!--<option value="option2">Option 2</option>-->
+            <!--</select>-->
+    <!--</form>-->
+    <!--<div id="other">-->
+        <!--Trigger the handler-->
+    <!--</div>-->
     <script>
         $( ".target" ).change(function() {
             alert( "Handler for .change() called." );
