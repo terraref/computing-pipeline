@@ -279,9 +279,10 @@ def create_app(test_config=None):
         flask.session['count'] = flask.session['count'] + (1 if _direction == 'f' else - 1)
         _files = files
         current_file = os.path.join(app.config['UPLOAD_FOLDER'], _files[flask.session['count']])
+        current_filename = _files[flask.session['count']
 
         return flask.jsonify(
-            {'photo': current_file, 'forward': str(flask.session['count'] + 1 < len(_files)),
+            {'photo': current_file,'file_name':current_filename, 'forward': str(flask.session['count'] + 1 < len(_files)),
              'back': str(bool(flask.session['count']))})
 
 
