@@ -45,6 +45,7 @@
         <script src="http://code.jquery.com/jquery-1.4.3.min.js"></script>
         <script>
             $(document).ready(function(){
+                document.getElementById('test').value = $(".slider").val()
                 $('#AddButton').click( function() {
                     var counter = $('#TextBox').val();
                     counter++ ;
@@ -74,7 +75,7 @@
     <br>
 
     <div class="col-md-8">
-        <input class = "slider" type="range" id="rangeInput" min="0" max="100" value="0" oninput="amount.value=rangeInput.value" onchange="updateTextInput(this.value);">
+        <input class = "slider" type="range" id="rangeInput" min="0" max="5" value="0" oninput="amount.value=rangeInput.value" onchange="updateTextInput(this.value);">
         <!--<input type="text" id="textInput" value="">-->
         <br>
         <output id="amount" name="amount" for="rangeInput">0</output>
@@ -99,7 +100,7 @@
                 success: function(response) {
                 console.log(response);
                 $('#SlideValue').val(response.value);
-                document.getElementById('test').value = $(".slider").val()
+                document.getElementById('test').value = response.item;
 
 
             },

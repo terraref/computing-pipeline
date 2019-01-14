@@ -269,8 +269,11 @@ def create_app(test_config=None):
 
     @app.route('/get_slider_value', methods=['GET'])
     def get_slider_value():
-        _slider_value = flask.request.args['value']
-        return flask.jsonify({'value': _slider_value})
+        _slider_value = int(flask.request.args['value'])
+        possible_values = five_item_list
+        current_item = five_item_list[_slider_value]
+        print(current_item, 'current item')
+        return flask.jsonify({'value': _slider_value, 'item':current_item})
 
     @app.route('/get_photo', methods=['GET'])
     def get_photo():
