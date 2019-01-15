@@ -8,6 +8,7 @@
         </div>
       <div class='image_display'>
           <img src="{{photo}}" id='season_display' height="300">
+           <output type="text" name="nameoffile" id="nameoffile" value="0" />
         <table>
          <tr>
            <td class='back'></td>
@@ -65,6 +66,7 @@
                 success: function(response) {
                     console.log(response);
                     $('#season_display').attr('src', response.photo);
+                    document.getElementById('nameoffile').value = response.file_name;
 
                 },
 
