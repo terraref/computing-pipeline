@@ -240,10 +240,14 @@ def create_app(test_config=None):
         _files = files
         current_file = os.path.join(app.config['LOCAL_THUMBNAILS'], _files[0])
         current_filename = _files[0]
+        image_date = current_filename.replace('fullfield_L1_ua-mac_','')
+        image_date = image_date[:image_date.index('_')]
         print('the current file name', current_filename)
         message = "we are finding dates for seasons : " + str(select)
         slider_val = len(files)
-        return flask.render_template('season_display.html', photo=current_file,file_name=current_filename, current_season=select, message=message, slider_val=slider_val)
+        return flask.render_template('season_display.html', photo=current_file, file_name=current_filename,
+                                     current_season=select, message=message,
+                                     current_date=image_date, slider_val=slider_val)
 
     @app.route('/display_page', methods=['GET'])
     def display_page():
@@ -314,9 +318,11 @@ def create_app(test_config=None):
 
         print(current_file, 'is the current file and the count is ', index_of_file)
         current_filename = _files[index_of_file]
+        image_date = current_filename.replace('fullfield_L1_ua-mac_','')
+        image_date = image_date[:image_date.index('_')]
         print(current_filename)
         return flask.jsonify(
-            {'photo': current_file, 'file_name':current_filename, 'number': index_of_file})
+            {'photo': current_file, 'file_name':current_filename, 'number': index_of_file,'current_date':str(image_date)})
 
     return app
 

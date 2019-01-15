@@ -10,7 +10,7 @@
         <div>
            <input class = "slider" type="range" id="rangeInput" min="0" max="{{slider_val}}" value="0" oninput="amount.value=rangeInput.value">
            <br>
-           <output id="amount" name="amount" for="rangeInput">0</output>
+           <output id="date" name="date">{{current_date}}</output>
         </div>
         <div class='image_display'>
             <output type="text" name="nameoffile" id="nameoffile"></output>
@@ -34,6 +34,7 @@
                     console.log(response);
                     $('#season_display').attr('src', response.photo);
                     document.getElementById('nameoffile').value = response.file_name;
+                    document.getElementById('date').value = response.current_date;
 
                 },
 
