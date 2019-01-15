@@ -48,7 +48,7 @@ LOCAL_THUMBNAIL_DIRECTORY = os.path.join('static', 'images', 'local-thumbnails')
 
 PEOPLE_FOLDER = os.path.join('static', 'images')
 
-five_item_list = ['apple', 'banana', 'cranberry', 'date', 'eggplant']
+five_item_list = ['apple', 'banana', 'cranberry', 'date', 'eggplant', 'fennel']
 
 
 class TestForm(Form):
@@ -225,14 +225,14 @@ def create_app(test_config=None):
         message = "we are finding dates for seasons : " + str(select)
         flask.session['count'] = 0
         form = TestForm(csrf_enabled=False)
-        slider_val_default = 0
+        slider_val_default = 10
         return render_template('display_season.html', message=message, form=form, image_list=five_item_list, slider_val=slider_val_default)
 
     @app.route('/preview_season', methods=['GET','POST'])
     def preview_season():
         select = request.form.get('season_select')
         copy(fullfield_thumbnails_directory, LOCAL_THUMBNAIL_DIRECTORY)
-        files = app.config['LOCAL_THUMBNAILS']
+        files = os.listdir(app.config['LOCAL_THUMBNAILS'])
         print("all the files are")
         print(files)
         '''function to return the HTML page to display the images'''
@@ -241,7 +241,8 @@ def create_app(test_config=None):
         current_file = os.path.join(app.config['LOCAL_THUMBNAILS'], _files[0])
         current_filename = _files[0]
         message = "we are finding dates for seasons : " + str(select)
-        return flask.render_template('season_display.html', photo=current_file,file_name=current_filename, current_season=select, message=message)
+        slider_val = len(files)
+        return flask.render_template('season_display.html', photo=current_file,file_name=current_filename, current_season=select, message=message, slider_val=slider_val)
 
     @app.route('/display_page', methods=['GET'])
     def display_page():
@@ -270,7 +271,6 @@ def create_app(test_config=None):
     @app.route('/get_slider_value', methods=['GET'])
     def get_slider_value():
         _slider_value = int(flask.request.args['value'])
-        possible_values = five_item_list
         current_item = five_item_list[_slider_value]
         print(current_item, 'current item')
         return flask.jsonify({'value': _slider_value, 'item':current_item})
@@ -303,6 +303,19 @@ def create_app(test_config=None):
         return flask.jsonify(
             {'photo': current_file, 'file_name':current_filename, 'forward': str(flask.session['count'] + 1 < len(_files)),
              'back': str(bool(flask.session['count']))})
+
+    @app.route('/get_thumbnail_by_number', methods=['GET'])
+    def get_thumbnail_by_number():
+        files = os.listdir(LOCAL_THUMBNAIL_DIRECTORY)
+        index_of_file = int(flask.request.args.get('value'))
+        _files = files
+        current_file = os.path.join(app.config['LOCAL_THUMBNAILS'],  _files[index_of_file])
+
+        print(current_file, 'is the current file and the count is ', index_of_file)
+        current_filename = _files[index_of_file]
+        print(current_filename)
+        return flask.jsonify(
+            {'photo': current_file, 'file_name':current_filename, 'number': index_of_file})
 
     return app
 

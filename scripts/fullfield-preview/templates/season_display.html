@@ -7,7 +7,6 @@
             {{message}}
         </div>
       <div class='image_display'>
-          <input type="text" name="filename" id="filename" value="0" />
           <img src="{{photo}}" id='season_display' height="300">
         <table>
          <tr>
@@ -16,6 +15,12 @@
          </tr>
         </table>
       </div>
+       <div>
+           <input class = "slider" type="range" id="rangeInput" min="0" max="{{slider_val}}" value="0" oninput="amount.value=rangeInput.value">
+           <br>
+           <output id="amount" name="amount" for="rangeInput">0</output>
+
+       </div>
    </body>
    <script>
     $(document).ready(function(){
@@ -50,4 +55,21 @@
       });
     });
    </script>
+    <script>
+        $(".slider").change(function() {
+        console.log('slider value', $(".slider").val());
+            $.ajax({
+                url: "/get_thumbnail_by_number",
+                type: "get",
+                data: {value: $(".slider").val()},
+                success: function(response) {
+                    console.log(response);
+                    $('#season_display').attr('src', response.photo);
+
+                },
+
+            });
+        });
+
+    </script>
 </html>
