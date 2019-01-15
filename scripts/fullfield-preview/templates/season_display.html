@@ -6,57 +6,24 @@
         <div>
             {{message}}
         </div>
-      <div class='image_display'>
-          <img src="{{photo}}" id='season_display' height="300">
-           <output type="text" name="nameoffile" id="nameoffile" value="0" />
-        <table>
-         <tr>
-           <td class='back'></td>
-           <td class='forward'><button id='go_forward' class='navigate'>Forward</button></td>
-         </tr>
-        </table>
-      </div>
-       <div>
+
+        <div>
            <input class = "slider" type="range" id="rangeInput" min="0" max="{{slider_val}}" value="0" oninput="amount.value=rangeInput.value">
            <br>
            <output id="amount" name="amount" for="rangeInput">0</output>
-
-       </div>
+        </div>
+        <div class='image_display'>
+            <output type="text" name="nameoffile" id="nameoffile"></output>
+            <br>
+            <img src="{{photo}}" id='season_display' height="500">
+        </div>
    </body>
    <script>
     $(document).ready(function(){
-      $('.image_display').on('click', '.navigate', function(){
-        var direction = 'b';
-        if ($(this).prop('id') === 'go_forward'){
-          direction = 'f';
-        }
-
-        $.ajax({
-         url: "/get_thumbnail",
-         type: "get",
-         data: {direction: direction},
-         success: function(response) {
-           $('#season_display').attr('src', response.photo);
-           if (response.back === "True"){
-             $('.back').html("<button id='go_back' class='navigate'>Back</button>")
-           }
-           else{
-             $('#go_back').remove();
-           }
-           if (response.forward === "True"){
-             $('.forward').html("<button id='go_forward' class='navigate'>Forward</button>")
-           }
-           else{
-             $('#go_forward').remove();
-           }
-
-         },
-
-       });
-      });
+      document.getElementById('nameoffile').value = "{{file_name}}"
     });
    </script>
-    <script>
+  <script>
         $(".slider").change(function() {
         console.log('slider value', $(".slider").val());
             $.ajax({

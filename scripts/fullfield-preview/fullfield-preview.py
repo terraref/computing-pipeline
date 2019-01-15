@@ -231,15 +231,16 @@ def create_app(test_config=None):
     @app.route('/preview_season', methods=['GET','POST'])
     def preview_season():
         select = request.form.get('season_select')
-        copy(fullfield_thumbnails_directory, LOCAL_THUMBNAIL_DIRECTORY)
+        #copy(fullfield_thumbnails_directory, LOCAL_THUMBNAIL_DIRECTORY)
         files = os.listdir(app.config['LOCAL_THUMBNAILS'])
-        print("all the files are")
-        print(files)
+        #print("all the files are")
+        #print(files)
         '''function to return the HTML page to display the images'''
         flask.session['count'] = 0
         _files = files
         current_file = os.path.join(app.config['LOCAL_THUMBNAILS'], _files[0])
         current_filename = _files[0]
+        print('the current file name', current_filename)
         message = "we are finding dates for seasons : " + str(select)
         slider_val = len(files)
         return flask.render_template('season_display.html', photo=current_file,file_name=current_filename, current_season=select, message=message, slider_val=slider_val)
