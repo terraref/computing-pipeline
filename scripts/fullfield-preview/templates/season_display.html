@@ -13,14 +13,14 @@
            <output id="date" name="date">{{current_date}}</output>
         </div>
         <div class='image_display'>
-            <output type="text" name="nameoffile" id="nameoffile"></output>
+            <output type="text" name="nameoffile" id="nameoffile">{{file_name}}</output>
             <br>
             <img src="{{photo}}" id='season_display' height="500">
         </div>
    </body>
    <script>
     $(document).ready(function(){
-      document.getElementById('nameoffile').value = "{{file_name}}"
+      // document.getElementById('nameoffile').value = "{{file_name}}"
     });
    </script>
   <script>
