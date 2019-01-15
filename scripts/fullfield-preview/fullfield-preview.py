@@ -233,16 +233,10 @@ def create_app(test_config=None):
         select = request.form.get('season_select')
         #copy(fullfield_thumbnails_directory, LOCAL_THUMBNAIL_DIRECTORY)
         files = os.listdir(app.config['LOCAL_THUMBNAILS'])
-        #print("all the files are")
-        #print(files)
-        '''function to return the HTML page to display the images'''
-        flask.session['count'] = 0
-        _files = files
-        current_file = os.path.join(app.config['LOCAL_THUMBNAILS'], _files[0])
-        current_filename = _files[0]
+        current_file = os.path.join(app.config['LOCAL_THUMBNAILS'], files[0])
+        current_filename = files[0]
         image_date = current_filename.replace('fullfield_L1_ua-mac_','')
         image_date = image_date[:image_date.index('_')]
-        print('the current file name', current_filename)
         message = "we are finding dates for seasons : " + str(select)
         slider_val = len(files)
         return flask.render_template('season_display.html', photo=current_file, file_name=current_filename,
@@ -309,15 +303,14 @@ def create_app(test_config=None):
             {'photo': current_file, 'file_name':current_filename, 'forward': str(flask.session['count'] + 1 < len(_files)),
              'back': str(bool(flask.session['count']))})
 
-    @app.route('/get_thumbnail_by_number', methods=['GET'])
-    def get_thumbnail_by_number():
+    @app.route('/get_thumbnail_from_slider', methods=['GET'])
+    def get_thumbnail_from_slider():
         files = os.listdir(LOCAL_THUMBNAIL_DIRECTORY)
         index_of_file = int(flask.request.args.get('value'))
-        _files = files
-        current_file = os.path.join(app.config['LOCAL_THUMBNAILS'],  _files[index_of_file])
+        current_file = os.path.join(app.config['LOCAL_THUMBNAILS'],  files[index_of_file])
 
         print(current_file, 'is the current file and the count is ', index_of_file)
-        current_filename = _files[index_of_file]
+        current_filename = files[index_of_file]
         image_date = current_filename.replace('fullfield_L1_ua-mac_','')
         image_date = image_date[:image_date.index('_')]
         print(current_filename)

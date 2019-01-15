@@ -15,7 +15,7 @@
         <div class='image_display'>
             <output type="text" name="nameoffile" id="nameoffile">{{file_name}}</output>
             <br>
-            <img src="{{photo}}" id='season_display' height="500">
+            <img src="{{photo}}" id='season_display' width="300">
         </div>
    </body>
    <script>
@@ -27,7 +27,7 @@
         $(".slider").change(function() {
         console.log('slider value', $(".slider").val());
             $.ajax({
-                url: "/get_thumbnail_by_number",
+                url: "/get_thumbnail_from_slider",
                 type: "get",
                 data: {value: $(".slider").val()},
                 success: function(response) {
