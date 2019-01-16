@@ -170,29 +170,30 @@ def create_app(test_config=None):
 
     @app.route('/test')
     def test():#
-        full_filename = os.path.join(app.config['UPLOAD_FOLDER'], 'monolith_2001.jpg')
-        #full_filename = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails','temporary','fullfield_L1_ua-mac_2017-01-01_rgb_thumb.png')
+        # full_filename = os.path.join(app.config['UPLOAD_FOLDER'], 'monolith_2001.jpg')
+        # #full_filename = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails','temporary','fullfield_L1_ua-mac_2017-01-01_rgb_thumb.png')
+        #
+        # scaled_image_filename_100 = os.path.join(app.config['UPLOAD_FOLDER'], 'resized_image_100.jpg')
+        # scaled_image_filename_300 = os.path.join(app.config['UPLOAD_FOLDER'], 'resized_image_300.jpg')
+        #
+        # new_full_filename = '/Users/helium/Desktop/unicorn.jpg'
+        #
+        #
+        # t_100 = tempfile.NamedTemporaryFile(dir=os.path.join(app.config['UPLOAD_FOLDER']), suffix='.jpg')
+        # t_300 = tempfile.NamedTemporaryFile(dir=os.path.join(app.config['UPLOAD_FOLDER']), suffix='.jpg' )
+        #
+        # if os.path.isfile(scaled_image_filename_100):
+        #     os.remove(scaled_image_filename_100)
+        # if os.path.isfile(scaled_image_filename_300):
+        #     os.remove(scaled_image_filename_300)
+        #
+        # scale_image(full_filename,t_100, width=100)
+        # scale_image(full_filename, t_300, width=300)
+        # shutil.copy(new_full_filename, scaled_image_filename_100)
+        # shutil.copy(t_300.name, scaled_image_filename_300)
 
-        scaled_image_filename_100 = os.path.join(app.config['UPLOAD_FOLDER'], 'resized_image_100.jpg')
-        scaled_image_filename_300 = os.path.join(app.config['UPLOAD_FOLDER'], 'resized_image_300.jpg')
-
-        new_full_filename = '/Users/helium/Desktop/unicorn.jpg'
-
-
-        t_100 = tempfile.NamedTemporaryFile(dir=os.path.join(app.config['UPLOAD_FOLDER']), suffix='.jpg')
-        t_300 = tempfile.NamedTemporaryFile(dir=os.path.join(app.config['UPLOAD_FOLDER']), suffix='.jpg' )
-
-        if os.path.isfile(scaled_image_filename_100):
-            os.remove(scaled_image_filename_100)
-        if os.path.isfile(scaled_image_filename_300):
-            os.remove(scaled_image_filename_300)
-
-        scale_image(full_filename,t_100, width=100)
-        scale_image(full_filename, t_300, width=300)
-        shutil.copy(new_full_filename, scaled_image_filename_100)
-        shutil.copy(t_300.name, scaled_image_filename_300)
-
-        return render_template("show_image.html", user_image=full_filename, resized_image=scaled_image_filename_100, resized_image_2 =scaled_image_filename_300)
+        #return render_template("show_image.html", user_image=full_filename, resized_image=scaled_image_filename_100, resized_image_2 =scaled_image_filename_300)
+        return 'this page intentionally left blank'
 
     @app.route('/dateoptions', methods=['POST','GET'])
     def dateoptions():
@@ -238,7 +239,7 @@ def create_app(test_config=None):
         image_date = current_filename.replace('fullfield_L1_ua-mac_','')
         image_date = image_date[:image_date.index('_')]
         message = "we are finding dates for seasons : " + str(select)
-        slider_val = len(files)
+        slider_val = len(files)-1
         return flask.render_template('season_display.html', photo=current_file, file_name=current_filename,
                                      current_season=select, message=message,
                                      current_date=image_date, slider_val=slider_val)
@@ -246,25 +247,18 @@ def create_app(test_config=None):
     @app.route('/display_page', methods=['GET'])
     def display_page():
         files = os.listdir(app.config['UPLOAD_FOLDER'])
-        #files = os.listdir(app.config['LOCAL_THUMBNAILS'])
-        print("all the files are")
-        print(files)
         '''function to return the HTML page to display the images'''
         flask.session['count'] = 0
-        _files = files
-        current_file  = os.path.join(app.config['UPLOAD_FOLDER'], _files[0])
+        current_file  = os.path.join(app.config['UPLOAD_FOLDER'], files[0])
         return flask.render_template('photo_display.html', photo=current_file)
 
     @app.route('/display_page_2', methods=['GET'])
     def display_page_2():
         thumbnail_dir = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails')
         files = os.listdir(thumbnail_dir)
-        print("all the files are")
-        print(files)
         '''function to return the HTML page to display the images'''
         flask.session['count'] = 0
-        _files = files
-        current_file = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails', _files[0])
+        current_file = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails',_files[0])
         return flask.render_template('photo_display_2.html', photo=current_file)
 
     @app.route('/get_slider_value', methods=['GET'])
@@ -279,9 +273,8 @@ def create_app(test_config=None):
         files = os.listdir(app.config['UPLOAD_FOLDER'])
         _direction = flask.request.args.get('direction')
         flask.session['count'] = flask.session['count'] + (1 if _direction == 'f' else - 1)
-        _files = files
-        current_file = os.path.join(app.config['UPLOAD_FOLDER'], _files[flask.session['count']])
-        current_filename = _files[flask.session['count']]
+        current_file = os.path.join(app.config['UPLOAD_FOLDER'], files[flask.session['count']])
+        current_filename = files[flask.session['count']]
 
         return flask.jsonify(
             {'photo': current_file,'file_name':current_filename, 'forward': str(flask.session['count'] + 1 < len(_files)),
@@ -293,12 +286,10 @@ def create_app(test_config=None):
         files = os.listdir(LOCAL_THUMBNAIL_DIRECTORY)
         _direction = flask.request.args.get('direction')
         flask.session['count'] = flask.session['count'] + (1 if _direction == 'f' else - 1)
-        _files = files
-        current_file = os.path.join(app.config['LOCAL_THUMBNAILS'],  _files[flask.session['count']])
 
-        print(current_file, 'is the current file and the count is ',flask.session['count'])
-        current_filename = _files[flask.session['count']]
-        print(current_filename)
+        current_file = os.path.join(app.config['LOCAL_THUMBNAILS'],  files[flask.session['count']])
+        current_filename = files[flask.session['count']]
+
         return flask.jsonify(
             {'photo': current_file, 'file_name':current_filename, 'forward': str(flask.session['count'] + 1 < len(_files)),
              'back': str(bool(flask.session['count']))})
@@ -307,13 +298,13 @@ def create_app(test_config=None):
     def get_thumbnail_from_slider():
         files = os.listdir(LOCAL_THUMBNAIL_DIRECTORY)
         index_of_file = int(flask.request.args.get('value'))
-        current_file = os.path.join(app.config['LOCAL_THUMBNAILS'],  files[index_of_file])
 
-        print(current_file, 'is the current file and the count is ', index_of_file)
+        current_file = os.path.join(app.config['LOCAL_THUMBNAILS'],  files[index_of_file])
         current_filename = files[index_of_file]
+
         image_date = current_filename.replace('fullfield_L1_ua-mac_','')
         image_date = image_date[:image_date.index('_')]
-        print(current_filename)
+
         return flask.jsonify(
             {'photo': current_file, 'file_name':current_filename, 'number': index_of_file,'current_date':str(image_date)})
 
