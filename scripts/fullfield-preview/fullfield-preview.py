@@ -126,47 +126,6 @@ def create_app(test_config=None):
         selected_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
         submit = SubmitField('Show Available Fullfields', validators=[DataRequired()])
 
-    @app.route('/',methods=['POST','GET'])
-    def index():
-        session['key'] = 'value'
-        print(session, 'is the session')
-        if 'username' in session:
-            print('username is in session')
-            username = session['username']
-            return 'Logged in as ' + username + '<br>' + \
-                   "<b><a href = '/logout'>click here to log out</a></b>"
-
-        return "You are not logged in <br><a href = '/login'></b>" + \
-           "click here to log in</b></a>"
-
-    @app.route('/login', methods=['GET', 'POST'])
-    def login():
-        print('doing login', request.method)
-        if request.method == 'POST':
-            print(request.form['username'], 'in post')
-            session['username'] = request.form['username']
-            return redirect(url_for('index'))
-        return render_template('login.html')
-
-    @app.route('/testlogin', methods=['GET', 'POST'])
-    def testlogin():
-        if request.method == 'POST':
-            print('we are posting')
-            username = request.form['username']
-            result = 'post' + ' ' + username
-            return result
-
-    @app.route('/sessionstuff')
-    def sessionstuff():
-        # remove the username from the session if it is there
-        print(session['key'])
-        return 'this is to test session'
-
-    @app.route('/logout')
-    def logout():
-        # remove the username from the session if it is there
-        session.pop('username', None)
-        return redirect(url_for('index'))
 
     @app.route('/test')
     def test():#
@@ -215,19 +174,11 @@ def create_app(test_config=None):
                     ir_fullfield_thumbnails.append(f)
         return 'this is the thumbnails :  ' + ir_fullfield_thumbnails
 
-    @app.route('/select')
+    @app.route('/')
     def select():
         available_seasons = [1, 2, 3, 4, 5, 6]
         return render_template('main_selection.html', seasons=available_seasons)
 
-    @app.route('/display_season/', methods=['GET', 'POST'])
-    def display_season():
-        select = request.form.get('season_select')
-        message = "we are finding dates for seasons : " + str(select)
-        flask.session['count'] = 0
-        form = TestForm(csrf_enabled=False)
-        slider_val_default = 10
-        return render_template('display_season.html', message=message, form=form, image_list=five_item_list, slider_val=slider_val_default)
 
     @app.route('/preview_season', methods=['GET','POST'])
     def preview_season():
@@ -251,15 +202,6 @@ def create_app(test_config=None):
         flask.session['count'] = 0
         current_file  = os.path.join(app.config['UPLOAD_FOLDER'], files[0])
         return flask.render_template('photo_display.html', photo=current_file)
-
-    @app.route('/display_page_2', methods=['GET'])
-    def display_page_2():
-        thumbnail_dir = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails')
-        files = os.listdir(thumbnail_dir)
-        '''function to return the HTML page to display the images'''
-        flask.session['count'] = 0
-        current_file = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails',_files[0])
-        return flask.render_template('photo_display_2.html', photo=current_file)
 
     @app.route('/get_slider_value', methods=['GET'])
     def get_slider_value():
@@ -306,7 +248,8 @@ def create_app(test_config=None):
         image_date = image_date[:image_date.index('_')]
 
         return flask.jsonify(
-            {'photo': current_file, 'file_name':current_filename, 'number': index_of_file,'current_date':str(image_date)})
+            {'photo': current_file, 'file_name':current_filename,
+             'number': index_of_file, 'current_date': str(image_date)})
 
     return app
 
