@@ -54,6 +54,30 @@ five_item_list = ['apple', 'banana', 'cranberry', 'date', 'eggplant', 'fennel']
 class TestForm(Form):
     day = IntegerRangeField('Day', default=0)
 
+
+def get_dates_by_seasons(current_season):
+    current_season = int(current_season)
+    start = '2018-01-01'
+    end = '2018-12-30'
+    if current_season == 1:
+        print('nothing yet')
+    if current_season == 2:
+        print('nothing yet')
+    if current_season == 3:
+        print('nothing yet')
+    if current_season == 4:
+        print('nothing yet')
+    if current_season == 5:
+        print('nothing yet')
+    if current_season == 6:
+        print('nothing yet')
+    return [start, end]
+
+
+def get_fullfields_by_dates(start, end, fullfield_directory):
+    files_in_dir = os.listdir(fullfield_directory)
+    return files_in_dir[0:10]
+
 def scale_image(input_image_path,
                 output_image_path,
                 width=None,
