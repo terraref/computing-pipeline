@@ -21,7 +21,7 @@
 
             </select>
             <br>
-            <output type="text" name="nameoffile" id="nameoffile">placeholder</output>
+            <output type="text" name="startdate" id="startdate">(start date) </output><output type="text" name="enddate" id="enddate">(end date)</output>
         </div>
         <button type="submit" class="btn btn-default">Go</button>
     </div>
@@ -33,12 +33,14 @@
 
         var current_experiment = document.getElementById('season_experiment').value
 
-        console.log(current_experiment)
+        // console.log(current_experiment)
         //console.log(typeof(current_experiment));
         current_experiment  = current_experiment.replace(/'/g, '"');
         var asJson = JSON.parse(current_experiment);
-        document.getElementById('nameoffile').value = asJson['name']
-        console.log(asJson['name']);
+        document.getElementById('startdate').value = asJson['start_date']+" : "
+        document.getElementById('enddate').value = asJson['end_date']
+
+
     });
 </script>
 </html>
