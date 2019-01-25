@@ -2,6 +2,7 @@ import os
 import logging
 import tempfile
 import shutil
+import json
 import time
 import datetime
 import psycopg2
@@ -46,6 +47,11 @@ ir_fullfield_dir = '/ua-mac/Level_2/ir_fullfield/'
 fullfield_thumbnails_directory = '/Users/helium/terraref-globus/thumbnails/'
 LOCAL_THUMBNAIL_DIRECTORY = os.path.join('static', 'images', 'local-thumbnails')
 
+
+LOCAL_EXPERIMENTS_JSON_FILE = 'experiments.json'
+
+LOCAL_EXPERIMENTS_JSON = None
+
 PEOPLE_FOLDER = os.path.join('static', 'images')
 
 five_item_list = ['apple', 'banana', 'cranberry', 'date', 'eggplant', 'fennel']
@@ -55,23 +61,20 @@ class TestForm(Form):
     day = IntegerRangeField('Day', default=0)
 
 
-def get_dates_by_seasons(current_season):
-    current_season = int(current_season)
-    start = '2018-01-01'
-    end = '2018-12-30'
-    if current_season == 1:
-        print('nothing yet')
-    if current_season == 2:
-        print('nothing yet')
-    if current_season == 3:
-        print('nothing yet')
-    if current_season == 4:
-        print('nothing yet')
-    if current_season == 5:
-        print('nothing yet')
-    if current_season == 6:
-        print('nothing yet')
-    return [start, end]
+def get_experiments_json(use_bety=False):
+    global LOCAL_EXPERIMENTS_JSON
+    if use_bety:
+        pass
+    else:
+        with open(LOCAL_EXPERIMENTS_JSON_FILE) as f:
+            content = f.read()
+            content = content.replace('\\n', '')
+            content = content.replace('\\r', '')
+            LOCAL_EXPERIMENTS_JSON = json.loads(content)
+            print('type of local expriments', type(LOCAL_EXPERIMENTS_JSON))
+            asJson = json.dumps(LOCAL_EXPERIMENTS_JSON)
+            print('loaded the json')
+
 
 
 def get_fullfields_by_dates(start, end, fullfield_directory):
@@ -153,6 +156,7 @@ def create_app(test_config=None):
 
     @app.route('/test')
     def test():#
+        print(len(LOCAL_EXPERIMENTS_JSON))
         # full_filename = os.path.join(app.config['UPLOAD_FOLDER'], 'monolith_2001.jpg')
         # #full_filename = os.path.join(app.config['UPLOAD_FOLDER'],'thumbnails','temporary','fullfield_L1_ua-mac_2017-01-01_rgb_thumb.png')
         #
@@ -202,6 +206,11 @@ def create_app(test_config=None):
     def select():
         available_seasons = [1, 2, 3, 4, 5, 6]
         return render_template('main_selection.html', seasons=available_seasons)
+
+    @app.route('/experiment_select')
+    def experiment_select():
+        experiments = LOCAL_EXPERIMENTS_JSON
+        return render_template('experiments_select.html', experiments=experiments)
 
 
     @app.route('/preview_season', methods=['GET','POST'])
@@ -279,6 +288,7 @@ def create_app(test_config=None):
 
 def main():
 
+
     apiIP = os.getenv('FULLFIELD_PREVIEW_API_IP', "0.0.0.0")
     apiPort = os.getenv('FULLFIELD_PREVIEW_API_PORT', "5454")
     app = create_app()
@@ -295,6 +305,8 @@ if __name__ == '__main__':
         print("...loading configuration from config_custom.json")
     else:
         print("...no custom configuration file found. using default values")
+
+    get_experiments_json(use_bety=False)
 
     # Initialize logger handlers
     # with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:

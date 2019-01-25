@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Main Selection</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+
+</head>
+<body>
+<h3>Select Seasons</h3>
+<form class="form-inline" method="POST" action="{{ url_for('preview_season') }}">
+    <div class="form-group">
+        <div class="input-group">
+            <div>
+                <span class="input-group-addon">Please select experiment</span>
+            </div>
+            <select id = "season_experiment" name="season_experiment" class="selectpicker form-control">
+              {% for experiment in experiments %}
+                <option name = 'selected_experiment' id = 'selected_experiment' value="{{experiment }}" SELECTED>Experiment {{experiment.name}}</option>
+              {% endfor %}
+
+            </select>
+            <br>
+            <output type="text" name="nameoffile" id="nameoffile">placeholder</output>
+        </div>
+        <button type="submit" class="btn btn-default">Go</button>
+    </div>
+</form>
+</body>
+<script>
+    $("#season_experiment").change(function() {
+        console.log('change');
+
+        var current_experiment = document.getElementById('season_experiment').value
+
+        console.log(current_experiment)
+        //console.log(typeof(current_experiment));
+        current_experiment  = current_experiment.replace(/'/g, '"');
+        var asJson = JSON.parse(current_experiment);
+        document.getElementById('nameoffile').value = asJson['name']
+        console.log(asJson['name']);
+    });
+</script>
+</html>
