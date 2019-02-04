@@ -19,7 +19,7 @@ app_dir = os.getcwd()
 SCAN_LOCK = False
 count_defs = counts.SENSOR_COUNT_DEFINITIONS
 
-
+# UTILITIES ----------------------------
 def loadJsonFile(filename):
     """Load contents of .json file into a JSON object"""
     try:
@@ -46,11 +46,28 @@ def updateNestedDict(existing, new):
             existing = {k: new[k]}
     return existing
 
+def generate_dates_in_range(start_date_string, end_date_string=None):
+    """Return list of date strings between start and end dates."""
+    start_date = datetime.datetime.strptime(start_date_string, '%Y-%m-%d')
+    if not end_date_string:
+        end_date = datetime.datetime.now()
+    else:
+        end_date = datetime.datetime.strptime(end_date_string, '%Y-%m-%d')
+    days_between = (end_date - start_date).days
+
+    date_strings = []
+    for i in range(0, days_between+1):
+        current_date = start_date + datetime.timedelta(days=i)
+        current_date_string = current_date.strftime('%Y-%m-%d')
+        date_strings.append(current_date_string)
+    return date_strings
+
+# FLASK COMPONENTS ----------------------------
 def create_app(test_config=None):
 
     pipeline_csv = os.path.join(config['csv_path'], "{}.csv")
 
-    sensor_names = get_sensor_names()
+    sensor_names = count_defs.keys()
 
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
@@ -120,9 +137,9 @@ def create_app(test_config=None):
     @app.route('/schedule/<sensor_name>/<start_range>/<end_range>')
     def schedule_count(sensor_name, start_range, end_range):
         if sensor_name.lower() == "all":
-            sensors = get_sensor_names()
+            sensor_list = count_defs.keys()
         else:
-            sensors = [sensor_name]
+            sensor_list = [sensor_name]
 
         dates_in_range = generate_dates_in_range(start_range, end_range)
 
@@ -133,35 +150,41 @@ def create_app(test_config=None):
 
         conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
 
-        thread.start_new_thread(update_file_counts, (sensors, dates_in_range, conn))
+        thread.start_new_thread(update_file_count_csvs, (sensor_list, dates_in_range, conn))
 
-        message = "Custom scan scheduled for %s sensors and %s dates" % (len(sensors), len(dates_in_range))
+        message = "Custom scan scheduled for %s sensors and %s dates" % (len(sensor_list), len(dates_in_range))
         return redirect(url_for('sensors', message=message))
 
     return app
 
-def get_sensor_names():
-    return count_defs.keys()
+# COUNTING COMPONENTS ----------------------------
+def run_regular_update():
+    """Perform regular update of previous two weeks for all sensors"""
+    psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
+    psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
+    psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
+    psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
 
-def generate_dates_in_range(start_date_string, end_date_string=None):
-    start_date = datetime.datetime.strptime(start_date_string, '%Y-%m-%d')
-    if not end_date_string:
-        end_date = datetime.datetime.now()
-    else:
-        end_date = datetime.datetime.strptime(end_date_string, '%Y-%m-%d')
-    days_between = (end_date - start_date).days
+    conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
 
-    date_strings = []
-    for i in range(0, days_between+1):
-        current_date = start_date + datetime.timedelta(days=i)
-        current_date_string = current_date.strftime('%Y-%m-%d')
-        date_strings.append(current_date_string)
-    return date_strings
+    while True:
+        # Determine two weeks before current date by default
+        today = datetime.datetime.now()
+        two_weeks = today - datetime.timedelta(days=14)
+        start_date_string = os.getenv('START_SCAN_DATE', two_weeks.strftime("%Y-%m-%d"))
+        dates_to_check = generate_dates_in_range(start_date_string)
 
-def perform_count(target_count, target_def, date, conn):
-    """Return count of specified type"""
+        logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
 
+        update_file_count_csvs(count_defs.keys(), dates_to_check, conn)
+
+        # Wait 1 hour for next iteration
+        time.sleep(3600)
+
+def retrive_single_count(target_count, target_def, date, conn):
+    """Return count of specified type (see counts.py for types)"""
     count = 0
+
     if target_def["type"] == "timestamp":
         date_dir = os.path.join(target_def["path"], date)
         if os.path.exists(date_dir):
@@ -200,40 +223,17 @@ def perform_count(target_count, target_def, date, conn):
 
     return count
 
-def run_update():
-    psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
-    psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
-    psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
-    psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
-
-    conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
-
-    while True:
-        # Determine two weeks before current date by default
-        today = datetime.datetime.now()
-        two_weeks = today - datetime.timedelta(days=14)
-        start_date_string = os.getenv('START_SCAN_DATE', two_weeks.strftime("%Y-%m-%d"))
-        dates_to_check = generate_dates_in_range(start_date_string)
-
-        logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
-
-        update_file_counts(get_sensor_names(), dates_to_check, conn)
-        #update_file_counts(['flirIrCamera'], dates_to_check, conn)
-
-        # Wait 1 hour for next iteration
-        time.sleep(3600)
-
-def update_file_counts(sensors, dates_to_check, conn):
-    """Perform necessary counting to update CSV."""
+def update_file_count_csvs(sensor_list, dates_to_check, conn):
+    """Perform necessary counting on specified dates to update CSV for all sensors."""
     global SCAN_LOCK
 
     while SCAN_LOCK:
         logging.info("Another thread currently locking database; waiting 60 seconds to retry")
         time.sleep(60)
 
-    logging.info("Locking scan for %s sensors and %s dates" % (len(sensors), len(dates_to_check)))
+    logging.info("Locking scan for %s sensors and %s dates" % (len(sensor_list), len(dates_to_check)))
     SCAN_LOCK = True
-    for sensor in sensors:
+    for sensor in sensor_list:
         output_file = os.path.join(config['csv_path'], sensor+".csv")
         logging.info("Updating counts for %s into %s" % (sensor, output_file))
         targets = count_defs[sensor]
@@ -245,25 +245,22 @@ def update_file_counts(sensors, dates_to_check, conn):
             cols = ["date"]
             for target_count in targets:
                 target_def = targets[target_count]
-
                 cols.append(target_count)
                 if "parent" in target_def:
                     cols.append(target_count+'%')
-
             df = pd.DataFrame(columns=cols)
 
+        # Populate count and percentage (if applicable) for each target count
         for current_date in dates_to_check:
             logging.info("[%s] %s" % (sensor, current_date))
             counts = {}
             percentages = {}
-
-            # Populate count and percentage (if applicable) for each target count
             for target_count in targets:
                 target_def = targets[target_count]
-                counts[target_count] = perform_count(target_count, target_def, current_date, conn)
+                counts[target_count] = retrive_single_count(target_count, target_def, current_date, conn)
                 if "parent" in target_def:
                     if target_def["parent"] not in counts:
-                        counts[target_def["parent"]] = perform_count(targets[target_def["parent"]], current_date, conn)
+                        counts[target_def["parent"]] = retrive_single_count(targets[target_def["parent"]], current_date, conn)
                     if counts[target_def["parent"]] > 0:
                         percentages[target_count] = (counts[target_count]*1.0)/(counts[target_def["parent"]]*1.0)
                     else:
@@ -279,14 +276,6 @@ def update_file_counts(sensors, dates_to_check, conn):
                     if "parent" in target_def:
                         updated_entry.append(percentages[target_count])
                 df.loc[df['date'] == current_date] = updated_entry
-
-
-                # for target_count in targets:
-                #     target_def = targets[target_count]
-                #     df.loc[df['date'] == current_date, target_count] = counts[target_count]
-                #     if "parent" in target_def:
-                #         df.loc[df['date'] == current_date, target_count+'%'] = percentages[target_count+'%']
-
             # If not, create a new row
             else:
                 logging.info("No data for date " + current_date + ' adding to dataframe')
@@ -333,7 +322,7 @@ if __name__ == '__main__':
             open(main_log_file, 'a').close()
         logging.config.dictConfig(log_config)
 
-    thread.start_new_thread(run_update, ())
+    thread.start_new_thread(run_regular_update, ())
 
     apiIP = os.getenv('COUNTER_API_IP', "0.0.0.0")
     apiPort = os.getenv('COUNTER_API_PORT', "5454")
