@@ -5,81 +5,23 @@ import pandas as pd
 import datetime
 import psycopg2
 import re
-from collections import OrderedDict
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
 from flask_wtf import FlaskForm as Form
 from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
 
+import counts
+
+
 config = {}
-
-"""
-Dictionary of count definitions for various sensors.
-
-Types:
-    timestamp:  count timestamp directories in each date directory
-    psql:       count rows returned from specified postgres query
-    regex:      count files within each date directory that match regex
-Other fields:
-    path:       path containing date directories for timestamp or regex counts
-    regex:      regular expression to execute on date directory for regex counts
-    query:      postgres query to execute for psql counts
-    parent:     previous count definition for % generation (e.g. bin2tif's parent is stereoTop)
-"""
-app_dir = "/home/filecounter/"
-sites_root = "/home/clowder/"
-SENSOR_COUNT_DEFINITIONS = {
-    "stereoTop": OrderedDict([
-        ("stereoTop", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/raw_data/stereoTop/'),
-            "type": 'timestamp'}),
-        ("bin2tif", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_1/rgb_geotiff/'),
-            "type": 'timestamp',
-            "parent": "stereoTop"}),
-        ("rulechecker", {
-            "type": "psql",
-            "query": "select count(distinct file_path) from extractor_ids where output like 'Full Field -- RGB GeoTIFFs - %s%%';",
-            "parent": "bin2tif"}),
-        ("fullfield", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_1/fullfield/'),
-            "type": 'regex',
-            "regex": "^.*\d+_rgb_.*thumb.tif"}),
-        ("canopycover", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_2/rgb_canopycover/'),
-            "type": 'regex',
-            "regex": '.*_canopycover_bety.csv',
-            "parent": "fullfield"})
-    ]),
-    "flirIrCamera": OrderedDict([
-        ("flirIrCamera", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/raw_data/flirIrCamera/'),
-            "type": 'timestamp'}),
-        ("flir2tif", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_1/ir_geotiff/'),
-            "type": 'timestamp',
-            "parent": "flirIrCamera"}),
-        ("rulechecker", {
-            "type": "psql",
-            "query": "select count(distinct file_path) from extractor_ids where output like 'Full Field -- Thermal IR GeoTIFFs - %s%%';",
-            "parent": "flir2tif"}),
-        ("fullfield", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_1/fullfield/'),
-            "type": 'regex',
-            "regex": "^.*\d+_ir_.*thumb.tif"}),
-        ("meantemp", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_2/ir_meantemp/'),
-            "type": 'regex',
-            "regex": '.*_meantemp_bety.csv',
-            "parent": "fullfield"})
-    ])
-}
-
+app_dir = os.getcwd()
 SCAN_LOCK = False
+count_defs = counts.SENSOR_COUNT_DEFINITIONS
 
-"""Load contents of .json file into a JSON object"""
+
 def loadJsonFile(filename):
+    """Load contents of .json file into a JSON object"""
     try:
         f = open(filename)
         jsonObj = json.load(f)
@@ -89,9 +31,10 @@ def loadJsonFile(filename):
         logger.error("- unable to open %s" % filename)
         return {}
 
-"""Nested update of python dictionaries for config parsing"""
 def updateNestedDict(existing, new):
-    # Adapted from http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+    """Nested update of python dictionaries for config parsing
+    Adapted from http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+    """
     for k, v in new.iteritems():
         if isinstance(existing, collections.Mapping):
             if isinstance(v, collections.Mapping):
@@ -198,7 +141,7 @@ def create_app(test_config=None):
     return app
 
 def get_sensor_names():
-    return SENSOR_COUNT_DEFINITIONS.keys()
+    return count_defs.keys()
 
 def generate_dates_in_range(start_date_string, end_date_string=None):
     start_date = datetime.datetime.strptime(start_date_string, '%Y-%m-%d')
@@ -223,6 +166,12 @@ def perform_count(target_count, target_def, date, conn):
         date_dir = os.path.join(target_def["path"], date)
         if os.path.exists(date_dir):
             logging.info("   [%s] counting timestamps in %s" % (target_count, date_dir))
+            count = len(os.listdir(date_dir))
+
+    elif target_def["type"] == "plot":
+        date_dir = os.path.join(target_def["path"], date)
+        if os.path.exists(date_dir):
+            logging.info("   [%s] counting plots in %s" % (target_count, date_dir))
             count = len(os.listdir(date_dir))
 
     elif target_def["type"] == "regex":
@@ -287,7 +236,7 @@ def update_file_counts(sensors, dates_to_check, conn):
     for sensor in sensors:
         output_file = os.path.join(config['csv_path'], sensor+".csv")
         logging.info("Updating counts for %s into %s" % (sensor, output_file))
-        targets = SENSOR_COUNT_DEFINITIONS[sensor]
+        targets = count_defs[sensor]
 
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
@@ -361,14 +310,6 @@ def update_file_counts(sensors, dates_to_check, conn):
 
     SCAN_LOCK = False
 
-def main():
-    thread.start_new_thread(run_update, ())
-
-    apiIP = os.getenv('COUNTER_API_IP', "0.0.0.0")
-    apiPort = os.getenv('COUNTER_API_PORT', "5454")
-    app = create_app()
-    logger.info("*** API now listening on %s:%s ***" % (apiIP, apiPort))
-    app.run(host=apiIP, port=apiPort)
 
 if __name__ == '__main__':
 
@@ -392,5 +333,10 @@ if __name__ == '__main__':
             open(main_log_file, 'a').close()
         logging.config.dictConfig(log_config)
 
+    thread.start_new_thread(run_update, ())
 
-    main()
+    apiIP = os.getenv('COUNTER_API_IP', "0.0.0.0")
+    apiPort = os.getenv('COUNTER_API_PORT', "5454")
+    app = create_app()
+    logger.info("*** API now listening on %s:%s ***" % (apiIP, apiPort))
+    app.run(host=apiIP, port=apiPort)
