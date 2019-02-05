@@ -15,7 +15,7 @@ import counts
 
 
 config = {}
-app_dir = os.getcwd()
+app_dir = '/home/filecounter'
 SCAN_LOCK = False
 count_defs = counts.SENSOR_COUNT_DEFINITIONS
 
