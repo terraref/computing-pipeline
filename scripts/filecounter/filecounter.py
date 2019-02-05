@@ -101,7 +101,7 @@ def create_app(test_config=None):
 
     @app.route('/test')
     def test():
-        return 'this is only a test'
+        return 'this is only a test, route does nothing'
 
     @app.route('/download/<sensor_name>')
     def download(sensor_name):
