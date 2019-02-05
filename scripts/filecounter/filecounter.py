@@ -133,6 +133,22 @@ def create_app(test_config=None):
                                     end_range=str(form.end_date.data.strftime('%Y-%m-%d'))))
         return render_template('dateoptions.html', form=form)
 
+    @app.route('/archive_current_csvs')
+    def archive_current_csvs():
+        sensor_list = count_defs.keys()
+        current_time_stamp = str(datetime.datetime.now()).replace(' ', '_')
+        for sensor in sensor_list:
+            output_file = os.path.join(config['csv_path'], sensor + ".csv")
+            if os.path.exists(output_file):
+                archived_file = os.path.join(config['csv_path'], sensor + '_' + current_time_stamp + ".csv")
+                os.rename(output_file, archived_file)
+                if os.path.exists(output_file):
+                    try:
+                        os.remove(output_file)
+                    except OSError as e:
+                        logging.info(e)
+
+
     @app.route('/schedule/<sensor_name>/<start_range>', defaults={'end_range': None})
     @app.route('/schedule/<sensor_name>/<start_range>/<end_range>')
     def schedule_count(sensor_name, start_range, end_range):
