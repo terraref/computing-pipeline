@@ -147,7 +147,9 @@ def create_app(test_config=None):
                         os.remove(output_file)
                     except OSError as e:
                         logging.info(e)
-
+        message = "Archived existing count csvs"
+        logging.info("Archived existing count csvs")
+        return redirect(url_for('sensors', message=message))
 
     @app.route('/schedule/<sensor_name>/<start_range>', defaults={'end_range': None})
     @app.route('/schedule/<sensor_name>/<start_range>/<end_range>')
