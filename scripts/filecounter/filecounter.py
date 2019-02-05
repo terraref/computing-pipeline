@@ -260,6 +260,7 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
         if os.path.exists(output_file):
             df = pd.read_csv(output_file)
         else:
+            logging.info("output file for ", sensor, "does not exist")
             cols = ["date"]
             for target_count in targets:
                 target_def = targets[target_count]
@@ -267,6 +268,7 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
                 if "parent" in target_def:
                     cols.append(target_count+'%')
             df = pd.DataFrame(columns=cols)
+            logging.info("created dataframe for", sensor)
 
         # Populate count and percentage (if applicable) for each target count
         for current_date in dates_to_check:
