@@ -260,7 +260,7 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
         if os.path.exists(output_file):
             df = pd.read_csv(output_file)
         else:
-            logging.info("output file for ", sensor, "does not exist")
+            logging.info("output file for %s does not exist" % sensor)
             cols = ["date"]
             for target_count in targets:
                 target_def = targets[target_count]
@@ -288,7 +288,7 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
 
             # If this date already has a row, just update
             if current_date in df['date'].values:
-                logging.info("Already have data for date " + current_date)
+                logging.info("Already have data for date %s " % current_date)
                 updated_entry = [current_date]
                 for target_count in targets:
                     target_def = targets[target_count]
@@ -298,7 +298,7 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
                 df.loc[df['date'] == current_date] = updated_entry
             # If not, create a new row
             else:
-                logging.info("No data for date " + current_date + ' adding to dataframe')
+                logging.info("No data for date %s adding to dataframe" % current_date)
                 new_entry = [current_date]
                 indices = ["date"]
 
