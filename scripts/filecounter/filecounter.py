@@ -18,6 +18,8 @@ config = {}
 app_dir = '/home/filecounter'
 SCAN_LOCK = False
 count_defs = counts.SENSOR_COUNT_DEFINITIONS
+DEFAULT_COUNT_START = None
+DEFAULT_COUNT_END = None
 
 # UTILITIES ----------------------------
 def loadJsonFile(filename):
@@ -328,6 +330,13 @@ if __name__ == '__main__':
     if os.path.exists(os.path.join(app_dir, "data/config_custom.json")):
         print("...loading configuration from config_custom.json")
         config = updateNestedDict(config, loadJsonFile(os.path.join(app_dir, "data/config_custom.json")))
+        try:
+            DEFAULT_COUNT_START = config["default_count_start"]
+            DEFAULT_COUNT_START = config["default_count_end"]
+            print(DEFAULT_COUNT_START, DEFAULT_COUNT_END)
+            print("default start and end provided")
+        except:
+            print("No default values for start and end")
     else:
         print("...no custom configuration file found. using default values")
 
