@@ -177,8 +177,9 @@ def create_app(test_config=None):
 
     return app
 
+
 # COUNTING COMPONENTS ----------------------------
-def run_regular_update():
+def run_regular_update(use_defaults=False):
     """Perform regular update of previous two weeks for all sensors"""
     psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
     psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
@@ -188,11 +189,17 @@ def run_regular_update():
     conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
 
     while True:
-        # Determine two weeks before current date by default
-        today = datetime.datetime.now()
-        two_weeks = today - datetime.timedelta(days=14)
-        start_date_string = os.getenv('START_SCAN_DATE', two_weeks.strftime("%Y-%m-%d"))
-        dates_to_check = generate_dates_in_range(start_date_string)
+        # Determine two weeks before current date, or by defaults
+        if use_defaults:
+            logging.info("Using default values instead of previous 2 weeks")
+            start_date_string = DEFAULT_COUNT_START
+            end_date_string = DEFAULT_COUNT_END
+            dates_to_check = generate_dates_in_range(start_date_string, end_date_string)
+        else:
+            today = datetime.datetime.now()
+            two_weeks = today - datetime.timedelta(days=14)
+            start_date_string = os.getenv('START_SCAN_DATE', two_weeks.strftime("%Y-%m-%d"))
+            dates_to_check = generate_dates_in_range(start_date_string)
 
         logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
 
@@ -331,8 +338,8 @@ if __name__ == '__main__':
         print("...loading configuration from config_custom.json")
         config = updateNestedDict(config, loadJsonFile(os.path.join(app_dir, "data/config_custom.json")))
         try:
-            DEFAULT_COUNT_START = config["default_count_start"]
-            DEFAULT_COUNT_START = config["default_count_end"]
+            DEFAULT_COUNT_START = str(config["default_count_start"])
+            DEFAULT_COUNT_END = str(config["default_count_end"])
             print(DEFAULT_COUNT_START, DEFAULT_COUNT_END)
             print("default start and end provided")
         except:
@@ -351,7 +358,7 @@ if __name__ == '__main__':
             open(main_log_file, 'a').close()
         logging.config.dictConfig(log_config)
 
-    thread.start_new_thread(run_regular_update, ())
+    thread.start_new_thread(run_regular_update(use_defaults=True), ())
 
     apiIP = os.getenv('COUNTER_API_IP', "0.0.0.0")
     apiPort = os.getenv('COUNTER_API_PORT', "5454")
