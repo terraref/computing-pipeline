@@ -351,7 +351,7 @@ if __name__ == '__main__':
             open(main_log_file, 'a').close()
         logging.config.dictConfig(log_config)
 
-    thread.start_new_thread(run_regular_update, ())
+    # thread.start_new_thread(run_regular_update, ())
 
     apiIP = os.getenv('COUNTER_API_IP', "0.0.0.0")
     apiPort = os.getenv('COUNTER_API_PORT', "5454")
