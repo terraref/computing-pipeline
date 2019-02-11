@@ -217,12 +217,16 @@ def retrive_single_count(target_count, target_def, date, conn):
         if os.path.exists(date_dir):
             logging.info("   [%s] counting timestamps in %s" % (target_count, date_dir))
             count = len(os.listdir(date_dir))
+        else:
+            logging.info("   [%s] directory not found: %s" % (target_count, date_dir))
 
     elif target_def["type"] == "plot":
         date_dir = os.path.join(target_def["path"], date)
         if os.path.exists(date_dir):
             logging.info("   [%s] counting plots in %s" % (target_count, date_dir))
             count = len(os.listdir(date_dir))
+        else:
+            logging.info("   [%s] directory not found: %s" % (target_count, date_dir))
 
     elif target_def["type"] == "regex":
         date_dir = os.path.join(target_def["path"], date)
@@ -239,6 +243,8 @@ def retrive_single_count(target_count, target_def, date, conn):
                     # No timestamp (e.g. fullfield)
                     if re.match(target_def["regex"], date_content):
                         count += 1
+        else:
+            logging.info("   [%s] directory not found: %s" % (target_count, date_dir))
 
     elif target_def["type"] == "psql":
         logging.info("   [%s] querying PSQL records for %s" % (target_count, date))
