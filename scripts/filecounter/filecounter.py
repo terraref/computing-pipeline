@@ -17,8 +17,7 @@ import counts
 
 
 config = {}
-#app_dir = '/home/filecounter'
-app_dir = ''
+app_dir = '/home/filecounter'
 SCAN_LOCK = False
 count_defs = counts.SENSOR_COUNT_DEFINITIONS
 DEFAULT_COUNT_START = None
