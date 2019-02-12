@@ -11,8 +11,6 @@ from flask_wtf import FlaskForm as Form
 from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
-import IPython
-from IPython.display import display, HTML
 import counts
 
 
