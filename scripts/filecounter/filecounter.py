@@ -2,6 +2,7 @@ import os, thread, json, collections
 import logging, logging.config, logstash
 import time
 import pandas as pd
+import numpy as np
 import datetime
 import psycopg2
 import re
@@ -15,7 +16,8 @@ import counts
 
 
 config = {}
-app_dir = '/home/filecounter'
+#app_dir = '/home/filecounter'
+app_dir = ''
 SCAN_LOCK = False
 count_defs = counts.SENSOR_COUNT_DEFINITIONS
 DEFAULT_COUNT_START = None
@@ -63,6 +65,34 @@ def generate_dates_in_range(start_date_string, end_date_string=None):
         current_date_string = current_date.strftime('%Y-%m-%d')
         date_strings.append(current_date_string)
     return date_strings
+
+
+def get_percent_columns(current_dataframe):
+    colnames = list(current_dataframe.columns.values)
+    percent_columns = []
+    for each in colnames:
+        if each.endswith('%'):
+            percent_columns.append(each)
+    return percent_columns
+
+
+def highlight_max(s):
+    '''
+    highlight the maximum in a Series yellow.
+    '''
+    is_max = s == s.max()
+    return ['background-color: red' if v else '' for v in is_max]
+
+
+def color_percents(val):
+    """
+    Takes a scalar and returns a string with
+    the css property `'color: red'` for negative
+    strings, black otherwise.
+    """
+    color = 'green' if val >= 0.99 else 'red'
+    return 'color: %s' % color
+
 
 # FLASK COMPONENTS ----------------------------
 def create_app(test_config=None):
@@ -124,6 +154,24 @@ def create_app(test_config=None):
             return df.to_html()
         else:
             return df.tail(days).to_html()
+
+    @app.route('/testcsv')
+    def testcsv():
+        current_csv ='stereoTop.csv'
+        df = pd.read_csv(current_csv, index_col=False)
+        percent_columns = get_percent_columns(df)
+        df.style.applymap(color_percents, subset=percent_columns)
+        return df.to_html()
+
+    @app.route('/testcsv2')
+    def testcsv2():
+        np.random.seed(24)
+        df = pd.DataFrame({'A': np.linspace(1, 10, 10)})
+        df = pd.concat([df, pd.DataFrame(np.random.randn(10, 4), columns=list('BCDE'))],
+               axis=1)
+        df.iloc[0, 2] = np.nan
+        df.style.apply(highlight_max)
+        return df.to_html()
 
     @app.route('/dateoptions', methods=['POST','GET'])
     def dateoptions():
@@ -353,18 +401,18 @@ if __name__ == '__main__':
     else:
         print("...no custom configuration file found. using default values")
 
-    # Initialize logger handlers
-    with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
-        log_config = json.load(f)
-        main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
-        log_config['handlers']['file']['filename'] = main_log_file
-        if not os.path.exists(config["log_path"]):
-            os.makedirs(config["log_path"])
-        if not os.path.isfile(main_log_file):
-            open(main_log_file, 'a').close()
-        logging.config.dictConfig(log_config)
+    # # Initialize logger handlers
+    # with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
+    #     log_config = json.load(f)
+    #     main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
+    #     log_config['handlers']['file']['filename'] = main_log_file
+    #     if not os.path.exists(config["log_path"]):
+    #         os.makedirs(config["log_path"])
+    #     if not os.path.isfile(main_log_file):
+    #         open(main_log_file, 'a').close()
+    #     logging.config.dictConfig(log_config)
 
-    thread.start_new_thread(run_regular_update, (True,))
+    #thread.start_new_thread(run_regular_update, (True,))
 
     apiIP = os.getenv('COUNTER_API_IP', "0.0.0.0")
     apiPort = os.getenv('COUNTER_API_PORT', "5454")
