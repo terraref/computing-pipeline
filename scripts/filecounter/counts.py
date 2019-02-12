@@ -41,7 +41,7 @@ SENSOR_COUNT_DEFINITIONS = {
         # rulechecker & fieldmosaic products
         ("ruledb_rgbff", {
             "type": "psql",
-            "query": "select count(distinct file_path) from extractor_ids where output like 'Full Field -- RGB GeoTIFFs - %s%%';",
+            "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs' and output->>'date'='%s';",
             "parent": "bin2tif"}),
         ("rgbff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
@@ -49,7 +49,7 @@ SENSOR_COUNT_DEFINITIONS = {
             "regex": ".*_rgb_thumb.tif"}),
         ("ruledb_nrmacff", {
             "type": "psql",
-            "query": "select count(distinct file_path) from extractor_ids where output like 'Full Field -- RGB GeoTIFFs NRMAC - %s%%';",
+            "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs NRMAC' and output->>'date'='%s';",
             "parent": "nrmac"}),
         ("nrmacff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
@@ -57,7 +57,7 @@ SENSOR_COUNT_DEFINITIONS = {
             "regex": ".*_nrmac_thumb.tif"}),
         ("ruledb_maskff", {
             "type": "psql",
-            "query": "select count(distinct file_path) from extractor_ids where output like 'Full Field -- RGB GeoTIFFs Masked - %s%%';",
+            "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs Masked' and output->>'date'='%s';",
             "parent": "rgbmask"}),
         ("maskff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
@@ -87,7 +87,7 @@ SENSOR_COUNT_DEFINITIONS = {
         # rulechecker & fieldmosaic products
         ("ruledb_flirff", {
             "type": "psql",
-            "query": "select count(distinct file_path) from extractor_ids where output like 'Full Field -- Thermal IR GeoTIFFs - %s%%';",
+            "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='Thermal IR GeoTIFFs' and output->>'date'='%s';",
             "parent": "flir2tif"}),
         ("flirff", {
             "path": os.path.join(uamac_root, 'Level_2/ir_fullfield/'),
