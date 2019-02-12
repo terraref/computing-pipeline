@@ -161,6 +161,7 @@ def create_app(test_config=None):
         df = pd.read_csv(current_csv, index_col=False)
         percent_columns = get_percent_columns(df)
         df.style.applymap(color_percents, subset=percent_columns)
+        as_html = df.to_html()
         return df.to_html()
 
     @app.route('/testcsv2')
@@ -401,18 +402,18 @@ if __name__ == '__main__':
     else:
         print("...no custom configuration file found. using default values")
 
-    # # Initialize logger handlers
-    # with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
-    #     log_config = json.load(f)
-    #     main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
-    #     log_config['handlers']['file']['filename'] = main_log_file
-    #     if not os.path.exists(config["log_path"]):
-    #         os.makedirs(config["log_path"])
-    #     if not os.path.isfile(main_log_file):
-    #         open(main_log_file, 'a').close()
-    #     logging.config.dictConfig(log_config)
+    # Initialize logger handlers
+    with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
+        log_config = json.load(f)
+        main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
+        log_config['handlers']['file']['filename'] = main_log_file
+        if not os.path.exists(config["log_path"]):
+            os.makedirs(config["log_path"])
+        if not os.path.isfile(main_log_file):
+            open(main_log_file, 'a').close()
+        logging.config.dictConfig(log_config)
 
-    #thread.start_new_thread(run_regular_update, (True,))
+    thread.start_new_thread(run_regular_update, (True,))
 
     apiIP = os.getenv('COUNTER_API_IP', "0.0.0.0")
     apiPort = os.getenv('COUNTER_API_PORT', "5454")
