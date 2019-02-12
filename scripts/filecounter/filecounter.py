@@ -11,7 +11,8 @@ from flask_wtf import FlaskForm as Form
 from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
-
+import IPython
+from IPython.display import display, HTML
 import counts
 
 
@@ -90,8 +91,8 @@ def color_percents(val):
     the css property `'color: red'` for negative
     strings, black otherwise.
     """
-    color = 'green' if val >= 0.99 else 'red'
-    return 'color: %s' % color
+    color = 'green' if val >= 0.99 else 'yellow'
+    return 'background-color: %s' % color
 
 
 # FLASK COMPONENTS ----------------------------
@@ -160,9 +161,14 @@ def create_app(test_config=None):
         current_csv ='stereoTop.csv'
         df = pd.read_csv(current_csv, index_col=False)
         percent_columns = get_percent_columns(df)
-        df.style.applymap(color_percents, subset=percent_columns)
-        as_html = df.to_html()
-        return df.to_html()
+        #df.style.applymap(color_percents, subset=percent_columns)
+        #rendered = df.style.applymap(color_percents, subset=percent_columns).render()
+        #as_html = df.to_html()
+
+        dfs = df.style
+        dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+        my_html = dfs.render()
+        return my_html
 
     @app.route('/testcsv2')
     def testcsv2():
