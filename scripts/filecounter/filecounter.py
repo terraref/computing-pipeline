@@ -150,9 +150,14 @@ def create_app(test_config=None):
     def showcsv(sensor_name, days):
         # data = dataset.html
         current_csv = pipeline_csv.format(sensor_name)
-        df =  pd.read_csv(current_csv, index_col=False)
+        df = pd.read_csv(current_csv, index_col=False)
         if days == 0:
-            return df.to_html()
+            percent_columns = get_percent_columns(df)
+
+            dfs = df.style
+            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+            my_html = dfs.render()
+            return my_html
         else:
             return df.tail(days).to_html()
 
@@ -161,9 +166,6 @@ def create_app(test_config=None):
         current_csv ='stereoTop.csv'
         df = pd.read_csv(current_csv, index_col=False)
         percent_columns = get_percent_columns(df)
-        #df.style.applymap(color_percents, subset=percent_columns)
-        #rendered = df.style.applymap(color_percents, subset=percent_columns).render()
-        #as_html = df.to_html()
 
         dfs = df.style
         dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
