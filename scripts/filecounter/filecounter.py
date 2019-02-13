@@ -88,7 +88,14 @@ def color_percents(val):
     the css property `'color: red'` for negative
     strings, black otherwise.
     """
-    color = 'green' if val >= 0.99 else 'yellow'
+    if val == 100:
+        color = 'green'
+    elif 100 > val >= 99:
+        color = 'orange'
+    elif val < 99:
+        color = 'yellow'
+    else:
+        color = 'yellow'
     return 'background-color: %s' % color
 
 
@@ -150,7 +157,8 @@ def create_app(test_config=None):
         df = pd.read_csv(current_csv, index_col=False)
         if days == 0:
             percent_columns = get_percent_columns(df)
-
+            for each in percent_columns:
+                df[each] = df[each].mul(100).astype(int)
             dfs = df.style
             dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
             my_html = dfs.render()
@@ -163,7 +171,8 @@ def create_app(test_config=None):
         current_csv ='stereoTop.csv'
         df = pd.read_csv(current_csv, index_col=False)
         percent_columns = get_percent_columns(df)
-
+        for each in percent_columns:
+            df[each] = df[each].mul(100).astype(int)
         dfs = df.style
         dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
         my_html = dfs.render()
