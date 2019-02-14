@@ -166,6 +166,33 @@ def create_app(test_config=None):
         else:
             return df.tail(days).to_html()
 
+    @app.route('/showcsvbyseason/<sensor_name>', defaults={'season': 6})
+    @app.route('/showcsv/<sensor_name>/<int:season>')
+    def showcsvbyseason(sensor_name, season):
+        if season == 6:
+            start = '2018-04-06'
+            end = '2018-08-01'
+            current_csv = pipeline_csv.format(sensor_name)
+            df = pd.read_csv(current_csv, index_col=False)
+            df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
+            percent_columns = get_percent_columns(df_season)
+            for each in percent_columns:
+                df_season[each] = df_season[each].mul(100).astype(int)
+            dfs = df_season.style
+            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+            my_html = dfs.render()
+            return my_html
+        else:
+            current_csv = pipeline_csv.format(sensor_name)
+            df = pd.read_csv(current_csv, index_col=False)
+            percent_columns = get_percent_columns(df)
+            for each in percent_columns:
+                df[each] = df[each].mul(100).astype(int)
+            dfs = df.style
+            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+            my_html = dfs.render()
+            return my_html
+
     @app.route('/testcsv')
     def testcsv():
         current_csv ='stereoTop.csv'
