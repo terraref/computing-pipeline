@@ -177,6 +177,10 @@ def create_app(test_config=None):
             df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
             if 'stereoTop' in df_season.columns:
                 df_season = df_season[df['stereoTop'] != 0]
+            if 'flirIrCamera' in df_season.columns:
+                df_season = df_season[df['flirIrCamera'] != 0]
+            if 'scanner3DTop' in df_season.columns:
+                df_season = df_season[df['scanner3DTop'] != 0]
             percent_columns = get_percent_columns(df_season)
             for each in percent_columns:
                 df_season[each] = df_season[each].mul(100).astype(int)
