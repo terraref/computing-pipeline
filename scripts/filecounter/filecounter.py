@@ -175,6 +175,7 @@ def create_app(test_config=None):
             current_csv = pipeline_csv.format(sensor_name)
             df = pd.read_csv(current_csv, index_col=False)
             df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
+            df_season = df_season[df['bin2tif'] != 0]
             percent_columns = get_percent_columns(df_season)
             for each in percent_columns:
                 df_season[each] = df_season[each].mul(100).astype(int)
