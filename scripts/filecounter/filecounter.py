@@ -2,84 +2,28 @@ import os, thread, json, collections
 import logging, logging.config, logstash
 import time
 import pandas as pd
+import numpy as np
 import datetime
 import psycopg2
 import re
-from collections import OrderedDict
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
 from flask_wtf import FlaskForm as Form
 from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
+import counts
+
 
 config = {}
-
-"""
-Dictionary of count definitions for various sensors.
-
-Types:
-    timestamp:  count timestamp directories in each date directory
-    psql:       count rows returned from specified postgres query
-    regex:      count files within each date directory that match regex
-Other fields:
-    path:       path containing date directories for timestamp or regex counts
-    regex:      regular expression to execute on date directory for regex counts
-    query:      postgres query to execute for psql counts
-    parent:     previous count definition for % generation (e.g. bin2tif's parent is stereoTop)
-"""
-app_dir = "/home/filecounter/"
-sites_root = "/home/clowder/"
-SENSOR_COUNT_DEFINITIONS = {
-    "stereoTop": OrderedDict([
-        ("stereoTop", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/raw_data/stereoTop/'),
-            "type": 'timestamp'}),
-        ("bin2tif", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_1/rgb_geotiff/'),
-            "type": 'timestamp',
-            "parent": "stereoTop"}),
-        ("rulechecker", {
-            "type": "psql",
-            "query": "select count(distinct file_path) from extractor_ids where output like 'Full Field -- RGB GeoTIFFs - %s%%';",
-            "parent": "bin2tif"}),
-        ("fullfield", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_1/fullfield/'),
-            "type": 'regex',
-            "regex": "^.*\d+_rgb_.*thumb.tif"}),
-        ("canopycover", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_2/rgb_canopycover/'),
-            "type": 'regex',
-            "regex": '.*_canopycover_bety.csv',
-            "parent": "fullfield"})
-    ]),
-    "flirIrCamera": OrderedDict([
-        ("flirIrCamera", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/raw_data/flirIrCamera/'),
-            "type": 'timestamp'}),
-        ("flir2tif", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_1/ir_geotiff/'),
-            "type": 'timestamp',
-            "parent": "flirIrCamera"}),
-        ("rulechecker", {
-            "type": "psql",
-            "query": "select count(distinct file_path) from extractor_ids where output like 'Full Field -- Thermal IR GeoTIFFs - %s%%';",
-            "parent": "flir2tif"}),
-        ("fullfield", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_1/fullfield/'),
-            "type": 'regex',
-            "regex": "^.*\d+_ir_.*thumb.tif"}),
-        ("meantemp", {
-            "path": os.path.join(sites_root, 'sites/ua-mac/Level_2/ir_meantemp/'),
-            "type": 'regex',
-            "regex": '.*_meantemp_bety.csv',
-            "parent": "fullfield"})
-    ])
-}
-
+app_dir = '/home/filecounter'
 SCAN_LOCK = False
+count_defs = counts.SENSOR_COUNT_DEFINITIONS
+DEFAULT_COUNT_START = None
+DEFAULT_COUNT_END = None
 
-"""Load contents of .json file into a JSON object"""
+# UTILITIES ----------------------------
 def loadJsonFile(filename):
+    """Load contents of .json file into a JSON object"""
     try:
         f = open(filename)
         jsonObj = json.load(f)
@@ -89,9 +33,10 @@ def loadJsonFile(filename):
         logger.error("- unable to open %s" % filename)
         return {}
 
-"""Nested update of python dictionaries for config parsing"""
 def updateNestedDict(existing, new):
-    # Adapted from http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+    """Nested update of python dictionaries for config parsing
+    Adapted from http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+    """
     for k, v in new.iteritems():
         if isinstance(existing, collections.Mapping):
             if isinstance(v, collections.Mapping):
@@ -103,11 +48,63 @@ def updateNestedDict(existing, new):
             existing = {k: new[k]}
     return existing
 
+def generate_dates_in_range(start_date_string, end_date_string=None):
+    """Return list of date strings between start and end dates."""
+    start_date = datetime.datetime.strptime(start_date_string, '%Y-%m-%d')
+    if not end_date_string:
+        end_date = datetime.datetime.now()
+    else:
+        end_date = datetime.datetime.strptime(end_date_string, '%Y-%m-%d')
+    days_between = (end_date - start_date).days
+
+    date_strings = []
+    for i in range(0, days_between+1):
+        current_date = start_date + datetime.timedelta(days=i)
+        current_date_string = current_date.strftime('%Y-%m-%d')
+        date_strings.append(current_date_string)
+    return date_strings
+
+
+def get_percent_columns(current_dataframe):
+    colnames = list(current_dataframe.columns.values)
+    percent_columns = []
+    for each in colnames:
+        if each.endswith('%'):
+            percent_columns.append(each)
+    return percent_columns
+
+
+def highlight_max(s):
+    '''
+    highlight the maximum in a Series yellow.
+    '''
+    is_max = s == s.max()
+    return ['background-color: red' if v else '' for v in is_max]
+
+
+def color_percents(val):
+    """
+    Takes a scalar and returns a string with
+    the css property `'color: red'` for negative
+    strings, black otherwise.
+    """
+    if val == 100:
+        color = 'green'
+    elif 100 > val >= 99:
+        color = 'orange'
+    elif val < 99:
+        color = 'yellow'
+    else:
+        color = 'yellow'
+    return 'background-color: %s' % color
+
+
+# FLASK COMPONENTS ----------------------------
 def create_app(test_config=None):
 
     pipeline_csv = os.path.join(config['csv_path'], "{}.csv")
 
-    sensor_names = get_sensor_names()
+    sensor_names = count_defs.keys()
 
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
@@ -141,7 +138,7 @@ def create_app(test_config=None):
 
     @app.route('/test')
     def test():
-        return 'this is only a test'
+        return 'this is only a test, route does nothing'
 
     @app.route('/download/<sensor_name>')
     def download(sensor_name):
@@ -157,11 +154,72 @@ def create_app(test_config=None):
     def showcsv(sensor_name, days):
         # data = dataset.html
         current_csv = pipeline_csv.format(sensor_name)
-        df =  pd.read_csv(current_csv, index_col=False)
+        df = pd.read_csv(current_csv, index_col=False)
         if days == 0:
-            return df.to_html()
+            percent_columns = get_percent_columns(df)
+            for each in percent_columns:
+                df[each] = df[each].mul(100).astype(int)
+            dfs = df.style
+            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+            my_html = dfs.render()
+            return my_html
         else:
             return df.tail(days).to_html()
+
+    @app.route('/showcsvbyseason/<sensor_name>', defaults={'season': 6})
+    @app.route('/showcsv/<sensor_name>/<int:season>')
+    def showcsvbyseason(sensor_name, season):
+        if season == 6:
+            start = '2018-04-06'
+            end = '2018-08-01'
+            current_csv = pipeline_csv.format(sensor_name)
+            df = pd.read_csv(current_csv, index_col=False)
+            df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
+            if 'stereoTop' in df_season.columns:
+                df_season = df_season[df['stereoTop'] != 0]
+            if 'flirIrCamera' in df_season.columns:
+                df_season = df_season[df['flirIrCamera'] != 0]
+            if 'scanner3DTop' in df_season.columns:
+                df_season = df_season[df['scanner3DTop'] != 0]
+            percent_columns = get_percent_columns(df_season)
+            for each in percent_columns:
+                df_season[each] = df_season[each].mul(100).astype(int)
+            dfs = df_season.style
+            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+            my_html = dfs.render()
+            return my_html
+        else:
+            current_csv = pipeline_csv.format(sensor_name)
+            df = pd.read_csv(current_csv, index_col=False)
+            percent_columns = get_percent_columns(df)
+            for each in percent_columns:
+                df[each] = df[each].mul(100).astype(int)
+            dfs = df.style
+            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+            my_html = dfs.render()
+            return my_html
+
+    @app.route('/testcsv')
+    def testcsv():
+        current_csv ='stereoTop.csv'
+        df = pd.read_csv(current_csv, index_col=False)
+        percent_columns = get_percent_columns(df)
+        for each in percent_columns:
+            df[each] = df[each].mul(100).astype(int)
+        dfs = df.style
+        dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+        my_html = dfs.render()
+        return my_html
+
+    @app.route('/testcsv2')
+    def testcsv2():
+        np.random.seed(24)
+        df = pd.DataFrame({'A': np.linspace(1, 10, 10)})
+        df = pd.concat([df, pd.DataFrame(np.random.randn(10, 4), columns=list('BCDE'))],
+               axis=1)
+        df.iloc[0, 2] = np.nan
+        df.style.apply(highlight_max)
+        return df.to_html()
 
     @app.route('/dateoptions', methods=['POST','GET'])
     def dateoptions():
@@ -173,13 +231,31 @@ def create_app(test_config=None):
                                     end_range=str(form.end_date.data.strftime('%Y-%m-%d'))))
         return render_template('dateoptions.html', form=form)
 
+    @app.route('/archive')
+    def archive():
+        sensor_list = count_defs.keys()
+        current_time_stamp = str(datetime.datetime.now()).replace(' ', '_')
+        for sensor in sensor_list:
+            output_file = os.path.join(config['csv_path'], sensor + ".csv")
+            if os.path.exists(output_file):
+                archived_file = os.path.join(config['csv_path'], sensor + '_' + current_time_stamp + ".csv")
+                os.rename(output_file, archived_file)
+                if os.path.exists(output_file):
+                    try:
+                        os.remove(output_file)
+                    except OSError as e:
+                        logging.info(e)
+        message = "Archived existing count csvs"
+        logging.info("Archived existing count csvs")
+        return redirect(url_for('sensors', message=message))
+
     @app.route('/schedule/<sensor_name>/<start_range>', defaults={'end_range': None})
     @app.route('/schedule/<sensor_name>/<start_range>/<end_range>')
     def schedule_count(sensor_name, start_range, end_range):
         if sensor_name.lower() == "all":
-            sensors = get_sensor_names()
+            sensor_list = count_defs.keys()
         else:
-            sensors = [sensor_name]
+            sensor_list = [sensor_name]
 
         dates_in_range = generate_dates_in_range(start_range, end_range)
 
@@ -190,40 +266,63 @@ def create_app(test_config=None):
 
         conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
 
-        thread.start_new_thread(update_file_counts, (sensors, dates_in_range, conn))
+        thread.start_new_thread(update_file_count_csvs, (sensor_list, dates_in_range, conn))
 
-        message = "Custom scan scheduled for %s sensors and %s dates" % (len(sensors), len(dates_in_range))
+        message = "Custom scan scheduled for %s sensors and %s dates" % (len(sensor_list), len(dates_in_range))
         return redirect(url_for('sensors', message=message))
 
     return app
 
-def get_sensor_names():
-    return SENSOR_COUNT_DEFINITIONS.keys()
 
-def generate_dates_in_range(start_date_string, end_date_string=None):
-    start_date = datetime.datetime.strptime(start_date_string, '%Y-%m-%d')
-    if not end_date_string:
-        end_date = datetime.datetime.now()
-    else:
-        end_date = datetime.datetime.strptime(end_date_string, '%Y-%m-%d')
-    days_between = (end_date - start_date).days
+# COUNTING COMPONENTS ----------------------------
+def run_regular_update(use_defaults=False):
+    """Perform regular update of previous two weeks for all sensors"""
+    psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
+    psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
+    psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
+    psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
 
-    date_strings = []
-    for i in range(0, days_between+1):
-        current_date = start_date + datetime.timedelta(days=i)
-        current_date_string = current_date.strftime('%Y-%m-%d')
-        date_strings.append(current_date_string)
-    return date_strings
+    conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
 
-def perform_count(target_count, target_def, date, conn):
-    """Return count of specified type"""
+    while True:
+        # Determine two weeks before current date, or by defaults
+        if use_defaults:
+            logging.info("Using default values instead of previous 2 weeks")
+            start_date_string = DEFAULT_COUNT_START
+            end_date_string = DEFAULT_COUNT_END
+            dates_to_check = generate_dates_in_range(start_date_string, end_date_string)
+        else:
+            today = datetime.datetime.now()
+            two_weeks = today - datetime.timedelta(days=14)
+            start_date_string = os.getenv('START_SCAN_DATE', two_weeks.strftime("%Y-%m-%d"))
+            dates_to_check = generate_dates_in_range(start_date_string)
 
+        logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
+
+        update_file_count_csvs(count_defs.keys(), dates_to_check, conn)
+
+        # Wait 1 hour for next iteration
+        time.sleep(3600)
+
+def retrive_single_count(target_count, target_def, date, conn):
+    """Return count of specified type (see counts.py for types)"""
     count = 0
+
     if target_def["type"] == "timestamp":
         date_dir = os.path.join(target_def["path"], date)
         if os.path.exists(date_dir):
             logging.info("   [%s] counting timestamps in %s" % (target_count, date_dir))
             count = len(os.listdir(date_dir))
+        else:
+            logging.info("   [%s] directory not found: %s" % (target_count, date_dir))
+
+    elif target_def["type"] == "plot":
+        date_dir = os.path.join(target_def["path"], date)
+        if os.path.exists(date_dir):
+            logging.info("   [%s] counting plots in %s" % (target_count, date_dir))
+            count = len(os.listdir(date_dir))
+        else:
+            logging.info("   [%s] directory not found: %s" % (target_count, date_dir))
 
     elif target_def["type"] == "regex":
         date_dir = os.path.join(target_def["path"], date)
@@ -240,6 +339,8 @@ def perform_count(target_count, target_def, date, conn):
                     # No timestamp (e.g. fullfield)
                     if re.match(target_def["regex"], date_content):
                         count += 1
+        else:
+            logging.info("   [%s] directory not found: %s" % (target_count, date_dir))
 
     elif target_def["type"] == "psql":
         logging.info("   [%s] querying PSQL records for %s" % (target_count, date))
@@ -251,70 +352,46 @@ def perform_count(target_count, target_def, date, conn):
 
     return count
 
-def run_update():
-    psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
-    psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
-    psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
-    psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
-
-    conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
-
-    while True:
-        # Determine two weeks before current date by default
-        today = datetime.datetime.now()
-        two_weeks = today - datetime.timedelta(days=14)
-        start_date_string = os.getenv('START_SCAN_DATE', two_weeks.strftime("%Y-%m-%d"))
-        dates_to_check = generate_dates_in_range(start_date_string)
-
-        logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
-
-        update_file_counts(get_sensor_names(), dates_to_check, conn)
-        #update_file_counts(['flirIrCamera'], dates_to_check, conn)
-
-        # Wait 1 hour for next iteration
-        time.sleep(3600)
-
-def update_file_counts(sensors, dates_to_check, conn):
-    """Perform necessary counting to update CSV."""
+def update_file_count_csvs(sensor_list, dates_to_check, conn):
+    """Perform necessary counting on specified dates to update CSV for all sensors."""
     global SCAN_LOCK
 
     while SCAN_LOCK:
         logging.info("Another thread currently locking database; waiting 60 seconds to retry")
         time.sleep(60)
 
-    logging.info("Locking scan for %s sensors and %s dates" % (len(sensors), len(dates_to_check)))
+    logging.info("Locking scan for %s sensors and %s dates" % (len(sensor_list), len(dates_to_check)))
     SCAN_LOCK = True
-    for sensor in sensors:
+    for sensor in sensor_list:
         output_file = os.path.join(config['csv_path'], sensor+".csv")
         logging.info("Updating counts for %s into %s" % (sensor, output_file))
-        targets = SENSOR_COUNT_DEFINITIONS[sensor]
+        targets = count_defs[sensor]
 
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
             df = pd.read_csv(output_file)
         else:
+            logging.info("output file for %s does not exist" % sensor)
             cols = ["date"]
             for target_count in targets:
                 target_def = targets[target_count]
-
                 cols.append(target_count)
                 if "parent" in target_def:
                     cols.append(target_count+'%')
-
             df = pd.DataFrame(columns=cols)
+            logging.info("created dataframe for", sensor)
 
+        # Populate count and percentage (if applicable) for each target count
         for current_date in dates_to_check:
             logging.info("[%s] %s" % (sensor, current_date))
             counts = {}
             percentages = {}
-
-            # Populate count and percentage (if applicable) for each target count
             for target_count in targets:
                 target_def = targets[target_count]
-                counts[target_count] = perform_count(target_count, target_def, current_date, conn)
+                counts[target_count] = retrive_single_count(target_count, target_def, current_date, conn)
                 if "parent" in target_def:
                     if target_def["parent"] not in counts:
-                        counts[target_def["parent"]] = perform_count(targets[target_def["parent"]], current_date, conn)
+                        counts[target_def["parent"]] = retrive_single_count(targets[target_def["parent"]], current_date, conn)
                     if counts[target_def["parent"]] > 0:
                         percentages[target_count] = (counts[target_count]*1.0)/(counts[target_def["parent"]]*1.0)
                     else:
@@ -322,7 +399,7 @@ def update_file_counts(sensors, dates_to_check, conn):
 
             # If this date already has a row, just update
             if current_date in df['date'].values:
-                logging.info("Already have data for date " + current_date)
+                logging.info("Already have data for date %s " % current_date)
                 updated_entry = [current_date]
                 for target_count in targets:
                     target_def = targets[target_count]
@@ -330,17 +407,9 @@ def update_file_counts(sensors, dates_to_check, conn):
                     if "parent" in target_def:
                         updated_entry.append(percentages[target_count])
                 df.loc[df['date'] == current_date] = updated_entry
-
-
-                # for target_count in targets:
-                #     target_def = targets[target_count]
-                #     df.loc[df['date'] == current_date, target_count] = counts[target_count]
-                #     if "parent" in target_def:
-                #         df.loc[df['date'] == current_date, target_count+'%'] = percentages[target_count+'%']
-
             # If not, create a new row
             else:
-                logging.info("No data for date " + current_date + ' adding to dataframe')
+                logging.info("No data for date %s adding to dataframe" % current_date)
                 new_entry = [current_date]
                 indices = ["date"]
 
@@ -361,14 +430,6 @@ def update_file_counts(sensors, dates_to_check, conn):
 
     SCAN_LOCK = False
 
-def main():
-    thread.start_new_thread(run_update, ())
-
-    apiIP = os.getenv('COUNTER_API_IP', "0.0.0.0")
-    apiPort = os.getenv('COUNTER_API_PORT', "5454")
-    app = create_app()
-    logger.info("*** API now listening on %s:%s ***" % (apiIP, apiPort))
-    app.run(host=apiIP, port=apiPort)
 
 if __name__ == '__main__':
 
@@ -378,6 +439,13 @@ if __name__ == '__main__':
     if os.path.exists(os.path.join(app_dir, "data/config_custom.json")):
         print("...loading configuration from config_custom.json")
         config = updateNestedDict(config, loadJsonFile(os.path.join(app_dir, "data/config_custom.json")))
+        try:
+            DEFAULT_COUNT_START = str(config["default_count_start"])
+            DEFAULT_COUNT_END = str(config["default_count_end"])
+            print(DEFAULT_COUNT_START, DEFAULT_COUNT_END)
+            print("default start and end provided")
+        except:
+            print("No default values for start and end")
     else:
         print("...no custom configuration file found. using default values")
 
@@ -392,5 +460,10 @@ if __name__ == '__main__':
             open(main_log_file, 'a').close()
         logging.config.dictConfig(log_config)
 
+    thread.start_new_thread(run_regular_update, (True,))
 
-    main()
+    apiIP = os.getenv('COUNTER_API_IP', "0.0.0.0")
+    apiPort = os.getenv('COUNTER_API_PORT', "5454")
+    app = create_app()
+    logger.info("*** API now listening on %s:%s ***" % (apiIP, apiPort))
+    app.run(host=apiIP, port=apiPort)

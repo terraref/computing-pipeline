@@ -9,10 +9,13 @@
             <li>{{sensor}}
                 <a href="{{ url_for('showcsv',sensor_name=sensor)}}">Last 2 Weeks</a>
                 <a href="{{ url_for('showcsv',sensor_name=sensor,days=0)}}">All Available</a>
+                <a href="{{ url_for('showcsvbyseason',sensor_name=sensor,season=6)}}">Season 6</a>
                 <a href="{{ url_for('download',sensor_name=sensor)}}">download as csv</a>
             </li>
 
          {% endfor %}
-     <a href="{{ url_for('dateoptions')}}">Select dates for new file count</a>
+    <a href="{{ url_for('dateoptions')}}">Select dates for new file count</a>
+    <br>
+    <a href="{{ url_for('archive')}}">Archive existing csv files</a>
 </body>
 </html>
