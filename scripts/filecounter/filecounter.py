@@ -64,7 +64,6 @@ def generate_dates_in_range(start_date_string, end_date_string=None):
         date_strings.append(current_date_string)
     return date_strings
 
-
 def get_percent_columns(current_dataframe):
     colnames = list(current_dataframe.columns.values)
     percent_columns = []
@@ -73,14 +72,12 @@ def get_percent_columns(current_dataframe):
             percent_columns.append(each)
     return percent_columns
 
-
 def highlight_max(s):
     '''
     highlight the maximum in a Series yellow.
     '''
     is_max = s == s.max()
     return ['background-color: red' if v else '' for v in is_max]
-
 
 def color_percents(val):
     """
@@ -91,11 +88,11 @@ def color_percents(val):
     if val == 100:
         color = 'green'
     elif 100 > val >= 99:
-        color = 'orange'
-    elif val < 99:
+        color = 'greenyellow'
+    elif val > 95:
         color = 'yellow'
     else:
-        color = 'yellow'
+        color = 'lightcoral'
     return 'background-color: %s' % color
 
 
@@ -175,12 +172,15 @@ def create_app(test_config=None):
             current_csv = pipeline_csv.format(sensor_name)
             df = pd.read_csv(current_csv, index_col=False)
             df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
+
+            # Omit rows with zero count in raw_data
             if 'stereoTop' in df_season.columns:
                 df_season = df_season[df['stereoTop'] != 0]
             if 'flirIrCamera' in df_season.columns:
                 df_season = df_season[df['flirIrCamera'] != 0]
             if 'scanner3DTop' in df_season.columns:
                 df_season = df_season[df['scanner3DTop'] != 0]
+
             percent_columns = get_percent_columns(df_season)
             for each in percent_columns:
                 df_season[each] = df_season[each].mul(100).astype(int)
@@ -188,6 +188,7 @@ def create_app(test_config=None):
             dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
             my_html = dfs.render()
             return my_html
+
         else:
             current_csv = pipeline_csv.format(sensor_name)
             df = pd.read_csv(current_csv, index_col=False)
