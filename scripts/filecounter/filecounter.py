@@ -87,13 +87,64 @@ def color_percents(val):
     """
     if val == 100:
         color = 'green'
-    elif 100 > val >= 99:
+    elif val >= 99:
         color = 'greenyellow'
-    elif val > 95:
+    elif val >= 95:
         color = 'yellow'
     else:
         color = 'lightcoral'
     return 'background-color: %s' % color
+
+def renderDateEntry(sensorname, columns, rowdata, rowindex):
+    html = '<div><a style="font-size:18px"><b>%s</b></a>' % rowdata['date']
+    html += '</br><table style="border:1px">'
+
+    sensordef = count_defs[sensorname]
+    vals = {}
+
+    for colname in columns:
+        if not colname.endswith("%"):
+            if colname in sensordef:
+                if colname not in vals:
+                    vals[colname] = {}
+                vals[colname]["count"] = rowdata[colname]
+        else:
+            parcol = colname.replace("%", "")
+            parname = sensordef[parcol]["parent"]
+            if parcol not in vals:
+                vals[parcol] = {}
+            vals[parcol]["%"] = rowdata[colname]
+            vals[parcol]["%str"] = "%s%% of %s" % (rowdata[colname], parname)
+
+    for group in sensordef:
+        api_link = ""
+        if group != sensorname:
+            if sensordef[group]["type"] == "timestamp":
+                if "%" in vals[group] and vals[group]["%"] < 100:
+                    api_link = "Submit missing timestamps to %s" % group
+            elif sensordef[group]["type"] == "psql":
+                # TODO: Only link if the % is 100, otherwise Submit missing
+                api_link = "Submit one dataset from this date to rulechecker"
+
+        if group in vals:
+            if "%" in vals[group]:
+                count = '<a title="%s" style="%s">%s</a>' % (
+                                                vals[group]["%str"],
+                                                color_percents(vals[group]["%"]),
+                                                vals[group]["count"])
+            else:
+                count = '<a>%s</a>' % vals[group]["count"]
+        else:
+            count = "<a>Missing</a>"
+
+        html += '<tr>'
+        html += '<td></td>'
+        html += '<td>%s</td>' % group
+        html += '<td>%s</td>' % count
+        html += '<td>%s</td>' % api_link
+        html += '</tr>'
+    html += '</table></div>'
+    return html
 
 
 # FLASK COMPONENTS ----------------------------
@@ -174,20 +225,26 @@ def create_app(test_config=None):
             df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
 
             # Omit rows with zero count in raw_data
-            if 'stereoTop' in df_season.columns:
-                df_season = df_season[df['stereoTop'] != 0]
-            if 'flirIrCamera' in df_season.columns:
-                df_season = df_season[df['flirIrCamera'] != 0]
-            if 'scanner3DTop' in df_season.columns:
-                df_season = df_season[df['scanner3DTop'] != 0]
+            primary_sensor = None
+            for sensorname in ['stereoTop', 'flirIrCamera', 'scanner3DTop']:
+                if sensorname in df_season.columns:
+                    df_season = df_season[df[sensorname] != 0]
+                    primary_sensor = sensorname
 
             percent_columns = get_percent_columns(df_season)
             for each in percent_columns:
                 df_season[each] = df_season[each].mul(100).astype(int)
-            dfs = df_season.style
-            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
-            my_html = dfs.render()
-            return my_html
+
+            html = "<h1>Seasonal Counts: %s</h1><div>" % primary_sensor
+            cols = list(df_season.columns.values)
+            for index, row in df_season.iterrows():
+                html += renderDateEntry(primary_sensor, cols, row, index)
+            html += "</div>"
+
+            #dfs = df_season.style
+            #dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+            #html = dfs.render()
+            return html
 
         else:
             current_csv = pipeline_csv.format(sensor_name)
