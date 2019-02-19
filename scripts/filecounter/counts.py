@@ -21,19 +21,23 @@ SENSOR_COUNT_DEFINITIONS = {
         # basic products
         ("stereoTop", {
             "path": os.path.join(uamac_root, 'raw_data/stereoTop/'),
-            "type": 'timestamp'}),
+            "type": 'timestamp'
+        }),
         ("bin2tif", {
             "path": os.path.join(uamac_root, 'Level_1/rgb_geotiff/'),
             "type": 'timestamp',
-            "parent": "stereoTop"}),
+            "parent": "stereoTop",
+            "extractor": "terra.stereo-rgb.bin2tif"}),
         ("nrmac", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_nrmac/'),
             "type": 'timestamp',
-            "parent": "bin2tif"}),
+            "parent": "bin2tif",
+            "extractor": "terra.stereo-rgb.nrmac"}),
         ("rgbmask", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_mask/'),
             "type": 'timestamp',
-            "parent": "bin2tif"}),
+            "parent": "bin2tif",
+            "extractor": "terra.stereo-rgb.rgbmask"}),
         # plot products
         ("bin2tif_plot", {
             "path": os.path.join(uamac_root, 'Level_1_Plots/rgb_geotiff/'),

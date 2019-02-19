@@ -6,11 +6,15 @@ import numpy as np
 import datetime
 import psycopg2
 import re
+import requests
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
 from flask_wtf import FlaskForm as Form
 from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
+
+from pyclowder.connectors import Connector
+from pyclowder.datasets import submit_extraction
 import counts
 
 
@@ -20,6 +24,11 @@ SCAN_LOCK = False
 count_defs = counts.SENSOR_COUNT_DEFINITIONS
 DEFAULT_COUNT_START = None
 DEFAULT_COUNT_END = None
+
+CLOWDER_HOST = "https://terraref.ncsa.illinois.edu/clowder/"
+CLOWDER_KEY = os.getenv('CLOWDER_KEY', False)
+CONN = Connector("", {}, mounted_paths={"/home/clowder/sites":"/home/clowder/sites"})
+
 
 # UTILITIES ----------------------------
 def loadJsonFile(filename):
@@ -95,7 +104,7 @@ def color_percents(val):
         color = 'lightcoral'
     return 'background-color: %s' % color
 
-def renderDateEntry(sensorname, columns, rowdata, rowindex):
+def render_date_entry(sensorname, columns, rowdata, rowindex):
     html = '<div><a style="font-size:18px"><b>%s</b></a>' % rowdata['date']
     html += '</br><table style="border:1px">'
 
@@ -121,7 +130,8 @@ def renderDateEntry(sensorname, columns, rowdata, rowindex):
         if group != sensorname:
             if sensordef[group]["type"] == "timestamp":
                 if "%" in vals[group] and vals[group]["%"] < 100:
-                    api_link = "Submit missing timestamps to %s" % group
+                    api_link = '<a href="/submitmissing/%s/%s/%s">Submit missing timestamps to %s</a>' % (
+                        sensorname, group, rowdata['date'], group)
             elif sensordef[group]["type"] == "psql":
                 # TODO: Only link if the % is 100, otherwise Submit missing
                 api_link = "Submit one dataset from this date to rulechecker"
@@ -145,6 +155,17 @@ def renderDateEntry(sensorname, columns, rowdata, rowindex):
         html += '</tr>'
     html += '</table></div>'
     return html
+
+def get_dsid_by_name(dsname):
+    url = "%sapi/datasets?key=%s&title=%s&exact=true" % (CLOWDER_HOST, CLOWDER_KEY, dsname)
+    result = requests.get(url)
+    result.raise_for_status()
+
+    if len(result.json()) > 0:
+        ds_id = result.json()[0]['id']
+        return ds_id
+    else:
+        return None
 
 
 # FLASK COMPONENTS ----------------------------
@@ -215,7 +236,7 @@ def create_app(test_config=None):
             return df.tail(days).to_html()
 
     @app.route('/showcsvbyseason/<sensor_name>', defaults={'season': 6})
-    @app.route('/showcsv/<sensor_name>/<int:season>')
+    @app.route('/showcsvbyseason/<sensor_name>/<int:season>')
     def showcsvbyseason(sensor_name, season):
         if season == 6:
             start = '2018-04-06'
@@ -238,7 +259,7 @@ def create_app(test_config=None):
             html = "<h1>Seasonal Counts: %s</h1><div>" % primary_sensor
             cols = list(df_season.columns.values)
             for index, row in df_season.iterrows():
-                html += renderDateEntry(primary_sensor, cols, row, index)
+                html += render_date_entry(primary_sensor, cols, row, index)
             html += "</div>"
 
             #dfs = df_season.style
@@ -256,6 +277,42 @@ def create_app(test_config=None):
             dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
             my_html = dfs.render()
             return my_html
+
+    @app.route('/submitmissing/<sensor_name>/<target>/<date>')
+    def submit_missing_timestamps(sensor_name, target, date):
+        sensordef = count_defs[sensor_name]
+        targetdef = sensordef[target]
+        extractorname = targetdef["extractor"]
+        submitted = []
+        notfound = []
+
+        if "parent" in targetdef:
+            parentdef = sensordef[sensordef[targetdef]["parent"]]
+            parent_dir = os.path.join(parentdef["path"], date)
+            target_dir = os.path.join(targetdef["path"], date)
+            parent_timestamps = os.path.listdir(parent_dir)
+            target_timestamps = os.path.listdir(target_dir)
+
+            missing = list(set(parent_timestamps)-set(target_timestamps))
+            for ts in missing:
+                if ts.find("-") > -1 and ts.find("__") > -1:
+                    raw_name = sensor_name+" - "+ts
+                    raw_dsid = get_dsid_by_name(raw_name)
+                    if raw_dsid:
+                        submit_extraction(CONN, CLOWDER_HOST, CLOWDER_KEY, raw_dsid, extractorname)
+                        submitted.append({"timestamp": ts, "id": raw_dsid})
+                    else:
+                        notfound.append({"timestamp": ts})
+
+        return {"extractor": extractorname,
+                "submitted": submitted,
+                "raw dataset not found": notfound}
+
+    def submit_rulecheck(sensor, target, date):
+        # Get first timestamp of parent for the date
+        # Get associated Clowder ID
+        # Submit associated Clowder ID to rulechecker
+        pass
 
     @app.route('/testcsv')
     def testcsv():
