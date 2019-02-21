@@ -117,6 +117,8 @@ def render_date_entry(sensorname, columns, rowdata, rowindex):
                 if colname not in vals:
                     vals[colname] = {}
                 vals[colname]["count"] = rowdata[colname]
+                if colname in sensordef and "parent" in sensordef[colname]:
+                    vals[colname]["parent"] = sensordef[colname]["parent"]
         else:
             parcol = colname.replace("%", "")
             parname = sensordef[parcol]["parent"]
@@ -287,11 +289,11 @@ def create_app(test_config=None):
         notfound = []
 
         if "parent" in targetdef:
-            parentdef = sensordef[sensordef[targetdef]["parent"]]
+            parentdef = sensordef[targetdef["parent"]]
             parent_dir = os.path.join(parentdef["path"], date)
             target_dir = os.path.join(targetdef["path"], date)
-            parent_timestamps = os.path.listdir(parent_dir)
-            target_timestamps = os.path.listdir(target_dir)
+            parent_timestamps = os.listdir(parent_dir)
+            target_timestamps = os.listdir(target_dir)
 
             missing = list(set(parent_timestamps)-set(target_timestamps))
             for ts in missing:
@@ -304,14 +306,16 @@ def create_app(test_config=None):
                     else:
                         notfound.append({"timestamp": ts})
 
-        return {"extractor": extractorname,
+        #TODO: The view function did not return a valid response. The return type must be a string, tuple, Response instance, or WSGI callable, but it was a dict.
+        return json.dumps({"extractor": extractorname,
                 "submitted": submitted,
-                "raw dataset not found": notfound}
+                "raw dataset not found": notfound})
 
     def submit_rulecheck(sensor, target, date):
         # Get first timestamp of parent for the date
         # Get associated Clowder ID
         # Submit associated Clowder ID to rulechecker
+
         pass
 
     @app.route('/testcsv')
