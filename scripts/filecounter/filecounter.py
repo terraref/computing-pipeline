@@ -368,6 +368,12 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
         output_file = os.path.join(config['csv_path'], sensor+".csv")
         logging.info("Updating counts for %s into %s" % (sensor, output_file))
         targets = count_defs[sensor]
+        cols = ["date"]
+        for target_count in targets:
+            target_def = targets[target_count]
+            cols.append(target_count)
+            if "parent" in target_def:
+                cols.append(target_count + '%')
 
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
@@ -378,21 +384,20 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
                 logging.info(e)
                 logging.info('CSV exists, could not read as dataframe')
                 cols = ["date"]
-                for target_count in targets:
-                    target_def = targets[target_count]
-                    cols.append(target_count)
-                    if "parent" in target_def:
-                        cols.append(target_count + '%')
                 df = pd.DataFrame(columns=cols)
-                logging.info("CSV existed but malformed, created dataframe for %s " % sensor)
+                logging.info("CSV existed but could not be read, created dataframe for %s " % sensor)
+            df_columns = list(df.columns.values)
+            if df_columns != cols:
+                logging.info("CSV existed but had malformed columns, created dataframe for %s " % sensor)
+                df = pd.DataFrame(columns=cols)
         else:
             logging.info("output file for %s does not exist" % sensor)
-            cols = ["date"]
-            for target_count in targets:
-                target_def = targets[target_count]
-                cols.append(target_count)
-                if "parent" in target_def:
-                    cols.append(target_count+'%')
+            # cols = ["date"]
+            # for target_count in targets:
+            #     target_def = targets[target_count]
+            #     cols.append(target_count)
+            #     if "parent" in target_def:
+            #         cols.append(target_count+'%')
             df = pd.DataFrame(columns=cols)
             logging.info("CSV did not exist, created dataframe for %s " % sensor)
 
