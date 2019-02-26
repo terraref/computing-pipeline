@@ -154,6 +154,8 @@ def create_app(test_config=None):
     def showcsv(sensor_name, days):
         # data = dataset.html
         current_csv = pipeline_csv.format(sensor_name)
+        if not os.path.isfile(current_csv):
+            return "File does not exist"
         df = pd.read_csv(current_csv, index_col=False)
         if days == 0:
             percent_columns = get_percent_columns(df)
@@ -369,7 +371,12 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
 
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
-            df = pd.read_csv(output_file)
+            logging.info("csv exists for %s" % output_file)
+            try:
+                df = pd.read_csv(output_file)
+            except Exception as e:
+                logging.info(e)
+                logging.info('CSV exists, could not read as dataframe')
         else:
             logging.info("output file for %s does not exist" % sensor)
             cols = ["date"]
