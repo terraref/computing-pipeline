@@ -397,6 +397,7 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
             logging.info("CSV did not exist, created dataframe for %s " % sensor)
 
         # Populate count and percentage (if applicable) for each target count
+        logging.info("the columns of the csv are %s " % str(df.columns.values))
         for current_date in dates_to_check:
             logging.info("[%s] %s" % (sensor, current_date))
             counts = {}
