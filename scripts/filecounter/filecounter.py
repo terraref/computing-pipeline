@@ -368,6 +368,7 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
         output_file = os.path.join(config['csv_path'], sensor+".csv")
         logging.info("Updating counts for %s into %s" % (sensor, output_file))
         targets = count_defs[sensor]
+        logging.info("These are the targets %s" % str(targets))
 
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
