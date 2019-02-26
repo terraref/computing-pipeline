@@ -106,6 +106,8 @@ def create_app(test_config=None):
 
     sensor_names = count_defs.keys()
 
+    logging.info("The keys from the sensor count defs are %s" % str(sensor_names))
+
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_mapping(
@@ -367,6 +369,11 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
     for sensor in sensor_list:
         output_file = os.path.join(config['csv_path'], sensor+".csv")
         logging.info("Updating counts for %s into %s" % (sensor, output_file))
+        try:
+            targets = count_defs[sensor]
+        except Exception as e:
+            logging.info("Could not obtain targets")
+            logging.info(str(e))
         targets = count_defs[sensor]
         logging.info("These are the targets %s" % str(targets))
 
