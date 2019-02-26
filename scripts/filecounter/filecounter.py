@@ -106,8 +106,6 @@ def create_app(test_config=None):
 
     sensor_names = count_defs.keys()
 
-    logging.info("The keys from the sensor count defs are %s" % str(sensor_names))
-
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_mapping(
@@ -369,13 +367,7 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
     for sensor in sensor_list:
         output_file = os.path.join(config['csv_path'], sensor+".csv")
         logging.info("Updating counts for %s into %s" % (sensor, output_file))
-        try:
-            targets = count_defs[sensor]
-        except Exception as e:
-            logging.info("Could not obtain targets")
-            logging.info(str(e))
         targets = count_defs[sensor]
-        logging.info("These are the targets %s" % str(targets))
 
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
@@ -385,6 +377,14 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
             except Exception as e:
                 logging.info(e)
                 logging.info('CSV exists, could not read as dataframe')
+                cols = ["date"]
+                for target_count in targets:
+                    target_def = targets[target_count]
+                    cols.append(target_count)
+                    if "parent" in target_def:
+                        cols.append(target_count + '%')
+                df = pd.DataFrame(columns=cols)
+                logging.info("CSV existed but malformed, created dataframe for %s " % sensor)
         else:
             logging.info("output file for %s does not exist" % sensor)
             cols = ["date"]
@@ -394,7 +394,7 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
                 if "parent" in target_def:
                     cols.append(target_count+'%')
             df = pd.DataFrame(columns=cols)
-            logging.info("created dataframe for", sensor)
+            logging.info("CSV did not exist, created dataframe for %s " % sensor)
 
         # Populate count and percentage (if applicable) for each target count
         for current_date in dates_to_check:
