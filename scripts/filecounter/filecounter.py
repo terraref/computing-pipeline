@@ -225,7 +225,13 @@ def create_app(test_config=None):
     @app.route('/schedulecount', methods=['POST', 'GET'])
     @utils.requires_user("admin")
     def schedulecount():
-        return "Does not work yet"
+        form = ExampleForm(request.form)
+        if form.validate_on_submit():
+            return redirect(url_for('schedule_count',
+                                    sensor_name='all',
+                                    start_range=str(form.start_date.data.strftime('%Y-%m-%d')),
+                                    end_range=str(form.end_date.data.strftime('%Y-%m-%d'))))
+        return render_template('schedule_count.html', form=form)
 
     @app.route('/dateoptions', methods=['POST','GET'])
     def dateoptions():
