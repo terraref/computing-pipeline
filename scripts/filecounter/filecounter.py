@@ -241,27 +241,17 @@ def create_app(test_config=None):
         df.style.apply(highlight_max)
         return df.to_html()
 
-    @app.route('/options', methods=['POST', 'GET'])
-    @utils.requires_user("admin")
-    def options():
+
+    @app.route('/dateoptions', methods=['POST','GET'])
+    def dateoptions():
         form = ThirdExampleForm(request.form)
         if form.validate_on_submit():
             raw_selected_sensors = form.sensors.data
             selected_sensors = []
             for r in raw_selected_sensors:
                 selected_sensors.append(str(r))
-            return redirect(url_for('new_schedule_count',
-                                    sensors=selected_sensors,
-                                    start_range=str(form.start_date.data.strftime('%Y-%m-%d')),
-                                    end_range=str(form.end_date.data.strftime('%Y-%m-%d'))))
-        return render_template('new_dateoptions.html', form=form)
-
-    @app.route('/dateoptions', methods=['POST','GET'])
-    def dateoptions():
-        form = ExampleForm(request.form)
-        if form.validate_on_submit():
             return redirect(url_for('schedule_count',
-                                    sensor_name='all',
+                                    sensors=selected_sensors,
                                     start_range=str(form.start_date.data.strftime('%Y-%m-%d')),
                                     end_range=str(form.end_date.data.strftime('%Y-%m-%d'))))
         return render_template('dateoptions.html', form=form)
@@ -285,30 +275,8 @@ def create_app(test_config=None):
         return redirect(url_for('sensors', message=message))
 
     @app.route('/newschedule/<sensors>/<start_range>/<end_range>')
-    def new_schedule_count(sensors, start_range, end_range):
+    def schedule_count(sensors, start_range, end_range):
         sensor_list = sensors
-        dates_in_range = generate_dates_in_range(start_range, end_range)
-
-        psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
-        psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
-        psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
-        psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
-
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
-
-        thread.start_new_thread(update_file_count_csvs, (sensor_list, dates_in_range, conn))
-
-        message = "Custom scan scheduled for %s sensors and %s dates" % (len(sensor_list), len(dates_in_range))
-        return redirect(url_for('sensors', message=message))
-
-    @app.route('/schedule/<sensor_name>/<start_range>', defaults={'end_range': None})
-    @app.route('/schedule/<sensor_name>/<start_range>/<end_range>')
-    def schedule_count(sensor_name, start_range, end_range):
-        if sensor_name.lower() == "all":
-            sensor_list = count_defs.keys()
-        else:
-            sensor_list = [sensor_name]
-
         dates_in_range = generate_dates_in_range(start_range, end_range)
 
         psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])

@@ -21,7 +21,6 @@ users = {
     }
 }
 
-
 def find_item(where, what):
     """
     Tries to locate the item with either the id, or checks to see if it matches the name in the dict.
