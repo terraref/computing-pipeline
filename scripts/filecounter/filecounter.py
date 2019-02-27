@@ -243,6 +243,7 @@ def create_app(test_config=None):
 
 
     @app.route('/dateoptions', methods=['POST','GET'])
+    @utils.requires_user("admin")
     def dateoptions():
         form = ThirdExampleForm(request.form)
         if form.validate_on_submit():
