@@ -454,6 +454,10 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
 
 if __name__ == '__main__':
 
+
+    test_config = loadJsonFile("config_default.json")
+    utils.users = test_config["default_users"]
+
     logger = logging.getLogger('counter')
 
     config = loadJsonFile(os.path.join(app_dir, "config_default.json"))
