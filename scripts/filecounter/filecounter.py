@@ -11,6 +11,7 @@ from flask_wtf import FlaskForm as Form
 from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
+import utils
 import counts
 
 
@@ -102,7 +103,7 @@ def color_percents(val):
 # FLASK COMPONENTS ----------------------------
 def create_app(test_config=None):
 
-    pipeline_csv = os.path.join(config['csv_path'], "{}.csv")
+    #pipeline_csv = os.path.join(config['csv_path'], "{}.csv")
 
     sensor_names = count_defs.keys()
 
@@ -220,6 +221,11 @@ def create_app(test_config=None):
         df.iloc[0, 2] = np.nan
         df.style.apply(highlight_max)
         return df.to_html()
+
+    @app.route('/schedulecount', methods=['POST', 'GET'])
+    @utils.requires_user("admin")
+    def schedulecount():
+        return "Does not work yet"
 
     @app.route('/dateoptions', methods=['POST','GET'])
     def dateoptions():
@@ -450,15 +456,15 @@ if __name__ == '__main__':
         print("...no custom configuration file found. using default values")
 
     # Initialize logger handlers
-    with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
-        log_config = json.load(f)
-        main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
-        log_config['handlers']['file']['filename'] = main_log_file
-        if not os.path.exists(config["log_path"]):
-            os.makedirs(config["log_path"])
-        if not os.path.isfile(main_log_file):
-            open(main_log_file, 'a').close()
-        logging.config.dictConfig(log_config)
+    # with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
+    #     log_config = json.load(f)
+    #     main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
+    #     log_config['handlers']['file']['filename'] = main_log_file
+    #     if not os.path.exists(config["log_path"]):
+    #         os.makedirs(config["log_path"])
+    #     if not os.path.isfile(main_log_file):
+    #         open(main_log_file, 'a').close()
+    #     logging.config.dictConfig(log_config)
 
     thread.start_new_thread(run_regular_update, (True,))
 
