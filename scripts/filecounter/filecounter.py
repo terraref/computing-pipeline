@@ -8,7 +8,7 @@ import psycopg2
 import re
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
 from flask_wtf import FlaskForm as Form
-from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
+from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField, SelectMultipleField, widgets
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
 import utils
@@ -127,10 +127,30 @@ def create_app(test_config=None):
     except OSError:
         pass
 
+    class MultiCheckboxField(SelectMultipleField):
+        widget = widgets.ListWidget(prefix_label=False)
+        option_widget = widgets.CheckboxInput()
+
     class ExampleForm(Form):
         start_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
         end_date = DateField('End', format='%Y-%m-%d')
         submit = SubmitField('Count files for these days',validators=[DataRequired()])
+
+    class SecondExampleForm(Form):
+        selects = ['a','b','c']
+        example = MultiCheckboxField('Label', choices=selects)
+        start_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
+        end_date = DateField('End', format='%Y-%m-%d')
+        submit = SubmitField('Count files for these days',validators=[DataRequired()])
+
+    class ThirdExampleForm(Form):
+        sensor_list = ['a','b','c']
+        sensor_names = count_defs.keys()
+        selects = [(x, x) for x in sensor_names]
+        example = MultiCheckboxField('Label', choices=selects)
+        start_date = DateField('Start', format='%Y-%m-%d')
+        end_date = DateField('End', format='%Y-%m-%d')
+        submit = SubmitField('Count files for these days')
 
     @app.route('/sensors', defaults={'message': "Available Sensors and Options"})
     @app.route('/sensors/<string:message>')
@@ -222,16 +242,13 @@ def create_app(test_config=None):
         df.style.apply(highlight_max)
         return df.to_html()
 
-    @app.route('/schedulecount', methods=['POST', 'GET'])
+    @app.route('/options', methods=['POST', 'GET'])
     @utils.requires_user("admin")
-    def schedulecount():
-        form = ExampleForm(request.form)
+    def options():
+        form = ThirdExampleForm(request.form)
         if form.validate_on_submit():
-            return redirect(url_for('schedule_count',
-                                    sensor_name='all',
-                                    start_range=str(form.start_date.data.strftime('%Y-%m-%d')),
-                                    end_range=str(form.end_date.data.strftime('%Y-%m-%d'))))
-        return render_template('schedule_count.html', form=form)
+            return "You submitted the form"
+        return render_template('new_dateoptions.html', form=form)
 
     @app.route('/dateoptions', methods=['POST','GET'])
     def dateoptions():
