@@ -144,13 +144,12 @@ def create_app(test_config=None):
         submit = SubmitField('Count files for these days',validators=[DataRequired()])
 
     class ThirdExampleForm(Form):
-        sensor_list = ['a','b','c']
         sensor_names = count_defs.keys()
         selects = [(x, x) for x in sensor_names]
-        example = MultiCheckboxField('Label', choices=selects)
-        start_date = DateField('Start', format='%Y-%m-%d')
+        sensors = MultiCheckboxField('Label', choices=selects)
+        start_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
         end_date = DateField('End', format='%Y-%m-%d')
-        submit = SubmitField('Count files for these days')
+        submit = SubmitField('Count files for these days', validators=[DataRequired()])
 
     @app.route('/sensors', defaults={'message': "Available Sensors and Options"})
     @app.route('/sensors/<string:message>')
@@ -247,7 +246,14 @@ def create_app(test_config=None):
     def options():
         form = ThirdExampleForm(request.form)
         if form.validate_on_submit():
-            return "You submitted the form"
+            raw_selected_sensors = form.sensors.data
+            selected_sensors = []
+            for r in raw_selected_sensors:
+                selected_sensors.append(str(r))
+            return redirect(url_for('new_schedule_count',
+                                    sensors=selected_sensors,
+                                    start_range=str(form.start_date.data.strftime('%Y-%m-%d')),
+                                    end_range=str(form.end_date.data.strftime('%Y-%m-%d'))))
         return render_template('new_dateoptions.html', form=form)
 
     @app.route('/dateoptions', methods=['POST','GET'])
@@ -276,6 +282,23 @@ def create_app(test_config=None):
                         logging.info(e)
         message = "Archived existing count csvs"
         logging.info("Archived existing count csvs")
+        return redirect(url_for('sensors', message=message))
+
+    @app.route('/newschedule/<sensors>/<start_range>/<end_range>')
+    def new_schedule_count(sensors, start_range, end_range):
+        sensor_list = sensors
+        dates_in_range = generate_dates_in_range(start_range, end_range)
+
+        psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
+        psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
+        psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
+        psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
+
+        conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
+
+        thread.start_new_thread(update_file_count_csvs, (sensor_list, dates_in_range, conn))
+
+        message = "Custom scan scheduled for %s sensors and %s dates" % (len(sensor_list), len(dates_in_range))
         return redirect(url_for('sensors', message=message))
 
     @app.route('/schedule/<sensor_name>/<start_range>', defaults={'end_range': None})
