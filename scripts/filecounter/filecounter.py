@@ -154,6 +154,8 @@ def create_app(test_config=None):
     def showcsv(sensor_name, days):
         # data = dataset.html
         current_csv = pipeline_csv.format(sensor_name)
+        if not os.path.isfile(current_csv):
+            return "File does not exist"
         df = pd.read_csv(current_csv, index_col=False)
         if days == 0:
             percent_columns = get_percent_columns(df)
@@ -366,22 +368,41 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
         output_file = os.path.join(config['csv_path'], sensor+".csv")
         logging.info("Updating counts for %s into %s" % (sensor, output_file))
         targets = count_defs[sensor]
+        cols = ["date"]
+        for target_count in targets:
+            target_def = targets[target_count]
+            cols.append(target_count)
+            if "parent" in target_def:
+                cols.append(target_count + '%')
 
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
-            df = pd.read_csv(output_file)
+            logging.info("csv exists for %s" % output_file)
+            try:
+                df = pd.read_csv(output_file)
+            except Exception as e:
+                logging.info(e)
+                logging.info('CSV exists, could not read as dataframe')
+                cols = ["date"]
+                df = pd.DataFrame(columns=cols)
+                logging.info("CSV existed but could not be read, created dataframe for %s " % sensor)
+            df_columns = list(df.columns.values)
+            if df_columns != cols:
+                logging.info("CSV existed but had malformed columns, created dataframe for %s " % sensor)
+                df = pd.DataFrame(columns=cols)
         else:
             logging.info("output file for %s does not exist" % sensor)
-            cols = ["date"]
-            for target_count in targets:
-                target_def = targets[target_count]
-                cols.append(target_count)
-                if "parent" in target_def:
-                    cols.append(target_count+'%')
+            # cols = ["date"]
+            # for target_count in targets:
+            #     target_def = targets[target_count]
+            #     cols.append(target_count)
+            #     if "parent" in target_def:
+            #         cols.append(target_count+'%')
             df = pd.DataFrame(columns=cols)
-            logging.info("created dataframe for", sensor)
+            logging.info("CSV did not exist, created dataframe for %s " % sensor)
 
         # Populate count and percentage (if applicable) for each target count
+        logging.info("the columns of the csv are %s " % str(df.columns.values))
         for current_date in dates_to_check:
             logging.info("[%s] %s" % (sensor, current_date))
             counts = {}
