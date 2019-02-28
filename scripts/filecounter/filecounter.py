@@ -442,10 +442,6 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
 
 if __name__ == '__main__':
 
-
-    test_config = loadJsonFile("config_default.json")
-    utils.users = test_config["default_users"]
-
     logger = logging.getLogger('counter')
 
     config = loadJsonFile(os.path.join(app_dir, "config_default.json"))
@@ -453,6 +449,7 @@ if __name__ == '__main__':
         print("...loading configuration from config_custom.json")
         config = updateNestedDict(config, loadJsonFile(os.path.join(app_dir, "data/config_custom.json")))
         try:
+            utils.users = config["default_users"]
             DEFAULT_COUNT_START = str(config["default_count_start"])
             DEFAULT_COUNT_END = str(config["default_count_end"])
             print(DEFAULT_COUNT_START, DEFAULT_COUNT_END)
