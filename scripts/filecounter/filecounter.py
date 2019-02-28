@@ -131,19 +131,7 @@ def create_app(test_config=None):
         widget = widgets.ListWidget(prefix_label=False)
         option_widget = widgets.CheckboxInput()
 
-    class ExampleForm(Form):
-        start_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
-        end_date = DateField('End', format='%Y-%m-%d')
-        submit = SubmitField('Count files for these days',validators=[DataRequired()])
-
-    class SecondExampleForm(Form):
-        selects = ['a','b','c']
-        example = MultiCheckboxField('Label', choices=selects)
-        start_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
-        end_date = DateField('End', format='%Y-%m-%d')
-        submit = SubmitField('Count files for these days',validators=[DataRequired()])
-
-    class ThirdExampleForm(Form):
+    class SensorDateSelectForm(Form):
         sensor_names = count_defs.keys()
         selects = [(x, x) for x in sensor_names]
         sensors = MultiCheckboxField('Label', choices=selects)
@@ -245,7 +233,7 @@ def create_app(test_config=None):
     @app.route('/dateoptions', methods=['POST','GET'])
     @utils.requires_user("admin")
     def dateoptions():
-        form = ThirdExampleForm(request.form)
+        form = SensorDateSelectForm(request.form)
         if form.validate_on_submit():
             raw_selected_sensors = form.sensors.data
             selected_sensors = []
@@ -475,15 +463,15 @@ if __name__ == '__main__':
         print("...no custom configuration file found. using default values")
 
     # Initialize logger handlers
-    # with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
-    #     log_config = json.load(f)
-    #     main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
-    #     log_config['handlers']['file']['filename'] = main_log_file
-    #     if not os.path.exists(config["log_path"]):
-    #         os.makedirs(config["log_path"])
-    #     if not os.path.isfile(main_log_file):
-    #         open(main_log_file, 'a').close()
-    #     logging.config.dictConfig(log_config)
+    with open(os.path.join(app_dir, "config_logging.json"), 'r') as f:
+        log_config = json.load(f)
+        main_log_file = os.path.join(config["log_path"], "log_filecounter.txt")
+        log_config['handlers']['file']['filename'] = main_log_file
+        if not os.path.exists(config["log_path"]):
+            os.makedirs(config["log_path"])
+        if not os.path.isfile(main_log_file):
+            open(main_log_file, 'a').close()
+        logging.config.dictConfig(log_config)
 
     thread.start_new_thread(run_regular_update, (True,))
 
