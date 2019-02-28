@@ -20,12 +20,6 @@
     "password": "",
     "host": "192.168.5.169"
   },
-  "default_users" : {
-    "admin": {
-        "password": "blahblah",
-        "roles": ["admin", "viewer"]
-    }
-  },
   "default_count_start": "2018-03-31",
   "default_count_end": "2018-08-02"
 }

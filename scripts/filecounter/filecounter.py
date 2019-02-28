@@ -444,12 +444,18 @@ if __name__ == '__main__':
 
     logger = logging.getLogger('counter')
 
+    try:
+        file = os.path.join(app_dir, 'users.json')
+        if os.path.isfile(file):
+            utils.users = json.load(open(file, "rb"))
+    except:  # pylint: disable=broad-except
+        logger.exception("Error reading users.json")
+
     config = loadJsonFile(os.path.join(app_dir, "config_default.json"))
     if os.path.exists(os.path.join(app_dir, "data/config_custom.json")):
         print("...loading configuration from config_custom.json")
         config = updateNestedDict(config, loadJsonFile(os.path.join(app_dir, "data/config_custom.json")))
         try:
-            utils.users = config["default_users"]
             DEFAULT_COUNT_START = str(config["default_count_start"])
             DEFAULT_COUNT_END = str(config["default_count_end"])
             print(DEFAULT_COUNT_START, DEFAULT_COUNT_END)
