@@ -136,7 +136,12 @@ def render_date_entry(sensorname, columns, rowdata, rowindex):
                         sensorname, group, rowdata['date'], group)
             elif sensordef[group]["type"] == "psql":
                 # TODO: Only link if the % is 100, otherwise Submit missing
-                api_link = "Submit one dataset from this date to rulechecker"
+                if "%" in vals[group] and vals[group]["%"] == 100:
+                    api_link = '<a href="/submitrulecheck/%s/%s/%s">Submit first timestamp to rulechecker</a>' % (
+                        sensorname, group, rowdata['date'])
+                elif "%" in vals[group] and vals[group]["%"] < 100:
+                    api_link = '<a href="/submitmissing/%s/%s/%s">Submit missing timestamps to rulechecker</a>' % (
+                        sensorname, group, rowdata['date'])
 
         if group in vals:
             if "%" in vals[group]:
@@ -298,6 +303,7 @@ def create_app(test_config=None):
             missing = list(set(parent_timestamps)-set(target_timestamps))
             for ts in missing:
                 if ts.find("-") > -1 and ts.find("__") > -1:
+                    # TODO: Get sensor display name from terrautils
                     raw_name = sensor_name+" - "+ts
                     raw_dsid = get_dsid_by_name(raw_name)
                     if raw_dsid:
@@ -306,17 +312,33 @@ def create_app(test_config=None):
                     else:
                         notfound.append({"timestamp": ts})
 
-        #TODO: The view function did not return a valid response. The return type must be a string, tuple, Response instance, or WSGI callable, but it was a dict.
         return json.dumps({"extractor": extractorname,
                 "submitted": submitted,
                 "raw dataset not found": notfound})
 
-    def submit_rulecheck(sensor, target, date):
-        # Get first timestamp of parent for the date
-        # Get associated Clowder ID
-        # Submit associated Clowder ID to rulechecker
+    @app.route('/submitrulecheck/<sensor_name>/<target>/<date>')
+    def submit_rulecheck(sensor_name, target, date):
+        sensordef = count_defs[sensor_name]
+        targetdef = sensordef[target]
+        submitted = []
 
-        pass
+        if "parent" in targetdef:
+            target_dir = os.path.join(targetdef["path"], date)
+            target_timestamps = os.listdir(target_dir)
+
+            for ts in target_timestamps:
+                if ts.find("-") > -1 and ts.find("__") > -1:
+                    # Get first timestamp for the date that has a Clowder ID
+                    raw_name = sensor_name+" - "+ts
+                    raw_dsid = get_dsid_by_name(raw_name)
+                    if raw_dsid:
+                        # Submit associated Clowder ID to rulechecker
+                        submit_extraction(CONN, CLOWDER_HOST, CLOWDER_KEY, raw_dsid, "ncsa.rulechecker.terra")
+                        submitted.append({"timestamp": ts, "id": raw_dsid})
+                        break
+
+        return json.dumps({"extractor": "ncsa.rulechecker.terra",
+                           "submitted": submitted})
 
     @app.route('/testcsv')
     def testcsv():

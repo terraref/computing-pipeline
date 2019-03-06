@@ -46,7 +46,8 @@ SENSOR_COUNT_DEFINITIONS = {
         ("ruledb_rgbff", {
             "type": "psql",
             "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs' and output->>'date'='%s';",
-            "parent": "bin2tif"}),
+            "parent": "bin2tif",
+            "extractor": "ncsa.rulechecker.terra"}),
         ("rgbff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
             "type": 'regex',
@@ -54,7 +55,8 @@ SENSOR_COUNT_DEFINITIONS = {
         ("ruledb_nrmacff", {
             "type": "psql",
             "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs NRMAC' and output->>'date'='%s';",
-            "parent": "nrmac"}),
+            "parent": "nrmac",
+            "extractor": "ncsa.rulechecker.terra"}),
         ("nrmacff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
             "type": 'regex',
@@ -62,7 +64,8 @@ SENSOR_COUNT_DEFINITIONS = {
         ("ruledb_maskff", {
             "type": "psql",
             "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs Masked' and output->>'date'='%s';",
-            "parent": "rgbmask"}),
+            "parent": "rgbmask",
+            "extractor": "ncsa.rulechecker.terra"}),
         ("maskff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
             "type": 'regex',
