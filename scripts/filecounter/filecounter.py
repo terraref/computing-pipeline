@@ -129,7 +129,6 @@ def render_date_entry(sensorname, columns, rowdata, rowindex):
                     api_link = '<a href="/submitmissing/%s/%s/%s">Submit missing to %s</a>' % (
                         sensorname, group, rowdata['date'], sensordef[group]["extractor"])
             elif sensordef[group]["type"] == "psql":
-                # TODO: Only link if the % is 100, otherwise Submit missing
                 if "%" in vals[group] and vals[group]["%"] == 100:
                     api_link = '<a href="/submitrulecheck/%s/%s/%s">Submit one to ncsa.rulechecker.terra</a>' % (
                         sensorname, group, rowdata['date'])
@@ -358,7 +357,7 @@ def create_app(test_config=None):
             target_timestamps = os.listdir(target_dir)
 
             for ts in target_timestamps:
-                if ts.find("-") > -1 and ts.find("__") > -1 and os.listdir(os.path.join(target_dir, ts)):
+                if ts.find("-") > -1 and ts.find("__") > -1: # TODO: and os.listdir(os.path.join(target_dir, ts)):
                     # Get first populated timestamp for the date that has a Clowder ID
                     raw_name = sensor_name+" - "+ts
                     raw_dsid = get_dsid_by_name(raw_name)
@@ -462,11 +461,12 @@ def retrive_single_count(target_count, target_def, date, conn):
         date_dir = os.path.join(target_def["path"], date)
         if os.path.exists(date_dir):
             logging.info("   [%s] counting timestamps in %s" % (target_count, date_dir))
-            # Only count non-empty directories
-            count = 0
-            for ts in os.listdir(date_dir):
-                if os.listdir(os.path.join(date_dir, ts)):
-                    count += 1
+            # TODO: Only count non-empty directories
+            """count = 0
+            for sub in os.listdir(date_dir):
+                if os.listdir(os.path.join(date_dir, sub)):
+                    count += 1"""
+            count = len(os.listdir(date_dir))
         else:
             logging.info("   [%s] directory not found: %s" % (target_count, date_dir))
 
@@ -474,11 +474,12 @@ def retrive_single_count(target_count, target_def, date, conn):
         date_dir = os.path.join(target_def["path"], date)
         if os.path.exists(date_dir):
             logging.info("   [%s] counting plots in %s" % (target_count, date_dir))
-            # Only count non-empty directories
-            count = 0
-            for plot in os.listdir(date_dir):
-                if os.listdir(os.path.join(date_dir, plot)):
-                    count += 1
+            # TODO: Only count non-empty directories
+            """count = 0
+            for sub in os.listdir(date_dir):
+                if os.listdir(os.path.join(date_dir, sub)):
+                    count += 1"""
+            count = len(os.listdir(date_dir))
         else:
             logging.info("   [%s] directory not found: %s" % (target_count, date_dir))
 
