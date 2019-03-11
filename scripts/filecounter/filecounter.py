@@ -263,7 +263,51 @@ def create_app(test_config=None):
             for each in percent_columns:
                 df_season[each] = df_season[each].mul(100).astype(int)
 
+            dfs = df_season.style
+            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+            html = dfs.render()
+            return html
+
+        else:
+            current_csv = pipeline_csv.format(sensor_name)
+            df = pd.read_csv(current_csv, index_col=False)
+            percent_columns = get_percent_columns(df)
+            for each in percent_columns:
+                df[each] = df[each].mul(100).astype(int)
+            dfs = df.style
+            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+            my_html = dfs.render()
+            return my_html
+
+    @app.route('/resubmitbyseason/<sensor_name>', defaults={'season': 6})
+    @app.route('/resubmitbyseason/<sensor_name>/<int:season>')
+    def resubmitbyseason(sensor_name, season):
+        if season == 6:
+            start = '2018-04-06'
+            end = '2018-08-01'
+            current_csv = pipeline_csv.format(sensor_name)
+            df = pd.read_csv(current_csv, index_col=False)
+            df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
+
+            # Omit rows with zero count in raw_data
+            primary_sensor = None
+            for sensorname in ['stereoTop', 'flirIrCamera', 'scanner3DTop']:
+                if sensorname in df_season.columns:
+                    df_season = df_season[df[sensorname] != 0]
+                    primary_sensor = sensorname
+
+            percent_columns = get_percent_columns(df_season)
+            for each in percent_columns:
+                df_season[each] = df_season[each].mul(100).astype(int)
+
+            # Create header and key
             html = "<h1>Seasonal Counts: %s</h1><div>" % primary_sensor
+            html += '<a style="%s">%s</a>' % (color_percents(100),' 100% coverage')
+            html += '<a style="%s">%s</a>' % (color_percents(99), '>=99% coverage')
+            html += '<a style="%s">%s</a>' % (color_percents(98), '>=95% coverage')
+            html += '<a style="%s">%s</a>' % (color_percents(0),  ' <95% coverage')
+
+            # Create daily entries
             cols = list(df_season.columns.values)
             for index, row in df_season.iterrows():
                 html += render_date_entry(primary_sensor, cols, row, index)
