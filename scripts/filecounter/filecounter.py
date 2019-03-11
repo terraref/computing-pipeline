@@ -11,7 +11,7 @@ import logging, logging.config, logstash
 import pandas as pd
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
 from flask_wtf import FlaskForm as Form
-from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
+from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField, SelectMultipleField, widgets
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
 
@@ -20,6 +20,7 @@ from pyclowder.datasets import submit_extraction
 from terrautils.extractors import load_json_file
 from terrautils.sensors import Sensors
 
+import utils
 import counts
 
 
@@ -171,7 +172,7 @@ def get_dsid_by_name(dsname):
 # FLASK COMPONENTS ----------------------------
 def create_app(test_config=None):
 
-    pipeline_csv = os.path.join(config['csv_path'], "{}.csv")
+    #pipeline_csv = os.path.join(config['csv_path'], "{}.csv")
 
     sensor_names = count_defs.keys()
 
@@ -195,10 +196,17 @@ def create_app(test_config=None):
     except OSError:
         pass
 
-    class ExampleForm(Form):
+    class MultiCheckboxField(SelectMultipleField):
+        widget = widgets.ListWidget(prefix_label=False)
+        option_widget = widgets.CheckboxInput()
+
+    class SensorDateSelectForm(Form):
+        sensor_names = count_defs.keys()
+        selects = [(x, x) for x in sensor_names]
+        sensors = MultiCheckboxField('Label', choices=selects)
         start_date = DateField('Start', format='%Y-%m-%d', validators=[DataRequired()])
         end_date = DateField('End', format='%Y-%m-%d')
-        submit = SubmitField('Count files for these days',validators=[DataRequired()])
+        submit = SubmitField('Count files for these days', validators=[DataRequired()])
 
     @app.route('/sensors', defaults={'message': "Available Sensors and Options"})
     @app.route('/sensors/<string:message>')
@@ -219,6 +227,8 @@ def create_app(test_config=None):
     def showcsv(sensor_name, days):
         # data = dataset.html
         current_csv = pipeline_csv.format(sensor_name)
+        if not os.path.isfile(current_csv):
+            return "File does not exist"
         df = pd.read_csv(current_csv, index_col=False)
         if days == 0:
             percent_columns = get_percent_columns(df)
@@ -370,12 +380,18 @@ def create_app(test_config=None):
         return json.dumps({"extractor": "ncsa.rulechecker.terra",
                            "submitted": submitted})
 
+
     @app.route('/dateoptions', methods=['POST','GET'])
+    @utils.requires_user("admin")
     def dateoptions():
-        form = ExampleForm(request.form)
+        form = SensorDateSelectForm(request.form)
         if form.validate_on_submit():
+            raw_selected_sensors = form.sensors.data
+            selected_sensors = []
+            for r in raw_selected_sensors:
+                selected_sensors.append(str(r))
             return redirect(url_for('schedule_count',
-                                    sensor_name='all',
+                                    sensors=selected_sensors,
                                     start_range=str(form.start_date.data.strftime('%Y-%m-%d')),
                                     end_range=str(form.end_date.data.strftime('%Y-%m-%d'))))
         return render_template('dateoptions.html', form=form)
@@ -398,14 +414,9 @@ def create_app(test_config=None):
         logging.info("Archived existing count csvs")
         return redirect(url_for('sensors', message=message))
 
-    @app.route('/schedule/<sensor_name>/<start_range>', defaults={'end_range': None})
-    @app.route('/schedule/<sensor_name>/<start_range>/<end_range>')
-    def schedule_count(sensor_name, start_range, end_range):
-        if sensor_name.lower() == "all":
-            sensor_list = count_defs.keys()
-        else:
-            sensor_list = [sensor_name]
-
+    @app.route('/newschedule/<sensors>/<start_range>/<end_range>')
+    def schedule_count(sensors, start_range, end_range):
+        sensor_list = sensors
         dates_in_range = generate_dates_in_range(start_range, end_range)
 
         psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
@@ -525,22 +536,41 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
         output_file = os.path.join(config['csv_path'], sensor+".csv")
         logging.info("Updating counts for %s into %s" % (sensor, output_file))
         targets = count_defs[sensor]
+        cols = ["date"]
+        for target_count in targets:
+            target_def = targets[target_count]
+            cols.append(target_count)
+            if "parent" in target_def:
+                cols.append(target_count + '%')
 
         # Load data frame from existing CSV or create a new one
         if os.path.exists(output_file):
-            df = pd.read_csv(output_file)
+            logging.info("csv exists for %s" % output_file)
+            try:
+                df = pd.read_csv(output_file)
+            except Exception as e:
+                logging.info(e)
+                logging.info('CSV exists, could not read as dataframe')
+                cols = ["date"]
+                df = pd.DataFrame(columns=cols)
+                logging.info("CSV existed but could not be read, created dataframe for %s " % sensor)
+            df_columns = list(df.columns.values)
+            if df_columns != cols:
+                logging.info("CSV existed but had malformed columns, created dataframe for %s " % sensor)
+                df = pd.DataFrame(columns=cols)
         else:
             logging.info("output file for %s does not exist" % sensor)
-            cols = ["date"]
-            for target_count in targets:
-                target_def = targets[target_count]
-                cols.append(target_count)
-                if "parent" in target_def:
-                    cols.append(target_count+'%')
+            # cols = ["date"]
+            # for target_count in targets:
+            #     target_def = targets[target_count]
+            #     cols.append(target_count)
+            #     if "parent" in target_def:
+            #         cols.append(target_count+'%')
             df = pd.DataFrame(columns=cols)
-            logging.info("created dataframe for", sensor)
+            logging.info("CSV did not exist, created dataframe for %s " % sensor)
 
         # Populate count and percentage (if applicable) for each target count
+        logging.info("the columns of the csv are %s " % str(df.columns.values))
         for current_date in dates_to_check:
             logging.info("[%s] %s" % (sensor, current_date))
             counts = {}
@@ -595,6 +625,14 @@ if __name__ == '__main__':
     logger = logging.getLogger('counter')
 
     config = load_json_file(os.path.join(app_dir, "config_default.json"))
+
+    try:
+        file = os.path.join(app_dir, 'users.json')
+        if os.path.isfile(file):
+            utils.users = json.load(open(file, "rb"))
+    except:  # pylint: disable=broad-except
+        logger.exception("Error reading users.json")
+
     if os.path.exists(os.path.join(app_dir, "data/config_custom.json")):
         print("...loading configuration from config_custom.json")
         config = update_nested_dict(config, load_json_file(os.path.join(app_dir, "data/config_custom.json")))
