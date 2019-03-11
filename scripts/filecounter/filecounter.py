@@ -212,10 +212,6 @@ def create_app(test_config=None):
     def sensors(message):
         return render_template('sensors.html', sensors=sensor_names, message=message)
 
-    @app.route('/test')
-    def test():
-        return 'this is only a test, route does nothing'
-
     @app.route('/download/<sensor_name>')
     def download(sensor_name):
         current_csv = pipeline_csv.format(sensor_name)
@@ -381,28 +377,6 @@ def create_app(test_config=None):
 
         return json.dumps({"extractor": "ncsa.rulechecker.terra",
                            "submitted": submitted})
-
-    @app.route('/testcsv')
-    def testcsv():
-        current_csv ='stereoTop.csv'
-        df = pd.read_csv(current_csv, index_col=False)
-        percent_columns = get_percent_columns(df)
-        for each in percent_columns:
-            df[each] = df[each].mul(100).astype(int)
-        dfs = df.style
-        dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
-        my_html = dfs.render()
-        return my_html
-
-    @app.route('/testcsv2')
-    def testcsv2():
-        np.random.seed(24)
-        df = pd.DataFrame({'A': np.linspace(1, 10, 10)})
-        df = pd.concat([df, pd.DataFrame(np.random.randn(10, 4), columns=list('BCDE'))],
-               axis=1)
-        df.iloc[0, 2] = np.nan
-        df.style.apply(highlight_max)
-        return df.to_html()
 
     @app.route('/dateoptions', methods=['POST','GET'])
     def dateoptions():
