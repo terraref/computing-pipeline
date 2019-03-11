@@ -1,12 +1,14 @@
-import os, thread, json, collections
-import logging, logging.config, logstash
+import os
+import json
+import thread
+import collections
 import time
-import pandas as pd
-import numpy as np
 import datetime
 import psycopg2
 import re
 import requests
+import logging, logging.config, logstash
+import pandas as pd
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
 from flask_wtf import FlaskForm as Form
 from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField
@@ -15,6 +17,9 @@ from wtforms.validators import DataRequired
 
 from pyclowder.connectors import Connector
 from pyclowder.datasets import submit_extraction
+from terrautils.extractors import load_json_file
+from terrautils.sensors import Sensors
+
 import counts
 
 
@@ -31,25 +36,14 @@ CONN = Connector("", {}, mounted_paths={"/home/clowder/sites":"/home/clowder/sit
 
 
 # UTILITIES ----------------------------
-def loadJsonFile(filename):
-    """Load contents of .json file into a JSON object"""
-    try:
-        f = open(filename)
-        jsonObj = json.load(f)
-        f.close()
-        return jsonObj
-    except IOError:
-        logger.error("- unable to open %s" % filename)
-        return {}
-
-def updateNestedDict(existing, new):
+def update_nested_dict(existing, new):
     """Nested update of python dictionaries for config parsing
     Adapted from http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
     """
     for k, v in new.iteritems():
         if isinstance(existing, collections.Mapping):
             if isinstance(v, collections.Mapping):
-                r = updateNestedDict(existing.get(k, {}), v)
+                r = update_nested_dict(existing.get(k, {}), v)
                 existing[k] = r
             else:
                 existing[k] = new[k]
@@ -132,15 +126,15 @@ def render_date_entry(sensorname, columns, rowdata, rowindex):
         if group != sensorname:
             if sensordef[group]["type"] == "timestamp":
                 if "%" in vals[group] and vals[group]["%"] < 100:
-                    api_link = '<a href="/submitmissing/%s/%s/%s">Submit missing timestamps to %s</a>' % (
-                        sensorname, group, rowdata['date'], group)
+                    api_link = '<a href="/submitmissing/%s/%s/%s">Submit missing to %s</a>' % (
+                        sensorname, group, rowdata['date'], sensordef[group]["extractor"])
             elif sensordef[group]["type"] == "psql":
                 # TODO: Only link if the % is 100, otherwise Submit missing
                 if "%" in vals[group] and vals[group]["%"] == 100:
-                    api_link = '<a href="/submitrulecheck/%s/%s/%s">Submit first timestamp to rulechecker</a>' % (
+                    api_link = '<a href="/submitrulecheck/%s/%s/%s">Submit one to ncsa.rulechecker.terra</a>' % (
                         sensorname, group, rowdata['date'])
                 elif "%" in vals[group] and vals[group]["%"] < 100:
-                    api_link = '<a href="/submitmissing/%s/%s/%s">Submit missing timestamps to rulechecker</a>' % (
+                    api_link = '<a href="/submitmissing/%s/%s/%s">Submit missing to ncsa.rulechecker.terra</a>' % (
                         sensorname, group, rowdata['date'])
 
         if group in vals:
@@ -296,10 +290,10 @@ def create_app(test_config=None):
 
             # Create header and key
             html = "<h1>Seasonal Counts: %s</h1><div>" % primary_sensor
-            html += '<a style="%s">%s</a>' % (color_percents(100),' 100% coverage')
-            html += '<a style="%s">%s</a>' % (color_percents(99), '>=99% coverage')
-            html += '<a style="%s">%s</a>' % (color_percents(98), '>=95% coverage')
-            html += '<a style="%s">%s</a>' % (color_percents(0),  ' <95% coverage')
+            html += '<a style="%s">%s</a></br>' % (color_percents(100),' 100% coverage')
+            html += '<a style="%s">%s</a></br>' % (color_percents(99), '>=99% coverage')
+            html += '<a style="%s">%s</a></br>' % (color_percents(98), '>=95% coverage')
+            html += '<a style="%s">%s</a></br>' % (color_percents(0),  ' <95% coverage')
 
             # Create daily entries
             cols = list(df_season.columns.values)
@@ -307,9 +301,6 @@ def create_app(test_config=None):
                 html += render_date_entry(primary_sensor, cols, row, index)
             html += "</div>"
 
-            #dfs = df_season.style
-            #dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
-            #html = dfs.render()
             return html
 
         else:
@@ -331,6 +322,8 @@ def create_app(test_config=None):
         submitted = []
         notfound = []
 
+        s = Sensors("", "ua-mac")
+
         if "parent" in targetdef:
             parentdef = sensordef[targetdef["parent"]]
             parent_dir = os.path.join(parentdef["path"], date)
@@ -341,9 +334,9 @@ def create_app(test_config=None):
             missing = list(set(parent_timestamps)-set(target_timestamps))
             for ts in missing:
                 if ts.find("-") > -1 and ts.find("__") > -1:
-                    # TODO: Get sensor display name from terrautils
-                    raw_name = sensor_name+" - "+ts
-                    raw_dsid = get_dsid_by_name(raw_name)
+                    disp_name = s.get_display_name(target)
+                    dataset_name = disp_name+" - "+ts
+                    raw_dsid = get_dsid_by_name(dataset_name)
                     if raw_dsid:
                         submit_extraction(CONN, CLOWDER_HOST, CLOWDER_KEY, raw_dsid, extractorname)
                         submitted.append({"timestamp": ts, "id": raw_dsid})
@@ -600,10 +593,10 @@ if __name__ == '__main__':
 
     logger = logging.getLogger('counter')
 
-    config = loadJsonFile(os.path.join(app_dir, "config_default.json"))
+    config = load_json_file(os.path.join(app_dir, "config_default.json"))
     if os.path.exists(os.path.join(app_dir, "data/config_custom.json")):
         print("...loading configuration from config_custom.json")
-        config = updateNestedDict(config, loadJsonFile(os.path.join(app_dir, "data/config_custom.json")))
+        config = update_nested_dict(config, load_json_file(os.path.join(app_dir, "data/config_custom.json")))
         try:
             DEFAULT_COUNT_START = str(config["default_count_start"])
             DEFAULT_COUNT_END = str(config["default_count_end"])

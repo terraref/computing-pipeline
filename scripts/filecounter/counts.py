@@ -23,30 +23,30 @@ SENSOR_COUNT_DEFINITIONS = {
             "path": os.path.join(uamac_root, 'raw_data/stereoTop/'),
             "type": 'timestamp'
         }),
-        ("bin2tif", {
+        ("rgb_geotiff", {
             "path": os.path.join(uamac_root, 'Level_1/rgb_geotiff/'),
             "type": 'timestamp',
             "parent": "stereoTop",
             "extractor": "terra.stereo-rgb.bin2tif"}),
-        ("nrmac", {
+        ("rgb_nrmac", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_nrmac/'),
             "type": 'timestamp',
-            "parent": "bin2tif",
+            "parent": "rgb_geotiff",
             "extractor": "terra.stereo-rgb.nrmac"}),
-        ("rgbmask", {
+        ("rgb_mask", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_mask/'),
             "type": 'timestamp',
-            "parent": "bin2tif",
+            "parent": "rgb_geotiff",
             "extractor": "terra.stereo-rgb.rgbmask"}),
         # plot products
-        ("bin2tif_plot", {
+        ("rgb_geotiff_plot", {
             "path": os.path.join(uamac_root, 'Level_1_Plots/rgb_geotiff/'),
             "type": 'plot'}),
         # rulechecker & fieldmosaic products
         ("ruledb_rgbff", {
             "type": "psql",
             "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs' and output->>'date'='%s';",
-            "parent": "bin2tif",
+            "parent": "rgb_geotiff",
             "extractor": "ncsa.rulechecker.terra"}),
         ("rgbff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
@@ -55,7 +55,7 @@ SENSOR_COUNT_DEFINITIONS = {
         ("ruledb_nrmacff", {
             "type": "psql",
             "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs NRMAC' and output->>'date'='%s';",
-            "parent": "nrmac",
+            "parent": "rgb_nrmac",
             "extractor": "ncsa.rulechecker.terra"}),
         ("nrmacff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
@@ -64,14 +64,14 @@ SENSOR_COUNT_DEFINITIONS = {
         ("ruledb_maskff", {
             "type": "psql",
             "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs Masked' and output->>'date'='%s';",
-            "parent": "rgbmask",
+            "parent": "rgb_mask",
             "extractor": "ncsa.rulechecker.terra"}),
         ("maskff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
             "type": 'regex',
             "regex": ".*_mask_thumb.tif"}),
         # BETYdb traits
-        ("canopycover", {
+        ("rgb_canopycover", {
             "path": os.path.join(uamac_root, 'Level_3/rgb_canopycover/'),
             "type": 'regex',
             "regex": '.*_canopycover_bety.csv',
@@ -83,25 +83,25 @@ SENSOR_COUNT_DEFINITIONS = {
         ("flirIrCamera", {
             "path": os.path.join(uamac_root, 'raw_data/flirIrCamera/'),
             "type": 'timestamp'}),
-        ("flir2tif", {
+        ("ir_geotiff", {
             "path": os.path.join(uamac_root, 'Level_1/ir_geotiff/'),
             "type": 'timestamp',
             "parent": "flirIrCamera"}),
         # plot products
-        ("flir2tif_plot", {
+        ("ir_geotiff_plot", {
             "path": os.path.join(uamac_root, 'Level_1_Plots/ir_geotiff/'),
             "type": 'plot'}),
         # rulechecker & fieldmosaic products
         ("ruledb_flirff", {
             "type": "psql",
             "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='Thermal IR GeoTIFFs' and output->>'date'='%s';",
-            "parent": "flir2tif"}),
+            "parent": "ir_geotiff"}),
         ("flirff", {
             "path": os.path.join(uamac_root, 'Level_2/ir_fullfield/'),
             "type": 'regex',
             "regex": ".*_thumb.tif"}),
         # BETYdb traits
-        ("meantemp", {
+        ("ir_meantemp", {
             "path": os.path.join(uamac_root, 'Level_3/ir_meantemp/'),
             "type": 'regex',
             "regex": '.*_meantemp_bety.csv',
@@ -113,17 +113,17 @@ SENSOR_COUNT_DEFINITIONS = {
         ("scanner3DTop", {
             "path": os.path.join(uamac_root, 'Level_1/scanner3DTop/'),
             "type": 'timestamp'}),
-        ("ply2las", {
+        ("laser3d_las", {
             "path": os.path.join(uamac_root, 'Level_1/laser3d_las/'),
             "type": 'timestamp',
             "parent": "scanner3DTop"}),
         # plot products
-        ("ply2las_plot", {
+        ("laser3d_las_plot", {
             "path": os.path.join(uamac_root, 'Level_1_Plots/laser3d_las/'),
             "type": 'plot'}),
-        ("canopyheight", {
+        ("laser3d_canopyheight", {
             "path": os.path.join(uamac_root, 'Level_3/laser3d_canopyheight/'),
             "type": 'plot',
-            "parent": "ply2las_plot"})
+            "parent": "laser3d_las_plot"})
     ])
 }
