@@ -253,11 +253,9 @@ def create_app(test_config=None):
             df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
 
             # Omit rows with zero count in raw_data
-            primary_sensor = None
             for sensorname in ['stereoTop', 'flirIrCamera', 'scanner3DTop']:
                 if sensorname in df_season.columns:
                     df_season = df_season[df[sensorname] != 0]
-                    primary_sensor = sensorname
 
             percent_columns = get_percent_columns(df_season)
             for each in percent_columns:
