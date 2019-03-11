@@ -1,7 +1,8 @@
 import datetime
 import functools
-
 import flask
+
+from terrautils.extractors import load_json_file
 
 # Stores a dict of users, passwords and roles. Expected data is:
 # {
@@ -10,16 +11,8 @@ import flask
 #         'roles': ['admin', 'viewer']
 #     }
 # }
-users = {
-    'admin': {
-        'password': 'secret',
-        'roles': ['admin', 'viewer']
-    },
-    'viewer': {
-        'password': 'secret',
-        'roles': ['viewer']
-    }
-}
+users = load_json_file("users.json")
+
 
 def find_item(where, what):
     """
@@ -41,7 +34,6 @@ def find_item(where, what):
             return k, v
     return None, None
 
-
 def get_item(where, key, defaultvalue=None):
     """
     Finds the key in the dict. The key can be made up of multiple pieces seperated with a period.
@@ -59,7 +51,6 @@ def get_item(where, key, defaultvalue=None):
             return defaultvalue
     return x
 
-
 def get_timestamp():
     """
     Generates a consistent timestamp. Timestamp is in ISO-8601 at UTC
@@ -67,7 +58,6 @@ def get_timestamp():
     :return: 8601 timestamp formated in UTC.
     """
     return datetime.datetime.utcnow().isoformat() + "Z"
-
 
 def check_auth(username, password):
     """
@@ -86,7 +76,6 @@ def check_auth(username, password):
         flask.g.user = None
         flask.g.roles = None
         return False
-
 
 def requires_user(*users):
     """
