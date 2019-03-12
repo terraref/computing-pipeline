@@ -11,7 +11,17 @@ from terrautils.extractors import load_json_file
 #         'roles': ['admin', 'viewer']
 #     }
 # }
-users = load_json_file("users.json")
+#users = load_json_file("users.json")
+users = {
+    "admin": {
+        "password": "secret",
+        "roles": ["admin", "viewer"]
+    },
+    "viewer": {
+        "password": "secret",
+        "roles": ["viewer"]
+    }
+}
 
 
 def find_item(where, what):

@@ -100,7 +100,7 @@ def color_percents(val):
     return 'background-color: %s' % color
 
 def render_date_entry(sensorname, columns, rowdata, rowindex):
-    html = '<div><a style="font-size:18px"><b>%s</b></a>' % rowdata['date']
+    html = '<div><br/><a style="font-size:18px"><b>%s</b></a>' % rowdata['date']
     html += '</br><table style="border:1px">'
 
     sensordef = count_defs[sensorname]
@@ -127,14 +127,14 @@ def render_date_entry(sensorname, columns, rowdata, rowindex):
         if group != sensorname:
             if sensordef[group]["type"] == "timestamp":
                 if "%" in vals[group] and vals[group]["%"] < 100:
-                    api_link = '<a href="/submitmissing/%s/%s/%s">Submit missing to %s</a>' % (
+                    api_link = '<a href="/submitmissing/%s/%s/%s">Submit to %s</a>' % (
                         sensorname, group, rowdata['date'], sensordef[group]["extractor"])
             elif sensordef[group]["type"] == "psql":
                 if "%" in vals[group] and vals[group]["%"] == 100:
-                    api_link = '<a href="/submitrulecheck/%s/%s/%s">Submit one to ncsa.rulechecker.terra</a>' % (
+                    api_link = '<a href="/submitrulecheck/%s/%s/%s">Retrigger ncsa.rulechecker.terra</a>' % (
                         sensorname, group, rowdata['date'])
                 elif "%" in vals[group] and vals[group]["%"] < 100:
-                    api_link = '<a href="/submitmissing/%s/%s/%s">Submit missing to ncsa.rulechecker.terra</a>' % (
+                    api_link = '<a href="/submitmissingrulechecks/%s/%s/%s">Submit to ncsa.rulechecker.terra</a>' % (
                         sensorname, group, rowdata['date'])
 
         if group in vals:
@@ -172,7 +172,7 @@ def get_dsid_by_name(dsname):
 # FLASK COMPONENTS ----------------------------
 def create_app(test_config=None):
 
-    #pipeline_csv = os.path.join(config['csv_path'], "{}.csv")
+    pipeline_csv = os.path.join(config['csv_path'], "{}.csv")
 
     sensor_names = count_defs.keys()
 
@@ -302,7 +302,7 @@ def create_app(test_config=None):
             html += '<a style="%s">%s</a></br>' % (color_percents(100),' 100% coverage')
             html += '<a style="%s">%s</a></br>' % (color_percents(99), '>=99% coverage')
             html += '<a style="%s">%s</a></br>' % (color_percents(98), '>=95% coverage')
-            html += '<a style="%s">%s</a></br>' % (color_percents(0),  ' <95% coverage')
+            html += '<a style="%s">%s</a></br></br>' % (color_percents(0),  ' <95% coverage')
 
             # Create daily entries
             cols = list(df_season.columns.values)
@@ -331,30 +331,31 @@ def create_app(test_config=None):
         submitted = []
         notfound = []
 
-        s = Sensors("", "ua-mac")
-
         if "parent" in targetdef:
+            # Count expected parent counts & actual current progress counts from filesystem
             parentdef = sensordef[targetdef["parent"]]
             parent_dir = os.path.join(parentdef["path"], date)
             target_dir = os.path.join(targetdef["path"], date)
             parent_timestamps = os.listdir(parent_dir)
             target_timestamps = os.listdir(target_dir)
 
+            disp_name = Sensors("", "ua-mac").get_display_name(targetdef["parent"])
             missing = list(set(parent_timestamps)-set(target_timestamps))
             for ts in missing:
                 if ts.find("-") > -1 and ts.find("__") > -1:
-                    disp_name = s.get_display_name(target)
                     dataset_name = disp_name+" - "+ts
                     raw_dsid = get_dsid_by_name(dataset_name)
                     if raw_dsid:
                         submit_extraction(CONN, CLOWDER_HOST, CLOWDER_KEY, raw_dsid, extractorname)
-                        submitted.append({"timestamp": ts, "id": raw_dsid})
+                        submitted.append({"name": dataset_name, "id": raw_dsid})
                     else:
-                        notfound.append({"timestamp": ts})
+                        notfound.append({"name": dataset_name})
 
-        return json.dumps({"extractor": extractorname,
-                "submitted": submitted,
-                "raw dataset not found": notfound})
+        return json.dumps({
+            "extractor": extractorname,
+            "datasets submitted": submitted,
+            "datasets not found": notfound
+        })
 
     @app.route('/submitrulecheck/<sensor_name>/<target>/<date>')
     def submit_rulecheck(sensor_name, target, date):
@@ -362,23 +363,75 @@ def create_app(test_config=None):
         targetdef = sensordef[target]
         submitted = []
 
+        s = Sensors("", "ua-mac")
+
         if "parent" in targetdef:
-            target_dir = os.path.join(targetdef["path"], date)
+            target_dir = os.path.join(sensordef[targetdef["parent"]]["path"], date)
             target_timestamps = os.listdir(target_dir)
+
+            disp_name = s.get_display_name(targetdef["parent"])
 
             for ts in target_timestamps:
                 if ts.find("-") > -1 and ts.find("__") > -1: # TODO: and os.listdir(os.path.join(target_dir, ts)):
                     # Get first populated timestamp for the date that has a Clowder ID
-                    raw_name = sensor_name+" - "+ts
-                    raw_dsid = get_dsid_by_name(raw_name)
+                    dataset_name = disp_name+" - "+ts
+                    raw_dsid = get_dsid_by_name(dataset_name)
                     if raw_dsid:
                         # Submit associated Clowder ID to rulechecker
                         submit_extraction(CONN, CLOWDER_HOST, CLOWDER_KEY, raw_dsid, "ncsa.rulechecker.terra")
-                        submitted.append({"timestamp": ts, "id": raw_dsid})
+                        submitted.append({"name": dataset_name, "id": raw_dsid})
                         break
 
-        return json.dumps({"extractor": "ncsa.rulechecker.terra",
-                           "submitted": submitted})
+        return json.dumps({
+            "extractor": "ncsa.rulechecker.terra",
+            "datasets submitted": submitted
+        })
+
+    @app.route('/submitmissingrulechecks/<sensor_name>/<target>/<date>')
+    def submit_missing_timestamps_from_rulechecker(sensor_name, target, date):
+        sensordef = count_defs[sensor_name]
+        targetdef = sensordef[target]
+        extractorname = targetdef["extractor"]
+        submitted = []
+        notfound = []
+
+        if "parent" in targetdef:
+            # Count expected parent counts from filesystem
+            parentdef = sensordef[targetdef["parent"]]
+            parent_dir = os.path.join(parentdef["path"], date)
+            parent_timestamps = os.listdir(parent_dir)
+
+            # Count actual current progress counts from PSQL
+            psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
+            psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
+            psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
+            psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
+            conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
+
+            target_timestamps = []
+            query_string = targetdef["query_list"] % date
+            curs = conn.cursor()
+            curs.execute(query_string)
+            for result in curs:
+                target_timestamps.append(result[0].split("/")[-2])
+
+            disp_name = Sensors("", "ua-mac").get_display_name(targetdef["parent"])
+            missing = list(set(parent_timestamps)-set(target_timestamps))
+            for ts in missing:
+                if ts.find("-") > -1 and ts.find("__") > -1:
+                    dataset_name = disp_name+" - "+ts
+                    raw_dsid = get_dsid_by_name(dataset_name)
+                    if raw_dsid:
+                        submit_extraction(CONN, CLOWDER_HOST, CLOWDER_KEY, raw_dsid, extractorname)
+                        submitted.append({"name": dataset_name, "id": raw_dsid})
+                    else:
+                        notfound.append({"name": dataset_name})
+
+        return json.dumps({
+            "extractor": extractorname,
+            "datasets submitted": submitted,
+            "datasets not found": notfound
+        })
 
 
     @app.route('/dateoptions', methods=['POST','GET'])
@@ -514,7 +567,7 @@ def retrive_single_count(target_count, target_def, date, conn):
 
     elif target_def["type"] == "psql":
         logging.info("   [%s] querying PSQL records for %s" % (target_count, date))
-        query_string = target_def["query"] % date
+        query_string = target_def["query_count"] % date
         curs = conn.cursor()
         curs.execute(query_string)
         for result in curs:
@@ -625,13 +678,6 @@ if __name__ == '__main__':
     logger = logging.getLogger('counter')
 
     config = load_json_file(os.path.join(app_dir, "config_default.json"))
-
-    try:
-        file = os.path.join(app_dir, 'users.json')
-        if os.path.isfile(file):
-            utils.users = json.load(open(file, "rb"))
-    except:  # pylint: disable=broad-except
-        logger.exception("Error reading users.json")
 
     if os.path.exists(os.path.join(app_dir, "data/config_custom.json")):
         print("...loading configuration from config_custom.json")

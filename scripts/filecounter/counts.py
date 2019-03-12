@@ -45,7 +45,8 @@ SENSOR_COUNT_DEFINITIONS = {
         # rulechecker & fieldmosaic products
         ("ruledb_rgbff", {
             "type": "psql",
-            "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs' and output->>'date'='%s';",
+            "query_count": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs' and output->>'date'='%s';",
+            "query_list": "select distinct file_path from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs' and output->>'date'='%s';",
             "parent": "rgb_geotiff",
             "extractor": "ncsa.rulechecker.terra"}),
         ("rgbff", {
@@ -54,8 +55,10 @@ SENSOR_COUNT_DEFINITIONS = {
             "regex": ".*_rgb_thumb.tif"}),
         ("ruledb_nrmacff", {
             "type": "psql",
-            "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs NRMAC' and output->>'date'='%s';",
-            "parent": "rgb_nrmac",
+            "query_count": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs NRMAC' and output->>'date'='%s';",
+            "query_list": "select distinct file_path from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs NRMAC' and output->>'date'='%s';",
+            # Parent count is still rgb_geotiff because we are putting NRMAC in same datasets as those
+            "parent": "rgb_geotiff",
             "extractor": "ncsa.rulechecker.terra"}),
         ("nrmacff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
@@ -63,8 +66,10 @@ SENSOR_COUNT_DEFINITIONS = {
             "regex": ".*_nrmac_thumb.tif"}),
         ("ruledb_maskff", {
             "type": "psql",
-            "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs Masked' and output->>'date'='%s';",
-            "parent": "rgb_mask",
+            "query_count": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs Masked' and output->>'date'='%s';",
+            "query_list": "select distinct file_path from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs Masked' and output->>'date'='%s';",
+            # Parent count is still rgb_geotiff because we are putting rgb_mask in same datasets as those
+            "parent": "rgb_geotiff",
             "extractor": "ncsa.rulechecker.terra"}),
         ("maskff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
@@ -86,7 +91,8 @@ SENSOR_COUNT_DEFINITIONS = {
         ("ir_geotiff", {
             "path": os.path.join(uamac_root, 'Level_1/ir_geotiff/'),
             "type": 'timestamp',
-            "parent": "flirIrCamera"}),
+            "parent": "flirIrCamera",
+            "extractor": "terra.multispectral.flir2tif"}),
         # plot products
         ("ir_geotiff_plot", {
             "path": os.path.join(uamac_root, 'Level_1_Plots/ir_geotiff/'),
@@ -94,7 +100,8 @@ SENSOR_COUNT_DEFINITIONS = {
         # rulechecker & fieldmosaic products
         ("ruledb_flirff", {
             "type": "psql",
-            "query": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='Thermal IR GeoTIFFs' and output->>'date'='%s';",
+            "query_count": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='Thermal IR GeoTIFFs' and output->>'date'='%s';",
+            "query_list": "select distinct file_path from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='Thermal IR GeoTIFFs' and output->>'date'='%s';",
             "parent": "ir_geotiff"}),
         ("flirff", {
             "path": os.path.join(uamac_root, 'Level_2/ir_fullfield/'),
@@ -116,7 +123,8 @@ SENSOR_COUNT_DEFINITIONS = {
         ("laser3d_las", {
             "path": os.path.join(uamac_root, 'Level_1/laser3d_las/'),
             "type": 'timestamp',
-            "parent": "scanner3DTop"}),
+            "parent": "scanner3DTop",
+            "extractor": "terra.3dscanner.ply2las"}),
         # plot products
         ("laser3d_las_plot", {
             "path": os.path.join(uamac_root, 'Level_1_Plots/laser3d_las/'),
