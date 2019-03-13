@@ -114,7 +114,7 @@ class PlotClipper(TerrarefExtractor):
 
                     if filename.endswith(".tif") and (not file_exists(out_file) or self.overwrite):
                         """If file is a geoTIFF, simply clip it and upload it to Clowder"""
-                        clip_raster(file_path, tuples, out_path=out_file)
+                        clip_raster(file_path, tuples, out_path=out_file, compress=True)
 
                         found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, merged_out, remove=self.overwrite)
                         if not found_in_dest or self.overwrite:
