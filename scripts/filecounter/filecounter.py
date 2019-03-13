@@ -101,7 +101,7 @@ def color_percents(val):
 
 def render_date_entry(sensorname, columns, rowdata, rowindex):
     html = '<div><br/><a style="font-size:18px"><b>%s</b></a>' % rowdata['date']
-    html += '</br><table style="border:1px">'
+    html += '</br><table style="border: solid 2px;border-spacing:0px">'
 
     sensordef = count_defs[sensorname]
     vals = {}
@@ -125,6 +125,7 @@ def render_date_entry(sensorname, columns, rowdata, rowindex):
     for group in sensordef:
         api_link = ""
         if group != sensorname:
+            group_cell = '<td style="border:solid 1px">...%s</td>' % group
             if sensordef[group]["type"] == "timestamp":
                 if "%" in vals[group] and vals[group]["%"] < 100:
                     api_link = '<a href="/submitmissing/%s/%s/%s">Submit to %s</a>' % (
@@ -136,23 +137,25 @@ def render_date_entry(sensorname, columns, rowdata, rowindex):
                 elif "%" in vals[group] and vals[group]["%"] < 100:
                     api_link = '<a href="/submitmissingrulechecks/%s/%s/%s">Submit to ncsa.rulechecker.terra</a>' % (
                         sensorname, group, rowdata['date'])
+        else:
+            group_cell = '<td style="border:solid 1px"><b>raw data</b></td>'
+        api_cell = '<td style="border:solid 1px">%s</td>' % api_link
 
         if group in vals:
             if "%" in vals[group]:
-                count = '<a title="%s" style="%s">%s</a>' % (
-                                                vals[group]["%str"],
+                count_cell = '<td style="border:solid 1px;%s"><a title="%s">%s</a></td>' % (
                                                 color_percents(vals[group]["%"]),
+                                                vals[group]["%str"],
                                                 vals[group]["count"])
             else:
-                count = '<a>%s</a>' % vals[group]["count"]
+                count_cell = '<td style="border:solid 1px"><a>%s</a></td>' % vals[group]["count"]
         else:
-            count = "<a>Missing</a>"
+            count_cell = '<td style="border:solid 1px"><a>Missing</a></td>'
 
         html += '<tr>'
-        html += '<td></td>'
-        html += '<td>%s</td>' % group
-        html += '<td>%s</td>' % count
-        html += '<td>%s</td>' % api_link
+        html += group_cell
+        html += count_cell
+        html += api_cell
         html += '</tr>'
     html += '</table></div>'
     return html
