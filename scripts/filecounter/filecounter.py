@@ -1,16 +1,25 @@
-import os, thread, json, collections
-import logging, logging.config, logstash
+import os
+import json
+import thread
+import collections
 import time
-import pandas as pd
-import numpy as np
 import datetime
 import psycopg2
 import re
+import requests
+import logging, logging.config, logstash
+import pandas as pd
 from flask import Flask, render_template, send_file, request, url_for, redirect, make_response
 from flask_wtf import FlaskForm as Form
 from wtforms import TextField, TextAreaField, validators, StringField, SubmitField, DateField, SelectMultipleField, widgets
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
+
+from pyclowder.connectors import Connector
+from pyclowder.datasets import submit_extraction
+from terrautils.extractors import load_json_file
+from terrautils.sensors import Sensors
+
 import utils
 import counts
 
@@ -22,26 +31,20 @@ count_defs = counts.SENSOR_COUNT_DEFINITIONS
 DEFAULT_COUNT_START = None
 DEFAULT_COUNT_END = None
 
-# UTILITIES ----------------------------
-def loadJsonFile(filename):
-    """Load contents of .json file into a JSON object"""
-    try:
-        f = open(filename)
-        jsonObj = json.load(f)
-        f.close()
-        return jsonObj
-    except IOError:
-        logger.error("- unable to open %s" % filename)
-        return {}
+CLOWDER_HOST = "https://terraref.ncsa.illinois.edu/clowder/"
+CLOWDER_KEY = os.getenv('CLOWDER_KEY', False)
+CONN = Connector("", {}, mounted_paths={"/home/clowder/sites":"/home/clowder/sites"})
 
-def updateNestedDict(existing, new):
+
+# UTILITIES ----------------------------
+def update_nested_dict(existing, new):
     """Nested update of python dictionaries for config parsing
     Adapted from http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
     """
     for k, v in new.iteritems():
         if isinstance(existing, collections.Mapping):
             if isinstance(v, collections.Mapping):
-                r = updateNestedDict(existing.get(k, {}), v)
+                r = update_nested_dict(existing.get(k, {}), v)
                 existing[k] = r
             else:
                 existing[k] = new[k]
@@ -65,7 +68,6 @@ def generate_dates_in_range(start_date_string, end_date_string=None):
         date_strings.append(current_date_string)
     return date_strings
 
-
 def get_percent_columns(current_dataframe):
     colnames = list(current_dataframe.columns.values)
     percent_columns = []
@@ -74,14 +76,12 @@ def get_percent_columns(current_dataframe):
             percent_columns.append(each)
     return percent_columns
 
-
 def highlight_max(s):
     '''
     highlight the maximum in a Series yellow.
     '''
     is_max = s == s.max()
     return ['background-color: red' if v else '' for v in is_max]
-
 
 def color_percents(val):
     """
@@ -91,19 +91,91 @@ def color_percents(val):
     """
     if val == 100:
         color = 'green'
-    elif 100 > val >= 99:
-        color = 'orange'
-    elif val < 99:
+    elif val >= 99:
+        color = 'greenyellow'
+    elif val >= 95:
         color = 'yellow'
     else:
-        color = 'yellow'
+        color = 'lightcoral'
     return 'background-color: %s' % color
+
+def render_date_entry(sensorname, columns, rowdata, rowindex):
+    html = '<div><br/><a style="font-size:18px"><b>%s</b></a>' % rowdata['date']
+    html += '</br><table style="border: solid 2px;border-spacing:0px">'
+
+    sensordef = count_defs[sensorname]
+    vals = {}
+
+    for colname in columns:
+        if not colname.endswith("%"):
+            if colname in sensordef:
+                if colname not in vals:
+                    vals[colname] = {}
+                vals[colname]["count"] = rowdata[colname]
+                if colname in sensordef and "parent" in sensordef[colname]:
+                    vals[colname]["parent"] = sensordef[colname]["parent"]
+        else:
+            parcol = colname.replace("%", "")
+            parname = sensordef[parcol]["parent"]
+            if parcol not in vals:
+                vals[parcol] = {}
+            vals[parcol]["%"] = rowdata[colname]
+            vals[parcol]["%str"] = "%s%% of %s" % (rowdata[colname], parname)
+
+    for group in sensordef:
+        api_link = ""
+        if group != sensorname:
+            group_cell = '<td style="border:solid 1px">...%s</td>' % group
+            if sensordef[group]["type"] == "timestamp":
+                if "%" in vals[group] and vals[group]["%"] < 100:
+                    api_link = '<a href="/submitmissing/%s/%s/%s">Submit to %s</a>' % (
+                        sensorname, group, rowdata['date'], sensordef[group]["extractor"])
+            elif sensordef[group]["type"] == "psql":
+                if "%" in vals[group] and vals[group]["%"] == 100:
+                    api_link = '<a href="/submitrulecheck/%s/%s/%s">Retrigger ncsa.rulechecker.terra</a>' % (
+                        sensorname, group, rowdata['date'])
+                elif "%" in vals[group] and vals[group]["%"] < 100:
+                    api_link = '<a href="/submitmissingrulechecks/%s/%s/%s">Submit to ncsa.rulechecker.terra</a>' % (
+                        sensorname, group, rowdata['date'])
+        else:
+            group_cell = '<td style="border:solid 1px"><b>raw data</b></td>'
+        api_cell = '<td style="border:solid 1px">%s</td>' % api_link
+
+        if group in vals:
+            if "%" in vals[group]:
+                count_cell = '<td style="border:solid 1px;%s"><a title="%s">%s</a></td>' % (
+                                                color_percents(vals[group]["%"]),
+                                                vals[group]["%str"],
+                                                vals[group]["count"])
+            else:
+                count_cell = '<td style="border:solid 1px"><a>%s</a></td>' % vals[group]["count"]
+        else:
+            count_cell = '<td style="border:solid 1px"><a>Missing</a></td>'
+
+        html += '<tr>'
+        html += group_cell
+        html += count_cell
+        html += api_cell
+        html += '</tr>'
+    html += '</table></div>'
+    return html
+
+def get_dsid_by_name(dsname):
+    url = "%sapi/datasets?key=%s&title=%s&exact=true" % (CLOWDER_HOST, CLOWDER_KEY, dsname)
+    result = requests.get(url)
+    result.raise_for_status()
+
+    if len(result.json()) > 0:
+        ds_id = result.json()[0]['id']
+        return ds_id
+    else:
+        return None
 
 
 # FLASK COMPONENTS ----------------------------
 def create_app(test_config=None):
 
-    #pipeline_csv = os.path.join(config['csv_path'], "{}.csv")
+    pipeline_csv = os.path.join(config['csv_path'], "{}.csv")
 
     sensor_names = count_defs.keys()
 
@@ -144,10 +216,6 @@ def create_app(test_config=None):
     def sensors(message):
         return render_template('sensors.html', sensors=sensor_names, message=message)
 
-    @app.route('/test')
-    def test():
-        return 'this is only a test, route does nothing'
-
     @app.route('/download/<sensor_name>')
     def download(sensor_name):
         current_csv = pipeline_csv.format(sensor_name)
@@ -177,7 +245,7 @@ def create_app(test_config=None):
             return df.tail(days).to_html()
 
     @app.route('/showcsvbyseason/<sensor_name>', defaults={'season': 6})
-    @app.route('/showcsv/<sensor_name>/<int:season>')
+    @app.route('/showcsvbyseason/<sensor_name>/<int:season>')
     def showcsvbyseason(sensor_name, season):
         if season == 6:
             start = '2018-04-06'
@@ -185,19 +253,21 @@ def create_app(test_config=None):
             current_csv = pipeline_csv.format(sensor_name)
             df = pd.read_csv(current_csv, index_col=False)
             df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
-            if 'stereoTop' in df_season.columns:
-                df_season = df_season[df['stereoTop'] != 0]
-            if 'flirIrCamera' in df_season.columns:
-                df_season = df_season[df['flirIrCamera'] != 0]
-            if 'scanner3DTop' in df_season.columns:
-                df_season = df_season[df['scanner3DTop'] != 0]
+
+            # Omit rows with zero count in raw_data
+            for sensorname in ['stereoTop', 'flirIrCamera', 'scanner3DTop']:
+                if sensorname in df_season.columns:
+                    df_season = df_season[df[sensorname] != 0]
+
             percent_columns = get_percent_columns(df_season)
             for each in percent_columns:
                 df_season[each] = df_season[each].mul(100).astype(int)
+
             dfs = df_season.style
             dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
-            my_html = dfs.render()
-            return my_html
+            html = dfs.render()
+            return html
+
         else:
             current_csv = pipeline_csv.format(sensor_name)
             df = pd.read_csv(current_csv, index_col=False)
@@ -209,27 +279,162 @@ def create_app(test_config=None):
             my_html = dfs.render()
             return my_html
 
-    @app.route('/testcsv')
-    def testcsv():
-        current_csv ='stereoTop.csv'
-        df = pd.read_csv(current_csv, index_col=False)
-        percent_columns = get_percent_columns(df)
-        for each in percent_columns:
-            df[each] = df[each].mul(100).astype(int)
-        dfs = df.style
-        dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
-        my_html = dfs.render()
-        return my_html
+    @app.route('/resubmitbyseason/<sensor_name>', defaults={'season': 6})
+    @app.route('/resubmitbyseason/<sensor_name>/<int:season>')
+    def resubmitbyseason(sensor_name, season):
+        if season == 6:
+            start = '2018-04-06'
+            end = '2018-08-01'
+            current_csv = pipeline_csv.format(sensor_name)
+            df = pd.read_csv(current_csv, index_col=False)
+            df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
 
-    @app.route('/testcsv2')
-    def testcsv2():
-        np.random.seed(24)
-        df = pd.DataFrame({'A': np.linspace(1, 10, 10)})
-        df = pd.concat([df, pd.DataFrame(np.random.randn(10, 4), columns=list('BCDE'))],
-               axis=1)
-        df.iloc[0, 2] = np.nan
-        df.style.apply(highlight_max)
-        return df.to_html()
+            # Omit rows with zero count in raw_data
+            primary_sensor = None
+            for sensorname in ['stereoTop', 'flirIrCamera', 'scanner3DTop']:
+                if sensorname in df_season.columns:
+                    df_season = df_season[df[sensorname] != 0]
+                    primary_sensor = sensorname
+
+            percent_columns = get_percent_columns(df_season)
+            for each in percent_columns:
+                df_season[each] = df_season[each].mul(100).astype(int)
+
+            # Create header and key
+            html = "<h1>Seasonal Counts: %s</h1><div>" % primary_sensor
+            html += '<a style="%s">%s</a></br>' % (color_percents(100),' 100% coverage')
+            html += '<a style="%s">%s</a></br>' % (color_percents(99), '>=99% coverage')
+            html += '<a style="%s">%s</a></br>' % (color_percents(98), '>=95% coverage')
+            html += '<a style="%s">%s</a></br></br>' % (color_percents(0),  ' <95% coverage')
+
+            # Create daily entries
+            cols = list(df_season.columns.values)
+            for index, row in df_season.iterrows():
+                html += render_date_entry(primary_sensor, cols, row, index)
+            html += "</div>"
+
+            return html
+
+        else:
+            current_csv = pipeline_csv.format(sensor_name)
+            df = pd.read_csv(current_csv, index_col=False)
+            percent_columns = get_percent_columns(df)
+            for each in percent_columns:
+                df[each] = df[each].mul(100).astype(int)
+            dfs = df.style
+            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+            my_html = dfs.render()
+            return my_html
+
+    @app.route('/submitmissing/<sensor_name>/<target>/<date>')
+    def submit_missing_timestamps(sensor_name, target, date):
+        sensordef = count_defs[sensor_name]
+        targetdef = sensordef[target]
+        extractorname = targetdef["extractor"]
+        submitted = []
+        notfound = []
+
+        if "parent" in targetdef:
+            # Count expected parent counts & actual current progress counts from filesystem
+            parentdef = sensordef[targetdef["parent"]]
+            parent_dir = os.path.join(parentdef["path"], date)
+            target_dir = os.path.join(targetdef["path"], date)
+            parent_timestamps = os.listdir(parent_dir)
+            target_timestamps = os.listdir(target_dir)
+
+            disp_name = Sensors("", "ua-mac").get_display_name(targetdef["parent"])
+            missing = list(set(parent_timestamps)-set(target_timestamps))
+            for ts in missing:
+                if ts.find("-") > -1 and ts.find("__") > -1:
+                    dataset_name = disp_name+" - "+ts
+                    raw_dsid = get_dsid_by_name(dataset_name)
+                    if raw_dsid:
+                        submit_extraction(CONN, CLOWDER_HOST, CLOWDER_KEY, raw_dsid, extractorname)
+                        submitted.append({"name": dataset_name, "id": raw_dsid})
+                    else:
+                        notfound.append({"name": dataset_name})
+
+        return json.dumps({
+            "extractor": extractorname,
+            "datasets submitted": submitted,
+            "datasets not found": notfound
+        })
+
+    @app.route('/submitrulecheck/<sensor_name>/<target>/<date>')
+    def submit_rulecheck(sensor_name, target, date):
+        sensordef = count_defs[sensor_name]
+        targetdef = sensordef[target]
+        submitted = []
+
+        s = Sensors("", "ua-mac")
+
+        if "parent" in targetdef:
+            target_dir = os.path.join(sensordef[targetdef["parent"]]["path"], date)
+            target_timestamps = os.listdir(target_dir)
+
+            disp_name = s.get_display_name(targetdef["parent"])
+
+            for ts in target_timestamps:
+                if ts.find("-") > -1 and ts.find("__") > -1: # TODO: and os.listdir(os.path.join(target_dir, ts)):
+                    # Get first populated timestamp for the date that has a Clowder ID
+                    dataset_name = disp_name+" - "+ts
+                    raw_dsid = get_dsid_by_name(dataset_name)
+                    if raw_dsid:
+                        # Submit associated Clowder ID to rulechecker
+                        submit_extraction(CONN, CLOWDER_HOST, CLOWDER_KEY, raw_dsid, "ncsa.rulechecker.terra")
+                        submitted.append({"name": dataset_name, "id": raw_dsid})
+                        break
+
+        return json.dumps({
+            "extractor": "ncsa.rulechecker.terra",
+            "datasets submitted": submitted
+        })
+
+    @app.route('/submitmissingrulechecks/<sensor_name>/<target>/<date>')
+    def submit_missing_timestamps_from_rulechecker(sensor_name, target, date):
+        sensordef = count_defs[sensor_name]
+        targetdef = sensordef[target]
+        extractorname = targetdef["extractor"]
+        submitted = []
+        notfound = []
+
+        if "parent" in targetdef:
+            # Count expected parent counts from filesystem
+            parentdef = sensordef[targetdef["parent"]]
+            parent_dir = os.path.join(parentdef["path"], date)
+            parent_timestamps = os.listdir(parent_dir)
+
+            # Count actual current progress counts from PSQL
+            psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
+            psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
+            psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
+            psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
+            conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
+
+            target_timestamps = []
+            query_string = targetdef["query_list"] % date
+            curs = conn.cursor()
+            curs.execute(query_string)
+            for result in curs:
+                target_timestamps.append(result[0].split("/")[-2])
+
+            disp_name = Sensors("", "ua-mac").get_display_name(targetdef["parent"])
+            missing = list(set(parent_timestamps)-set(target_timestamps))
+            for ts in missing:
+                if ts.find("-") > -1 and ts.find("__") > -1:
+                    dataset_name = disp_name+" - "+ts
+                    raw_dsid = get_dsid_by_name(dataset_name)
+                    if raw_dsid:
+                        submit_extraction(CONN, CLOWDER_HOST, CLOWDER_KEY, raw_dsid, extractorname)
+                        submitted.append({"name": dataset_name, "id": raw_dsid})
+                    else:
+                        notfound.append({"name": dataset_name})
+
+        return json.dumps({
+            "extractor": extractorname,
+            "datasets submitted": submitted,
+            "datasets not found": notfound
+        })
 
 
     @app.route('/dateoptions', methods=['POST','GET'])
@@ -323,6 +528,11 @@ def retrive_single_count(target_count, target_def, date, conn):
         date_dir = os.path.join(target_def["path"], date)
         if os.path.exists(date_dir):
             logging.info("   [%s] counting timestamps in %s" % (target_count, date_dir))
+            # TODO: Only count non-empty directories
+            """count = 0
+            for sub in os.listdir(date_dir):
+                if os.listdir(os.path.join(date_dir, sub)):
+                    count += 1"""
             count = len(os.listdir(date_dir))
         else:
             logging.info("   [%s] directory not found: %s" % (target_count, date_dir))
@@ -331,6 +541,11 @@ def retrive_single_count(target_count, target_def, date, conn):
         date_dir = os.path.join(target_def["path"], date)
         if os.path.exists(date_dir):
             logging.info("   [%s] counting plots in %s" % (target_count, date_dir))
+            # TODO: Only count non-empty directories
+            """count = 0
+            for sub in os.listdir(date_dir):
+                if os.listdir(os.path.join(date_dir, sub)):
+                    count += 1"""
             count = len(os.listdir(date_dir))
         else:
             logging.info("   [%s] directory not found: %s" % (target_count, date_dir))
@@ -355,7 +570,7 @@ def retrive_single_count(target_count, target_def, date, conn):
 
     elif target_def["type"] == "psql":
         logging.info("   [%s] querying PSQL records for %s" % (target_count, date))
-        query_string = target_def["query"] % date
+        query_string = target_def["query_count"] % date
         curs = conn.cursor()
         curs.execute(query_string)
         for result in curs:
@@ -465,17 +680,11 @@ if __name__ == '__main__':
 
     logger = logging.getLogger('counter')
 
-    try:
-        file = os.path.join(app_dir, 'users.json')
-        if os.path.isfile(file):
-            utils.users = json.load(open(file, "rb"))
-    except:  # pylint: disable=broad-except
-        logger.exception("Error reading users.json")
+    config = load_json_file(os.path.join(app_dir, "config_default.json"))
 
-    config = loadJsonFile(os.path.join(app_dir, "config_default.json"))
     if os.path.exists(os.path.join(app_dir, "data/config_custom.json")):
         print("...loading configuration from config_custom.json")
-        config = updateNestedDict(config, loadJsonFile(os.path.join(app_dir, "data/config_custom.json")))
+        config = update_nested_dict(config, load_json_file(os.path.join(app_dir, "data/config_custom.json")))
         try:
             DEFAULT_COUNT_START = str(config["default_count_start"])
             DEFAULT_COUNT_END = str(config["default_count_end"])

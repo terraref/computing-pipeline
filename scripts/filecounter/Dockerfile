@@ -1,4 +1,4 @@
-FROM terraref/terrautils:1.2
+FROM terraref/terrautils:1.4
 MAINTAINER Max Burnette <mburnet2@illinois.edu>
 
 RUN apt-get -y update \
