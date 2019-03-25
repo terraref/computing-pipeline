@@ -16,7 +16,8 @@ from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
 
 from pyclowder.connectors import Connector
-from pyclowder.datasets import submit_extraction
+from pyclowder.datasets import submit_extraction, get_file_list
+from pyclowder.files import submit_extraction as submit_file_extraction
 from terrautils.extractors import load_json_file
 from terrautils.sensors import Sensors
 
@@ -126,17 +127,26 @@ def render_date_entry(sensorname, columns, rowdata, rowindex):
         api_link = ""
         if group != sensorname:
             group_cell = '<td style="border:solid 1px">...%s</td>' % group
+
             if sensordef[group]["type"] == "timestamp":
                 if "%" in vals[group] and vals[group]["%"] < 100:
                     api_link = '<a href="/submitmissing/%s/%s/%s">Submit to %s</a>' % (
                         sensorname, group, rowdata['date'], sensordef[group]["extractor"])
+
             elif sensordef[group]["type"] == "psql":
                 if "%" in vals[group] and vals[group]["%"] == 100:
                     api_link = '<a href="/submitrulecheck/%s/%s/%s">Retrigger ncsa.rulechecker.terra</a>' % (
                         sensorname, group, rowdata['date'])
+
                 elif "%" in vals[group] and vals[group]["%"] < 100:
                     api_link = '<a href="/submitmissingrulechecks/%s/%s/%s">Submit to ncsa.rulechecker.terra</a>' % (
                         sensorname, group, rowdata['date'])
+
+            elif sensordef[group]["type"] == "regex":
+                if "parent" in sensordef[group]:
+                    api_link = '<a href="/submitmissingregex/%s/%s/%s">Submit to %s</a>' % (
+                        sensorname, group, rowdata['date'], sensordef[group]["extractor"])
+
         else:
             group_cell = '<td style="border:solid 1px"><b>raw data</b></td>'
         api_cell = '<td style="border:solid 1px">%s</td>' % api_link
@@ -327,6 +337,7 @@ def create_app(test_config=None):
             return my_html
 
     @app.route('/submitmissing/<sensor_name>/<target>/<date>')
+    @utils.requires_user("admin")
     def submit_missing_timestamps(sensor_name, target, date):
         sensordef = count_defs[sensor_name]
         targetdef = sensordef[target]
@@ -361,6 +372,7 @@ def create_app(test_config=None):
         })
 
     @app.route('/submitrulecheck/<sensor_name>/<target>/<date>')
+    @utils.requires_user("admin")
     def submit_rulecheck(sensor_name, target, date):
         sensordef = count_defs[sensor_name]
         targetdef = sensordef[target]
@@ -391,6 +403,7 @@ def create_app(test_config=None):
         })
 
     @app.route('/submitmissingrulechecks/<sensor_name>/<target>/<date>')
+    @utils.requires_user("admin")
     def submit_missing_timestamps_from_rulechecker(sensor_name, target, date):
         sensordef = count_defs[sensor_name]
         targetdef = sensordef[target]
@@ -436,6 +449,49 @@ def create_app(test_config=None):
             "datasets not found": notfound
         })
 
+    @app.route('/submitmissingregex/<sensor_name>/<target>/<date>')
+    @utils.requires_user("admin")
+    def submit_missing_regex(sensor_name, target, date):
+        sensordef = count_defs[sensor_name]
+        targetdef = sensordef[target]
+        extractorname = targetdef["extractor"]
+        submitted = []
+        notfound = []
+
+        if "parent" in targetdef:
+            # Count expected parent counts from filesystem
+            parentdef = sensordef[targetdef["parent"]]
+            parent_dir = os.path.join(parentdef["path"], date)
+
+            if parentdef["type"] == "regex" and parentdef["path"] == targetdef["path"]:
+                for file in os.listdir(parent_dir):
+                    if re.match(parentdef["regex"], file):
+                        expected_output = file.replace(targetdef["parent_replacer_check"][1],
+                                                       targetdef["parent_replacer_check"][0])
+                        if not os.path.isfile(os.path.join(parent_dir, expected_output)):
+                            # Find the file ID of the parent file and submit it
+                            dataset_name = parentdef["dispname"]+" - "+date
+                            dsid = get_dsid_by_name(dataset_name)
+                            if dsid:
+                                parent_id = None
+                                dsfiles = get_file_list(CONN, CLOWDER_HOST, CLOWDER_KEY, dsid)
+                                for dsfile in dsfiles:
+                                    if dsfile["filename"] == file:
+                                        parent_id = dsfile["id"]
+                                        break
+                                if parent_id:
+                                    submit_file_extraction(CONN, CLOWDER_HOST, CLOWDER_KEY, parent_id, extractorname)
+                                    submitted.append({"name": file, "id": parent_id})
+                                else:
+                                    notfound.append({"name": file})
+                            else:
+                                notfound.append({"name": dataset_name})
+
+        return json.dumps({
+            "extractor": extractorname,
+            "datasets submitted": submitted,
+            "datasets not found": notfound
+        })
 
     @app.route('/dateoptions', methods=['POST','GET'])
     @utils.requires_user("admin")
