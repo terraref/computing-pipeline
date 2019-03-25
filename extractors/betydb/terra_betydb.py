@@ -44,10 +44,9 @@ class BetyDBUploader(TerrarefExtractor):
         if len(inputlines) <= 1:
             # first check if there is data besides header line
             self.log_info(resource, "no trait lines found in CSV; skipping upload")
-
         else:
             # submit CSV to BETY
-            self.log_info(resource, "submitting CSV to bety")
+            self.log_info(resource, "found %s trait lines; submitting CSV to bety" % str(len(inputlines)-1))
             submit_traits(resource['local_paths'][0], betykey=self.bety_key)
 
             # Add metadata to original dataset indicating this was run
