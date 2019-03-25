@@ -38,16 +38,24 @@ class BetyDBUploader(TerrarefExtractor):
     def process_message(self, connector, host, secret_key, resource, parameters):
         self.start_message(resource)
 
-        # submit CSV to BETY
-        self.log_info(resource, "submitting CSV to bety")
-        submit_traits(resource['local_paths'][0], betykey=self.bety_key)
+        with open(resource['local_paths'][0], 'r') as inputcsv:
+            inputlines = inputcsv.readlines()
 
-        # Add metadata to original dataset indicating this was run
-        self.log_info(resource, "updating file metadata (%s)" % resource['id'])
-        ext_meta = build_metadata(host, self.extractor_info, resource['id'], {
-            "betydb_link": "https://terraref.ncsa.illinois.edu/bety/api/v1/variables?name=canopy_cover"
-        }, 'file')
-        upload_metadata(connector, host, secret_key, resource['id'], ext_meta)
+        if len(inputlines) <= 1:
+            # first check if there is data besides header line
+            self.log_info(resource, "no trait lines found in CSV; skipping upload")
+
+        else:
+            # submit CSV to BETY
+            self.log_info(resource, "submitting CSV to bety")
+            submit_traits(resource['local_paths'][0], betykey=self.bety_key)
+
+            # Add metadata to original dataset indicating this was run
+            self.log_info(resource, "updating file metadata (%s)" % resource['id'])
+            ext_meta = build_metadata(host, self.extractor_info, resource['id'], {
+                "betydb_link": "https://terraref.ncsa.illinois.edu/bety/api/v1/variables?name=canopy_cover"
+            }, 'file')
+            upload_metadata(connector, host, secret_key, resource['id'], ext_meta)
 
         self.end_message(resource)
 
