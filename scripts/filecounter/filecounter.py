@@ -102,6 +102,8 @@ def color_percents(val):
 
 def render_date_entry(sensorname, columns, rowdata, rowindex):
     html = '<div><br/><a style="font-size:18px"><b>%s</b></a>' % rowdata['date']
+    html += ' <a href="/newschedule/%s/%s/%s">(trigger recount)</a>' % (
+        sensorname, rowdata['date'], rowdata['date'])
     html += '</br><table style="border: solid 2px;border-spacing:0px">'
 
     sensordef = count_defs[sensorname]
@@ -672,12 +674,6 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
                 df = pd.DataFrame(columns=cols)
         else:
             logging.info("output file for %s does not exist" % sensor)
-            # cols = ["date"]
-            # for target_count in targets:
-            #     target_def = targets[target_count]
-            #     cols.append(target_count)
-            #     if "parent" in target_def:
-            #         cols.append(target_count+'%')
             df = pd.DataFrame(columns=cols)
             logging.info("CSV did not exist, created dataframe for %s " % sensor)
 
