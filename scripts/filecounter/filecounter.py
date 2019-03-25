@@ -102,7 +102,7 @@ def color_percents(val):
 
 def render_date_entry(sensorname, columns, rowdata, rowindex):
     html = '<div><br/><a style="font-size:18px"><b>%s</b></a>' % rowdata['date']
-    html += ' <a href="/newschedule/%s/%s/%s">(trigger recount)</a>' % (
+    html += ' <a href="/newschedule/%s/%s/%s">(Recount)</a>' % (
         sensorname, rowdata['date'], rowdata['date'])
     html += '</br><table style="border: solid 2px;border-spacing:0px">'
 
@@ -501,11 +501,10 @@ def create_app(test_config=None):
         form = SensorDateSelectForm(request.form)
         if form.validate_on_submit():
             raw_selected_sensors = form.sensors.data
-            selected_sensors = []
             for r in raw_selected_sensors:
-                selected_sensors.append(str(r))
-            return redirect(url_for('schedule_count',
-                                    sensors=selected_sensors,
+                # TODO: Currently only one sensor can be scheduled at a time
+                return redirect(url_for('schedule_count',
+                                    sensor=str(r),
                                     start_range=str(form.start_date.data.strftime('%Y-%m-%d')),
                                     end_range=str(form.end_date.data.strftime('%Y-%m-%d'))))
         return render_template('dateoptions.html', form=form)
@@ -528,21 +527,20 @@ def create_app(test_config=None):
         logging.info("Archived existing count csvs")
         return redirect(url_for('sensors', message=message))
 
-    @app.route('/newschedule/<sensors>/<start_range>/<end_range>')
-    def schedule_count(sensors, start_range, end_range):
-        sensor_list = sensors
+    @app.route('/newschedule/<sensor>/<start_range>/<end_range>')
+    @utils.requires_user("admin")
+    def schedule_count(sensor, start_range, end_range):
         dates_in_range = generate_dates_in_range(start_range, end_range)
 
         psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
         psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
         psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
         psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
-
         conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
 
-        thread.start_new_thread(update_file_count_csvs, (sensor_list, dates_in_range, conn))
+        thread.start_new_thread(update_file_count_csvs, (sensor, dates_in_range, conn))
 
-        message = "Custom scan scheduled for %s sensors and %s dates" % (len(sensor_list), len(dates_in_range))
+        message = "Custom scan scheduled for %s on %s dates" % (sensor, len(dates_in_range))
         return redirect(url_for('sensors', message=message))
 
     return app
@@ -571,9 +569,10 @@ def run_regular_update(use_defaults=False):
             start_date_string = os.getenv('START_SCAN_DATE', two_weeks.strftime("%Y-%m-%d"))
             dates_to_check = generate_dates_in_range(start_date_string)
 
-        logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
+        logging.info("Checking counts for all sensors for dates %s - %s" % (start_date_string, dates_to_check[-1]))
 
-        update_file_count_csvs(count_defs.keys(), dates_to_check, conn)
+        for s in count_defs.keys():
+            update_file_count_csvs(s, dates_to_check, conn)
 
         # Wait 1 hour for next iteration
         time.sleep(3600)
@@ -636,7 +635,7 @@ def retrive_single_count(target_count, target_def, date, conn):
 
     return count
 
-def update_file_count_csvs(sensor_list, dates_to_check, conn):
+def update_file_count_csvs(sensor, dates_to_check, conn):
     """Perform necessary counting on specified dates to update CSV for all sensors."""
     global SCAN_LOCK
 
@@ -644,86 +643,86 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
         logging.info("Another thread currently locking database; waiting 60 seconds to retry")
         time.sleep(60)
 
-    logging.info("Locking scan for %s sensors and %s dates" % (len(sensor_list), len(dates_to_check)))
+    logging.info("Locking scan for %s on %s dates" % (sensor, len(dates_to_check)))
     SCAN_LOCK = True
-    for sensor in sensor_list:
-        output_file = os.path.join(config['csv_path'], sensor+".csv")
-        logging.info("Updating counts for %s into %s" % (sensor, output_file))
-        targets = count_defs[sensor]
-        cols = ["date"]
+
+    output_file = os.path.join(config['csv_path'], sensor+".csv")
+    logging.info("Updating counts for %s into %s" % (sensor, output_file))
+    targets = count_defs[sensor]
+    cols = ["date"]
+    for target_count in targets:
+        target_def = targets[target_count]
+        cols.append(target_count)
+        if "parent" in target_def:
+            cols.append(target_count + '%')
+
+    # Load data frame from existing CSV or create a new one
+    if os.path.exists(output_file):
+        logging.info("csv exists for %s" % output_file)
+        try:
+            df = pd.read_csv(output_file)
+        except Exception as e:
+            logging.info(e)
+            logging.info('CSV exists, could not read as dataframe')
+            cols = ["date"]
+            df = pd.DataFrame(columns=cols)
+            logging.info("CSV existed but could not be read, created dataframe for %s " % sensor)
+        df_columns = list(df.columns.values)
+        if df_columns != cols:
+            logging.info("CSV existed but had malformed columns, created dataframe for %s " % sensor)
+            df = pd.DataFrame(columns=cols)
+    else:
+        logging.info("output file for %s does not exist" % sensor)
+        df = pd.DataFrame(columns=cols)
+        logging.info("CSV did not exist, created dataframe for %s " % sensor)
+
+    # Populate count and percentage (if applicable) for each target count
+    logging.info("the columns of the csv are %s " % str(df.columns.values))
+    for current_date in dates_to_check:
+        logging.info("[%s] %s" % (sensor, current_date))
+        counts = {}
+        percentages = {}
         for target_count in targets:
             target_def = targets[target_count]
-            cols.append(target_count)
+            counts[target_count] = retrive_single_count(target_count, target_def, current_date, conn)
             if "parent" in target_def:
-                cols.append(target_count + '%')
+                if target_def["parent"] not in counts:
+                    counts[target_def["parent"]] = retrive_single_count(targets[target_def["parent"]], current_date, conn)
+                if counts[target_def["parent"]] > 0:
+                    percentages[target_count] = (counts[target_count]*1.0)/(counts[target_def["parent"]]*1.0)
+                else:
+                    percentages[target_count] = 0.0
 
-        # Load data frame from existing CSV or create a new one
-        if os.path.exists(output_file):
-            logging.info("csv exists for %s" % output_file)
-            try:
-                df = pd.read_csv(output_file)
-            except Exception as e:
-                logging.info(e)
-                logging.info('CSV exists, could not read as dataframe')
-                cols = ["date"]
-                df = pd.DataFrame(columns=cols)
-                logging.info("CSV existed but could not be read, created dataframe for %s " % sensor)
-            df_columns = list(df.columns.values)
-            if df_columns != cols:
-                logging.info("CSV existed but had malformed columns, created dataframe for %s " % sensor)
-                df = pd.DataFrame(columns=cols)
-        else:
-            logging.info("output file for %s does not exist" % sensor)
-            df = pd.DataFrame(columns=cols)
-            logging.info("CSV did not exist, created dataframe for %s " % sensor)
-
-        # Populate count and percentage (if applicable) for each target count
-        logging.info("the columns of the csv are %s " % str(df.columns.values))
-        for current_date in dates_to_check:
-            logging.info("[%s] %s" % (sensor, current_date))
-            counts = {}
-            percentages = {}
+        # If this date already has a row, just update
+        if current_date in df['date'].values:
+            logging.info("Already have data for date %s " % current_date)
+            updated_entry = [current_date]
             for target_count in targets:
                 target_def = targets[target_count]
-                counts[target_count] = retrive_single_count(target_count, target_def, current_date, conn)
+                updated_entry.append(counts[target_count])
                 if "parent" in target_def:
-                    if target_def["parent"] not in counts:
-                        counts[target_def["parent"]] = retrive_single_count(targets[target_def["parent"]], current_date, conn)
-                    if counts[target_def["parent"]] > 0:
-                        percentages[target_count] = (counts[target_count]*1.0)/(counts[target_def["parent"]]*1.0)
-                    else:
-                        percentages[target_count] = 0.0
+                    updated_entry.append(percentages[target_count])
+            df.loc[df['date'] == current_date] = updated_entry
+        # If not, create a new row
+        else:
+            logging.info("No data for date %s adding to dataframe" % current_date)
+            new_entry = [current_date]
+            indices = ["date"]
 
-            # If this date already has a row, just update
-            if current_date in df['date'].values:
-                logging.info("Already have data for date %s " % current_date)
-                updated_entry = [current_date]
-                for target_count in targets:
-                    target_def = targets[target_count]
-                    updated_entry.append(counts[target_count])
-                    if "parent" in target_def:
-                        updated_entry.append(percentages[target_count])
-                df.loc[df['date'] == current_date] = updated_entry
-            # If not, create a new row
-            else:
-                logging.info("No data for date %s adding to dataframe" % current_date)
-                new_entry = [current_date]
-                indices = ["date"]
+            for target_count in targets:
+                target_def = targets[target_count]
 
-                for target_count in targets:
-                    target_def = targets[target_count]
+                indices.append(target_count)
+                new_entry.append(counts[target_count])
+                if "parent" in target_def:
+                    indices.append(target_count+'%')
+                    new_entry.append(percentages[target_count])
+            df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
 
-                    indices.append(target_count)
-                    new_entry.append(counts[target_count])
-                    if "parent" in target_def:
-                        indices.append(target_count+'%')
-                        new_entry.append(percentages[target_count])
-                df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
-
-        logging.info("Writing %s" % output_file)
-        df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
-        df.sort_values(by=['date'], inplace=True, ascending=True)
-        df.to_csv(output_file, index=False)
+    logging.info("Writing %s" % output_file)
+    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    df.sort_values(by=['date'], inplace=True, ascending=True)
+    df.to_csv(output_file, index=False)
 
     SCAN_LOCK = False
 

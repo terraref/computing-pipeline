@@ -75,7 +75,8 @@ SENSOR_COUNT_DEFINITIONS = {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
             "type": 'regex',
             "regex": ".*_mask.tif",
-            "dispname": "Full Field"}),
+            "dispname": "Full Field",
+            "extractor": "terra.stereo-rgb.canopycover"}),
         # BETYdb traits
         ("rgb_canopycover", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
@@ -83,7 +84,7 @@ SENSOR_COUNT_DEFINITIONS = {
             "regex": '.*_canopycover_bety.csv',
             "parent": "maskff",
             "parent_replacer_check": ["_canopycover_bety.csv", ".tif"],
-            "extractor": "terra.stereo-rgb.canopycover"})
+            "extractor": "terra.betydb"})
     ]),
 
     "flirIrCamera": OrderedDict([
