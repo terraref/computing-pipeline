@@ -106,7 +106,8 @@ SENSOR_COUNT_DEFINITIONS = {
             "type": "psql",
             "query_count": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='Thermal IR GeoTIFFs' and output->>'date'='%s';",
             "query_list": "select distinct file_path from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='Thermal IR GeoTIFFs' and output->>'date'='%s';",
-            "parent": "ir_geotiff"}),
+            "parent": "ir_geotiff",
+            "extractor": "ncsa.rulechecker.terra"}),
         ("flirff", {
             "path": os.path.join(uamac_root, 'Level_2/ir_fullfield/'),
             "type": 'regex',
@@ -140,5 +141,23 @@ SENSOR_COUNT_DEFINITIONS = {
             "path": os.path.join(uamac_root, 'Level_3/laser3d_canopyheight/'),
             "type": 'plot',
             "parent": "laser3d_las_plot"})
+    ]),
+
+    "EnvironmentLogger": OrderedDict([
+        # basic products
+        ("EnvironmentLogger", {
+            "path": os.path.join(uamac_root, 'raw_data/EnvironmentLogger/'),
+            "type": 'regex',
+            "regex": ".*_environmentlogger.json",}),
+        ("envlog2netcdf", {
+            "path": os.path.join(uamac_root, 'Level_1/envlog2netcdf/'),
+            "type": 'regex',
+            "regex": "envlog_netcdf_.*.nc",
+            "extractor": "terra.environmental.envlog2netcdf"}),
+        ("envlog2netcdf_csv", {
+            "path": os.path.join(uamac_root, 'Level_1/envlog2netcdf/'),
+            "type": 'regex',
+            "regex": "envlog_netcdf_.*_geo.csv",
+            "extractor": "terra.environmental.envlog2netcdf"})
     ])
 }

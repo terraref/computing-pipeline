@@ -51,9 +51,7 @@ class BetyDBUploader(TerrarefExtractor):
 
             # Add metadata to original dataset indicating this was run
             self.log_info(resource, "updating file metadata (%s)" % resource['id'])
-            ext_meta = build_metadata(host, self.extractor_info, resource['id'], {
-                "betydb_link": "https://terraref.ncsa.illinois.edu/bety/api/v1/variables?name=canopy_cover"
-            }, 'file')
+            ext_meta = build_metadata(host, self.extractor_info, resource['id'], {}, 'file')
             upload_metadata(connector, host, secret_key, resource['id'], ext_meta)
 
         self.end_message(resource)

@@ -353,7 +353,10 @@ def create_app(test_config=None):
             parent_dir = os.path.join(parentdef["path"], date)
             target_dir = os.path.join(targetdef["path"], date)
             parent_timestamps = os.listdir(parent_dir)
-            target_timestamps = os.listdir(target_dir)
+            if os.path.isdir(target_dir):
+                target_timestamps = os.listdir(target_dir)
+            else:
+                target_timestamps = []
 
             disp_name = Sensors("", "ua-mac").get_display_name(targetdef["parent"])
             missing = list(set(parent_timestamps)-set(target_timestamps))
