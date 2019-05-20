@@ -437,15 +437,11 @@ def create_app(test_config=None):
             parent_timestamps = os.listdir(parent_dir)
 
             # Count actual current progress counts from PSQL
-            psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
-            psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
-            psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
-            psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
-            conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
+            psql_conn = connect_to_psql()
 
             target_timestamps = []
             query_string = targetdef["query_list"] % date
-            curs = conn.cursor()
+            curs = psql_conn.cursor()
             curs.execute(query_string)
             for result in curs:
                 target_timestamps.append(result[0].split("/")[-2])
@@ -726,7 +722,7 @@ def update_file_count_csvs(sensor, dates_to_check, psql_conn):
 
             if "parent" in target_def:
                 if target_def["parent"] not in counts:
-                    counts[target_def["parent"]] = retrive_single_count(targets[target_def["parent"]], current_date, conn)
+                    counts[target_def["parent"]] = retrive_single_count(targets[target_def["parent"]], current_date, psql_conn)
                 if counts[target_def["parent"]] > 0:
                     percentages[target_count] = (counts[target_count]*1.0)/(counts[target_def["parent"]]*1.0)
                 else:
