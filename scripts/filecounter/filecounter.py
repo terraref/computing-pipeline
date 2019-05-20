@@ -149,6 +149,11 @@ def render_date_entry(sensorname, columns, rowdata, rowindex):
                     api_link = '<a href="/submitmissingregex/%s/%s/%s">Submit to %s</a>' % (
                         sensorname, group, rowdata['date'], sensordef[group]["extractor"])
 
+            elif sensordef[group]["type"] == "plot":
+                if "parent" in sensordef[group]:
+                    api_link = '<a href="/submitmissingplots/%s/%s/%s">Submit to %s</a>' % (
+                        sensorname, group, rowdata['date'], sensordef[group]["extractor"])
+
         else:
             group_cell = '<td style="border:solid 1px"><b>raw data</b></td>'
         api_cell = '<td style="border:solid 1px">%s</td>' % api_link
@@ -183,6 +188,15 @@ def get_dsid_by_name(dsname):
     else:
         return None
 
+def connect_to_psql():
+    psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
+    psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
+    psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
+    psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
+
+    psql_conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
+
+    return psql_conn
 
 # FLASK COMPONENTS ----------------------------
 def create_app(test_config=None):
@@ -480,17 +494,44 @@ def create_app(test_config=None):
                             if dsid:
                                 parent_id = None
                                 dsfiles = get_file_list(CONN, CLOWDER_HOST, CLOWDER_KEY, dsid)
+                                matchfile = file.replace("_thumb.tif", ".tif")
                                 for dsfile in dsfiles:
-                                    if dsfile["filename"] == file:
+                                    if dsfile["filename"] == matchfile:
                                         parent_id = dsfile["id"]
                                         break
                                 if parent_id:
                                     submit_file_extraction(CONN, CLOWDER_HOST, CLOWDER_KEY, parent_id, extractorname)
-                                    submitted.append({"name": file, "id": parent_id})
+                                    submitted.append({"name": matchfile, "id": parent_id})
                                 else:
-                                    notfound.append({"name": file})
+                                    notfound.append({"name": matchfile})
                             else:
                                 notfound.append({"name": dataset_name})
+
+        return json.dumps({
+            "extractor": extractorname,
+            "datasets submitted": submitted,
+            "datasets not found": notfound
+        })
+
+    @app.route('/submitmissingplots/<sensor_name>/<target>/<date>')
+    @utils.requires_user("admin")
+    def submit_missing_plots(sensor_name, target, date):
+        sensordef = count_defs[sensor_name]
+        targetdef = sensordef[target]
+        extractorname = targetdef["extractor"]
+        submitted = []
+        notfound = []
+
+        if "parent" in targetdef:
+            # Count expected parent counts from filesystem
+            parentdef = sensordef[targetdef["parent"]]
+            parent_dir = os.path.join(parentdef["path"], date)
+            target_dir = os.path.join(targetdef["path"], date)
+            parent_plots = os.listdir(parent_dir)
+            if os.path.isdir(target_dir):
+                target_plots = os.listdir(target_dir)
+            else:
+                target_plots = []
 
         return json.dumps({
             "extractor": extractorname,
@@ -534,14 +575,8 @@ def create_app(test_config=None):
     @utils.requires_user("admin")
     def schedule_count(sensor, start_range, end_range):
         dates_in_range = generate_dates_in_range(start_range, end_range)
-
-        psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
-        psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
-        psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
-        psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
-
-        thread.start_new_thread(update_file_count_csvs, (sensor, dates_in_range, conn))
+        psql_conn = connect_to_psql()
+        thread.start_new_thread(update_file_count_csvs, (sensor, dates_in_range, psql_conn))
 
         message = "Custom scan scheduled for %s on %s dates" % (sensor, len(dates_in_range))
         return redirect(url_for('sensors', message=message))
@@ -552,12 +587,7 @@ def create_app(test_config=None):
 # COUNTING COMPONENTS ----------------------------
 def run_regular_update(use_defaults=False):
     """Perform regular update of previous two weeks for all sensors"""
-    psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
-    psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
-    psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
-    psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
-
-    conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
+    psql_conn = connect_to_psql()
 
     while True:
         # Determine two weeks before current date, or by defaults
@@ -575,12 +605,12 @@ def run_regular_update(use_defaults=False):
         logging.info("Checking counts for all sensors for dates %s - %s" % (start_date_string, dates_to_check[-1]))
 
         for s in count_defs.keys():
-            update_file_count_csvs(s, dates_to_check, conn)
+            psql_conn = update_file_count_csvs(s, dates_to_check, psql_conn)
 
         # Wait 1 hour for next iteration
         time.sleep(3600)
 
-def retrive_single_count(target_count, target_def, date, conn):
+def retrive_single_count(target_count, target_def, date, psql_conn):
     """Return count of specified type (see counts.py for types)"""
     count = 0
 
@@ -631,14 +661,14 @@ def retrive_single_count(target_count, target_def, date, conn):
     elif target_def["type"] == "psql":
         logging.info("   [%s] querying PSQL records for %s" % (target_count, date))
         query_string = target_def["query_count"] % date
-        curs = conn.cursor()
+        curs = psql_conn.cursor()
         curs.execute(query_string)
         for result in curs:
             count = result[0]
 
     return count
 
-def update_file_count_csvs(sensor, dates_to_check, conn):
+def update_file_count_csvs(sensor, dates_to_check, psql_conn):
     """Perform necessary counting on specified dates to update CSV for all sensors."""
     global SCAN_LOCK
 
@@ -687,7 +717,13 @@ def update_file_count_csvs(sensor, dates_to_check, conn):
         percentages = {}
         for target_count in targets:
             target_def = targets[target_count]
-            counts[target_count] = retrive_single_count(target_count, target_def, current_date, conn)
+
+            try:
+                counts[target_count] = retrive_single_count(target_count, target_def, current_date, psql_conn)
+            except:
+                psql_conn = connect_to_psql()
+                counts[target_count] = retrive_single_count(target_count, target_def, current_date, psql_conn)
+
             if "parent" in target_def:
                 if target_def["parent"] not in counts:
                     counts[target_def["parent"]] = retrive_single_count(targets[target_def["parent"]], current_date, conn)
@@ -728,6 +764,7 @@ def update_file_count_csvs(sensor, dates_to_check, conn):
     df.to_csv(output_file, index=False)
 
     SCAN_LOCK = False
+    return psql_conn
 
 
 if __name__ == '__main__':

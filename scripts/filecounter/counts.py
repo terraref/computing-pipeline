@@ -84,7 +84,7 @@ SENSOR_COUNT_DEFINITIONS = {
             "regex": '.*_canopycover_bety.csv',
             "parent": "maskff",
             "parent_replacer_check": ["_canopycover_bety.csv", ".tif"],
-            "extractor": "terra.betydb"})
+            "extractor": "terra.stereo-rgb.canopycover"})
     ]),
 
     "flirIrCamera": OrderedDict([
@@ -119,7 +119,7 @@ SENSOR_COUNT_DEFINITIONS = {
             "type": 'regex',
             "regex": '.*_meantemp_bety.csv',
             "parent": "flirff",
-            "parent_replacer_check": ["_meantemp_bety.csv", ".tif"],
+            "parent_replacer_check": ["_meantemp_bety.csv", "_thumb.tif"],
             "extractor": "terra.multispectral.meantemp"})
     ]),
 
@@ -140,7 +140,8 @@ SENSOR_COUNT_DEFINITIONS = {
         ("laser3d_canopyheight", {
             "path": os.path.join(uamac_root, 'Level_3/laser3d_canopyheight/'),
             "type": 'plot',
-            "parent": "laser3d_las_plot"})
+            "parent": "laser3d_las_plot",
+            "extractor": "terra.3dscanner.las2height"})
     ]),
 
     "EnvironmentLogger": OrderedDict([
@@ -150,14 +151,14 @@ SENSOR_COUNT_DEFINITIONS = {
             "type": 'regex',
             "regex": ".*_environmentlogger.json",}),
         ("envlog2netcdf", {
-            "path": os.path.join(uamac_root, 'Level_1/envlog2netcdf/'),
+            "path": os.path.join(uamac_root, 'Level_1/envlog_netcdf/'),
             "type": 'regex',
             "regex": "envlog_netcdf_.*.nc",
-            "extractor": "terra.environmental.envlog2netcdf"}),
-        ("envlog2netcdf_csv", {
-            "path": os.path.join(uamac_root, 'Level_1/envlog2netcdf/'),
-            "type": 'regex',
-            "regex": "envlog_netcdf_.*_geo.csv",
             "extractor": "terra.environmental.envlog2netcdf"})
+        #,("envlog2netcdf_csv", {
+        #    "path": os.path.join(uamac_root, 'Level_1/envlog_netcdf/'),
+        #    "type": 'regex',
+        #    "regex": "envlog_netcdf_.*_geo.csv",
+        #    "extractor": "terra.environmental.envlog2netcdf"})
     ])
 }

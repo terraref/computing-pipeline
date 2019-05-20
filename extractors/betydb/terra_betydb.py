@@ -29,6 +29,10 @@ class BetyDBUploader(TerrarefExtractor):
     def check_message(self, connector, host, secret_key, resource, parameters):
         self.start_check(resource)
 
+        if not resource['name'].endswith(".csv"):
+            self.log_skip(resource,"%s is not a CSV file" % resource['name'])
+            return CheckMessage.ignore
+
         md = download_metadata(connector, host, secret_key, resource['id'])
         if get_extractor_metadata(md, self.extractor_info['name']) and not self.overwrite:
             self.log_skip(resource,"metadata indicates it was already processed")
