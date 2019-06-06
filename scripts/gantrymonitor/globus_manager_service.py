@@ -433,7 +433,7 @@ def writeTaskToInflux(task):
 # ----------------------------------------------------------
 """Send message to NCSA Globus monitor API that a new task has begun"""
 def notifyMonitorOfNewTransfer(globusID, contents, sess):
-    logger.info("%s being sent to NCSA Globus monitor" % globusID, extra={
+    logger.info("%s being sent to NCSA Globus monitor with user %s" % (globusID, config['globus']['username']), extra={
         "globus_id": globusID,
         "action": "NOTIFY NCSA MONITOR"
     })

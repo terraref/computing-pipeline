@@ -269,7 +269,7 @@ def writeTaskToDatabase(task):
     stat = task['status']
     start = task['started']
     comp = task['completed'] if 'completed' in task else ''
-    guser = task['user'] if 'user' in task else ''
+    guser = task['user'] if 'user' in task else 'terraref'
     filecount = int(task['file_count']) if 'file_count' in task else -1
     bytecount = int(task['bytes']) if 'bytes' in task else -1
     jbody = json.dumps(task['contents'])
