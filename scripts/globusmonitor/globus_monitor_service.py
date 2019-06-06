@@ -484,8 +484,9 @@ def generateAuthTokens():
     for validUser in config['globus']['valid_users']:
         logger.info("- generating auth token for %s" % validUser)
         config['globus']['valid_users'][validUser]['auth_token'] = goauth.get_access_token(
-                username=validUser,
-                password=config['globus']['valid_users'][validUser]['password']
+                validUser,
+                config['globus']['valid_users'][validUser]['password'],
+                os.path.join(rootPath, "globus_amazon.pem")
             ).token
 
 """Query Globus API to get current transfer status of a given task"""
