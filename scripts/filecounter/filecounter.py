@@ -16,7 +16,8 @@ from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired
 
 from pyclowder.connectors import Connector
-from pyclowder.datasets import submit_extraction
+from pyclowder.datasets import submit_extraction, get_file_list
+from pyclowder.files import submit_extraction as submit_file_extraction
 from terrautils.extractors import load_json_file
 from terrautils.sensors import Sensors
 
@@ -101,6 +102,8 @@ def color_percents(val):
 
 def render_date_entry(sensorname, columns, rowdata, rowindex):
     html = '<div><br/><a style="font-size:18px"><b>%s</b></a>' % rowdata['date']
+    html += ' <a href="/newschedule/%s/%s/%s">(Recount)</a>' % (
+        sensorname, rowdata['date'], rowdata['date'])
     html += '</br><table style="border: solid 2px;border-spacing:0px">'
 
     sensordef = count_defs[sensorname]
@@ -126,17 +129,31 @@ def render_date_entry(sensorname, columns, rowdata, rowindex):
         api_link = ""
         if group != sensorname:
             group_cell = '<td style="border:solid 1px">...%s</td>' % group
+
             if sensordef[group]["type"] == "timestamp":
                 if "%" in vals[group] and vals[group]["%"] < 100:
                     api_link = '<a href="/submitmissing/%s/%s/%s">Submit to %s</a>' % (
                         sensorname, group, rowdata['date'], sensordef[group]["extractor"])
+
             elif sensordef[group]["type"] == "psql":
                 if "%" in vals[group] and vals[group]["%"] == 100:
                     api_link = '<a href="/submitrulecheck/%s/%s/%s">Retrigger ncsa.rulechecker.terra</a>' % (
                         sensorname, group, rowdata['date'])
+
                 elif "%" in vals[group] and vals[group]["%"] < 100:
                     api_link = '<a href="/submitmissingrulechecks/%s/%s/%s">Submit to ncsa.rulechecker.terra</a>' % (
                         sensorname, group, rowdata['date'])
+
+            elif sensordef[group]["type"] == "regex":
+                if "parent" in sensordef[group]:
+                    api_link = '<a href="/submitmissingregex/%s/%s/%s">Submit to %s</a>' % (
+                        sensorname, group, rowdata['date'], sensordef[group]["extractor"])
+
+            elif sensordef[group]["type"] == "plot":
+                if "parent" in sensordef[group]:
+                    api_link = '<a href="/submitmissingplots/%s/%s/%s">Submit to %s</a>' % (
+                        sensorname, group, rowdata['date'], sensordef[group]["extractor"])
+
         else:
             group_cell = '<td style="border:solid 1px"><b>raw data</b></td>'
         api_cell = '<td style="border:solid 1px">%s</td>' % api_link
@@ -171,6 +188,15 @@ def get_dsid_by_name(dsname):
     else:
         return None
 
+def connect_to_psql():
+    psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
+    psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
+    psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
+    psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
+
+    psql_conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
+
+    return psql_conn
 
 # FLASK COMPONENTS ----------------------------
 def create_app(test_config=None):
@@ -327,6 +353,7 @@ def create_app(test_config=None):
             return my_html
 
     @app.route('/submitmissing/<sensor_name>/<target>/<date>')
+    @utils.requires_user("admin")
     def submit_missing_timestamps(sensor_name, target, date):
         sensordef = count_defs[sensor_name]
         targetdef = sensordef[target]
@@ -340,7 +367,10 @@ def create_app(test_config=None):
             parent_dir = os.path.join(parentdef["path"], date)
             target_dir = os.path.join(targetdef["path"], date)
             parent_timestamps = os.listdir(parent_dir)
-            target_timestamps = os.listdir(target_dir)
+            if os.path.isdir(target_dir):
+                target_timestamps = os.listdir(target_dir)
+            else:
+                target_timestamps = []
 
             disp_name = Sensors("", "ua-mac").get_display_name(targetdef["parent"])
             missing = list(set(parent_timestamps)-set(target_timestamps))
@@ -361,6 +391,7 @@ def create_app(test_config=None):
         })
 
     @app.route('/submitrulecheck/<sensor_name>/<target>/<date>')
+    @utils.requires_user("admin")
     def submit_rulecheck(sensor_name, target, date):
         sensordef = count_defs[sensor_name]
         targetdef = sensordef[target]
@@ -391,6 +422,7 @@ def create_app(test_config=None):
         })
 
     @app.route('/submitmissingrulechecks/<sensor_name>/<target>/<date>')
+    @utils.requires_user("admin")
     def submit_missing_timestamps_from_rulechecker(sensor_name, target, date):
         sensordef = count_defs[sensor_name]
         targetdef = sensordef[target]
@@ -405,15 +437,11 @@ def create_app(test_config=None):
             parent_timestamps = os.listdir(parent_dir)
 
             # Count actual current progress counts from PSQL
-            psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
-            psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
-            psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
-            psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
-            conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
+            psql_conn = connect_to_psql()
 
             target_timestamps = []
             query_string = targetdef["query_list"] % date
-            curs = conn.cursor()
+            curs = psql_conn.cursor()
             curs.execute(query_string)
             for result in curs:
                 target_timestamps.append(result[0].split("/")[-2])
@@ -436,6 +464,76 @@ def create_app(test_config=None):
             "datasets not found": notfound
         })
 
+    @app.route('/submitmissingregex/<sensor_name>/<target>/<date>')
+    @utils.requires_user("admin")
+    def submit_missing_regex(sensor_name, target, date):
+        sensordef = count_defs[sensor_name]
+        targetdef = sensordef[target]
+        extractorname = targetdef["extractor"]
+        submitted = []
+        notfound = []
+
+        if "parent" in targetdef:
+            # Count expected parent counts from filesystem
+            parentdef = sensordef[targetdef["parent"]]
+            parent_dir = os.path.join(parentdef["path"], date)
+
+            if parentdef["type"] == "regex" and parentdef["path"] == targetdef["path"]:
+                for file in os.listdir(parent_dir):
+                    if re.match(parentdef["regex"], file):
+                        expected_output = file.replace(targetdef["parent_replacer_check"][1],
+                                                       targetdef["parent_replacer_check"][0])
+                        if not os.path.isfile(os.path.join(parent_dir, expected_output)):
+                            # Find the file ID of the parent file and submit it
+                            dataset_name = parentdef["dispname"]+" - "+date
+                            dsid = get_dsid_by_name(dataset_name)
+                            if dsid:
+                                parent_id = None
+                                dsfiles = get_file_list(CONN, CLOWDER_HOST, CLOWDER_KEY, dsid)
+                                matchfile = file.replace("_thumb.tif", ".tif")
+                                for dsfile in dsfiles:
+                                    if dsfile["filename"] == matchfile:
+                                        parent_id = dsfile["id"]
+                                        break
+                                if parent_id:
+                                    submit_file_extraction(CONN, CLOWDER_HOST, CLOWDER_KEY, parent_id, extractorname)
+                                    submitted.append({"name": matchfile, "id": parent_id})
+                                else:
+                                    notfound.append({"name": matchfile})
+                            else:
+                                notfound.append({"name": dataset_name})
+
+        return json.dumps({
+            "extractor": extractorname,
+            "datasets submitted": submitted,
+            "datasets not found": notfound
+        })
+
+    @app.route('/submitmissingplots/<sensor_name>/<target>/<date>')
+    @utils.requires_user("admin")
+    def submit_missing_plots(sensor_name, target, date):
+        sensordef = count_defs[sensor_name]
+        targetdef = sensordef[target]
+        extractorname = targetdef["extractor"]
+        submitted = []
+        notfound = []
+
+        if "parent" in targetdef:
+            # Count expected parent counts from filesystem
+            parentdef = sensordef[targetdef["parent"]]
+            parent_dir = os.path.join(parentdef["path"], date)
+            target_dir = os.path.join(targetdef["path"], date)
+            parent_plots = os.listdir(parent_dir)
+            if os.path.isdir(target_dir):
+                target_plots = os.listdir(target_dir)
+            else:
+                target_plots = []
+
+        return json.dumps({
+            "extractor": extractorname,
+            "datasets submitted": submitted,
+            "datasets not found": notfound
+        })
 
     @app.route('/dateoptions', methods=['POST','GET'])
     @utils.requires_user("admin")
@@ -443,11 +541,10 @@ def create_app(test_config=None):
         form = SensorDateSelectForm(request.form)
         if form.validate_on_submit():
             raw_selected_sensors = form.sensors.data
-            selected_sensors = []
             for r in raw_selected_sensors:
-                selected_sensors.append(str(r))
-            return redirect(url_for('schedule_count',
-                                    sensors=selected_sensors,
+                # TODO: Currently only one sensor can be scheduled at a time
+                return redirect(url_for('schedule_count',
+                                    sensor=str(r),
                                     start_range=str(form.start_date.data.strftime('%Y-%m-%d')),
                                     end_range=str(form.end_date.data.strftime('%Y-%m-%d'))))
         return render_template('dateoptions.html', form=form)
@@ -470,21 +567,14 @@ def create_app(test_config=None):
         logging.info("Archived existing count csvs")
         return redirect(url_for('sensors', message=message))
 
-    @app.route('/newschedule/<sensors>/<start_range>/<end_range>')
-    def schedule_count(sensors, start_range, end_range):
-        sensor_list = sensors
+    @app.route('/newschedule/<sensor>/<start_range>/<end_range>')
+    @utils.requires_user("admin")
+    def schedule_count(sensor, start_range, end_range):
         dates_in_range = generate_dates_in_range(start_range, end_range)
+        psql_conn = connect_to_psql()
+        thread.start_new_thread(update_file_count_csvs, (sensor, dates_in_range, psql_conn))
 
-        psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
-        psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
-        psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
-        psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
-
-        conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
-
-        thread.start_new_thread(update_file_count_csvs, (sensor_list, dates_in_range, conn))
-
-        message = "Custom scan scheduled for %s sensors and %s dates" % (len(sensor_list), len(dates_in_range))
+        message = "Custom scan scheduled for %s on %s dates" % (sensor, len(dates_in_range))
         return redirect(url_for('sensors', message=message))
 
     return app
@@ -493,12 +583,7 @@ def create_app(test_config=None):
 # COUNTING COMPONENTS ----------------------------
 def run_regular_update(use_defaults=False):
     """Perform regular update of previous two weeks for all sensors"""
-    psql_db = os.getenv("RULECHECKER_DATABASE", config['postgres']['database'])
-    psql_host = os.getenv("RULECHECKER_HOST", config['postgres']['host'])
-    psql_user = os.getenv("RULECHECKER_USER", config['postgres']['username'])
-    psql_pass = os.getenv("RULECHECKER_PASSWORD", config['postgres']['password'])
-
-    conn = psycopg2.connect(dbname=psql_db, user=psql_user, host=psql_host, password=psql_pass)
+    psql_conn = connect_to_psql()
 
     while True:
         # Determine two weeks before current date, or by defaults
@@ -513,14 +598,15 @@ def run_regular_update(use_defaults=False):
             start_date_string = os.getenv('START_SCAN_DATE', two_weeks.strftime("%Y-%m-%d"))
             dates_to_check = generate_dates_in_range(start_date_string)
 
-        logging.info("Checking counts for dates %s - %s" % (start_date_string, dates_to_check[-1]))
+        logging.info("Checking counts for all sensors for dates %s - %s" % (start_date_string, dates_to_check[-1]))
 
-        update_file_count_csvs(count_defs.keys(), dates_to_check, conn)
+        for s in count_defs.keys():
+            psql_conn = update_file_count_csvs(s, dates_to_check, psql_conn)
 
         # Wait 1 hour for next iteration
         time.sleep(3600)
 
-def retrive_single_count(target_count, target_def, date, conn):
+def retrive_single_count(target_count, target_def, date, psql_conn):
     """Return count of specified type (see counts.py for types)"""
     count = 0
 
@@ -571,14 +657,14 @@ def retrive_single_count(target_count, target_def, date, conn):
     elif target_def["type"] == "psql":
         logging.info("   [%s] querying PSQL records for %s" % (target_count, date))
         query_string = target_def["query_count"] % date
-        curs = conn.cursor()
+        curs = psql_conn.cursor()
         curs.execute(query_string)
         for result in curs:
             count = result[0]
 
     return count
 
-def update_file_count_csvs(sensor_list, dates_to_check, conn):
+def update_file_count_csvs(sensor, dates_to_check, psql_conn):
     """Perform necessary counting on specified dates to update CSV for all sensors."""
     global SCAN_LOCK
 
@@ -586,94 +672,95 @@ def update_file_count_csvs(sensor_list, dates_to_check, conn):
         logging.info("Another thread currently locking database; waiting 60 seconds to retry")
         time.sleep(60)
 
-    logging.info("Locking scan for %s sensors and %s dates" % (len(sensor_list), len(dates_to_check)))
+    logging.info("Locking scan for %s on %s dates" % (sensor, len(dates_to_check)))
     SCAN_LOCK = True
-    for sensor in sensor_list:
-        output_file = os.path.join(config['csv_path'], sensor+".csv")
-        logging.info("Updating counts for %s into %s" % (sensor, output_file))
-        targets = count_defs[sensor]
-        cols = ["date"]
+
+    output_file = os.path.join(config['csv_path'], sensor+".csv")
+    logging.info("Updating counts for %s into %s" % (sensor, output_file))
+    targets = count_defs[sensor]
+    cols = ["date"]
+    for target_count in targets:
+        target_def = targets[target_count]
+        cols.append(target_count)
+        if "parent" in target_def:
+            cols.append(target_count + '%')
+
+    # Load data frame from existing CSV or create a new one
+    if os.path.exists(output_file):
+        logging.info("csv exists for %s" % output_file)
+        try:
+            df = pd.read_csv(output_file)
+        except Exception as e:
+            logging.info(e)
+            logging.info('CSV exists, could not read as dataframe')
+            cols = ["date"]
+            df = pd.DataFrame(columns=cols)
+            logging.info("CSV existed but could not be read, created dataframe for %s " % sensor)
+        df_columns = list(df.columns.values)
+        if df_columns != cols:
+            logging.info("CSV existed but had malformed columns, created dataframe for %s " % sensor)
+            df = pd.DataFrame(columns=cols)
+    else:
+        logging.info("output file for %s does not exist" % sensor)
+        df = pd.DataFrame(columns=cols)
+        logging.info("CSV did not exist, created dataframe for %s " % sensor)
+
+    # Populate count and percentage (if applicable) for each target count
+    logging.info("the columns of the csv are %s " % str(df.columns.values))
+    for current_date in dates_to_check:
+        logging.info("[%s] %s" % (sensor, current_date))
+        counts = {}
+        percentages = {}
         for target_count in targets:
             target_def = targets[target_count]
-            cols.append(target_count)
-            if "parent" in target_def:
-                cols.append(target_count + '%')
 
-        # Load data frame from existing CSV or create a new one
-        if os.path.exists(output_file):
-            logging.info("csv exists for %s" % output_file)
             try:
-                df = pd.read_csv(output_file)
-            except Exception as e:
-                logging.info(e)
-                logging.info('CSV exists, could not read as dataframe')
-                cols = ["date"]
-                df = pd.DataFrame(columns=cols)
-                logging.info("CSV existed but could not be read, created dataframe for %s " % sensor)
-            df_columns = list(df.columns.values)
-            if df_columns != cols:
-                logging.info("CSV existed but had malformed columns, created dataframe for %s " % sensor)
-                df = pd.DataFrame(columns=cols)
-        else:
-            logging.info("output file for %s does not exist" % sensor)
-            # cols = ["date"]
-            # for target_count in targets:
-            #     target_def = targets[target_count]
-            #     cols.append(target_count)
-            #     if "parent" in target_def:
-            #         cols.append(target_count+'%')
-            df = pd.DataFrame(columns=cols)
-            logging.info("CSV did not exist, created dataframe for %s " % sensor)
+                counts[target_count] = retrive_single_count(target_count, target_def, current_date, psql_conn)
+            except:
+                psql_conn = connect_to_psql()
+                counts[target_count] = retrive_single_count(target_count, target_def, current_date, psql_conn)
 
-        # Populate count and percentage (if applicable) for each target count
-        logging.info("the columns of the csv are %s " % str(df.columns.values))
-        for current_date in dates_to_check:
-            logging.info("[%s] %s" % (sensor, current_date))
-            counts = {}
-            percentages = {}
+            if "parent" in target_def:
+                if target_def["parent"] not in counts:
+                    counts[target_def["parent"]] = retrive_single_count(targets[target_def["parent"]], current_date, psql_conn)
+                if counts[target_def["parent"]] > 0:
+                    percentages[target_count] = (counts[target_count]*1.0)/(counts[target_def["parent"]]*1.0)
+                else:
+                    percentages[target_count] = 0.0
+
+        # If this date already has a row, just update
+        if current_date in df['date'].values:
+            logging.info("Already have data for date %s " % current_date)
+            updated_entry = [current_date]
             for target_count in targets:
                 target_def = targets[target_count]
-                counts[target_count] = retrive_single_count(target_count, target_def, current_date, conn)
+                updated_entry.append(counts[target_count])
                 if "parent" in target_def:
-                    if target_def["parent"] not in counts:
-                        counts[target_def["parent"]] = retrive_single_count(targets[target_def["parent"]], current_date, conn)
-                    if counts[target_def["parent"]] > 0:
-                        percentages[target_count] = (counts[target_count]*1.0)/(counts[target_def["parent"]]*1.0)
-                    else:
-                        percentages[target_count] = 0.0
+                    updated_entry.append(percentages[target_count])
+            df.loc[df['date'] == current_date] = updated_entry
+        # If not, create a new row
+        else:
+            logging.info("No data for date %s adding to dataframe" % current_date)
+            new_entry = [current_date]
+            indices = ["date"]
 
-            # If this date already has a row, just update
-            if current_date in df['date'].values:
-                logging.info("Already have data for date %s " % current_date)
-                updated_entry = [current_date]
-                for target_count in targets:
-                    target_def = targets[target_count]
-                    updated_entry.append(counts[target_count])
-                    if "parent" in target_def:
-                        updated_entry.append(percentages[target_count])
-                df.loc[df['date'] == current_date] = updated_entry
-            # If not, create a new row
-            else:
-                logging.info("No data for date %s adding to dataframe" % current_date)
-                new_entry = [current_date]
-                indices = ["date"]
+            for target_count in targets:
+                target_def = targets[target_count]
 
-                for target_count in targets:
-                    target_def = targets[target_count]
+                indices.append(target_count)
+                new_entry.append(counts[target_count])
+                if "parent" in target_def:
+                    indices.append(target_count+'%')
+                    new_entry.append(percentages[target_count])
+            df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
 
-                    indices.append(target_count)
-                    new_entry.append(counts[target_count])
-                    if "parent" in target_def:
-                        indices.append(target_count+'%')
-                        new_entry.append(percentages[target_count])
-                df = df.append(pd.Series(new_entry, index=indices), ignore_index=True)
-
-        logging.info("Writing %s" % output_file)
-        df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
-        df.sort_values(by=['date'], inplace=True, ascending=True)
-        df.to_csv(output_file, index=False)
+    logging.info("Writing %s" % output_file)
+    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    df.sort_values(by=['date'], inplace=True, ascending=True)
+    df.to_csv(output_file, index=False)
 
     SCAN_LOCK = False
+    return psql_conn
 
 
 if __name__ == '__main__':

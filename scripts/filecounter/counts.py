@@ -52,7 +52,7 @@ SENSOR_COUNT_DEFINITIONS = {
         ("rgbff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
             "type": 'regex',
-            "regex": ".*_rgb_thumb.tif"}),
+            "regex": ".*_rgb.tif"}),
         ("ruledb_nrmacff", {
             "type": "psql",
             "query_count": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs NRMAC' and output->>'date'='%s';",
@@ -63,7 +63,7 @@ SENSOR_COUNT_DEFINITIONS = {
         ("nrmacff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
             "type": 'regex',
-            "regex": ".*_nrmac_thumb.tif"}),
+            "regex": ".*_nrmac.tif"}),
         ("ruledb_maskff", {
             "type": "psql",
             "query_count": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='RGB GeoTIFFs Masked' and output->>'date'='%s';",
@@ -74,13 +74,17 @@ SENSOR_COUNT_DEFINITIONS = {
         ("maskff", {
             "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
             "type": 'regex',
-            "regex": ".*_mask_thumb.tif"}),
+            "regex": ".*_mask.tif",
+            "dispname": "Full Field",
+            "extractor": "terra.stereo-rgb.canopycover"}),
         # BETYdb traits
         ("rgb_canopycover", {
-            "path": os.path.join(uamac_root, 'Level_3/rgb_canopycover/'),
+            "path": os.path.join(uamac_root, 'Level_2/rgb_fullfield/'),
             "type": 'regex',
             "regex": '.*_canopycover_bety.csv',
-            "parent": "maskff"})
+            "parent": "maskff",
+            "parent_replacer_check": ["_canopycover_bety.csv", ".tif"],
+            "extractor": "terra.stereo-rgb.canopycover"})
     ]),
 
     "flirIrCamera": OrderedDict([
@@ -102,17 +106,21 @@ SENSOR_COUNT_DEFINITIONS = {
             "type": "psql",
             "query_count": "select count(distinct file_path) from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='Thermal IR GeoTIFFs' and output->>'date'='%s';",
             "query_list": "select distinct file_path from extractor_ids where output->>'rule'='Full Field' and output->>'sensor'='Thermal IR GeoTIFFs' and output->>'date'='%s';",
-            "parent": "ir_geotiff"}),
+            "parent": "ir_geotiff",
+            "extractor": "ncsa.rulechecker.terra"}),
         ("flirff", {
             "path": os.path.join(uamac_root, 'Level_2/ir_fullfield/'),
             "type": 'regex',
-            "regex": ".*_thumb.tif"}),
+            "regex": ".*_thumb.tif",
+            "dispname": "Full Field"}),
         # BETYdb traits
         ("ir_meantemp", {
             "path": os.path.join(uamac_root, 'Level_3/ir_meantemp/'),
             "type": 'regex',
             "regex": '.*_meantemp_bety.csv',
-            "parent": "flirff"})
+            "parent": "flirff",
+            "parent_replacer_check": ["_meantemp_bety.csv", "_thumb.tif"],
+            "extractor": "terra.multispectral.meantemp"})
     ]),
 
     "scanner3DTop": OrderedDict([
@@ -132,6 +140,25 @@ SENSOR_COUNT_DEFINITIONS = {
         ("laser3d_canopyheight", {
             "path": os.path.join(uamac_root, 'Level_3/laser3d_canopyheight/'),
             "type": 'plot',
-            "parent": "laser3d_las_plot"})
+            "parent": "laser3d_las_plot",
+            "extractor": "terra.3dscanner.las2height"})
+    ]),
+
+    "EnvironmentLogger": OrderedDict([
+        # basic products
+        ("EnvironmentLogger", {
+            "path": os.path.join(uamac_root, 'raw_data/EnvironmentLogger/'),
+            "type": 'regex',
+            "regex": ".*_environmentlogger.json",}),
+        ("envlog2netcdf", {
+            "path": os.path.join(uamac_root, 'Level_1/envlog_netcdf/'),
+            "type": 'regex',
+            "regex": "envlog_netcdf_.*.nc",
+            "extractor": "terra.environmental.envlog2netcdf"})
+        #,("envlog2netcdf_csv", {
+        #    "path": os.path.join(uamac_root, 'Level_1/envlog_netcdf/'),
+        #    "type": 'regex',
+        #    "regex": "envlog_netcdf_.*_geo.csv",
+        #    "extractor": "terra.environmental.envlog2netcdf"})
     ])
 }

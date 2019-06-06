@@ -484,8 +484,9 @@ def generateAuthTokens():
     for validUser in config['globus']['valid_users']:
         logger.info("- generating auth token for %s" % validUser)
         config['globus']['valid_users'][validUser]['auth_token'] = goauth.get_access_token(
-                username=validUser,
-                password=config['globus']['valid_users'][validUser]['password']
+                validUser,
+                config['globus']['valid_users'][validUser]['password'],
+                os.path.join(rootPath, "globus_amazon.pem")
             ).token
 
 """Query Globus API to get current transfer status of a given task"""
@@ -495,14 +496,14 @@ def getGlobusTaskData(task):
     try:
         logger.debug("%s requesting task data from Globus" % task['globus_id'])
         status_code, status_message, task_data = api.task(task['globus_id'])
-    except (APIError, ClientError) as e:
+    except:
         try:
             # Refreshing auth tokens and retry
             generateAuthTokens()
             authToken = config['globus']['valid_users'][task['user']]['auth_token']
             api = TransferAPIClient(username=task['user'], goauth=authToken)
             status_code, status_message, task_data = api.task(task['globus_id'])
-        except (APIError, ClientError) as e:
+        except:
             logger.error("%s error checking with Globus for transfer status" % task['globus_id'])
             status_code = 503
 

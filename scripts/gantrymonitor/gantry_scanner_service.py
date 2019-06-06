@@ -99,8 +99,9 @@ def writeStatus():
 def generateAuthToken():
     logger.info("- generating auth token for "+config['globus']['username'])
     t = goauth.get_access_token(
-            username=config['globus']['username'],
-            password=config['globus']['password']
+            config['globus']['username'],
+            config['globus']['password'],
+            os.path.join(rootPath, "globus_amazon.pem")
     ).token
     config['globus']['auth_token'] = t
     logger.debug("- generated: "+t)
