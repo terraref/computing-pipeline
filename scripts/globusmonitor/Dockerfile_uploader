@@ -8,6 +8,6 @@ RUN apt-get -y update \
         globusonline-transfer-api-client \
         psycopg2
 
-COPY *.py *.json /home/globusmonitor/
+COPY *.py *.json *.pem /home/globusmonitor/
 
 CMD ["python", "/home/globusmonitor/globus_uploader_service.py"]

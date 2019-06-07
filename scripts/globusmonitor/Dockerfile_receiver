@@ -8,7 +8,7 @@ RUN apt-get -y update \
         globusonline-transfer-api-client \
         psycopg2
 
-COPY *.py *.json /home/globusmonitor/
+COPY *.py *.json *.pem /home/globusmonitor/
 
 ENV MONITOR_API_PORT 5454
 CMD ["python", "/home/globusmonitor/globus_monitor_service.py"]

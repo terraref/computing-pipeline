@@ -482,7 +482,7 @@ api.add_resource(MonitorStatus, '/status')
 """Use globus goauth tool to get access tokens for valid accounts"""
 def generateAuthTokens():
     for validUser in config['globus']['valid_users']:
-        logger.info("- generating auth token for %s" % validUser)
+        logger.info("- generating auth token for %s using cert %s" % (validUser, os.path.join(rootPath, "globus_amazon.pem")))
         config['globus']['valid_users'][validUser]['auth_token'] = goauth.get_access_token(
                 validUser,
                 config['globus']['valid_users'][validUser]['password'],
