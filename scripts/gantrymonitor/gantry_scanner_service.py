@@ -95,44 +95,30 @@ def writeStatus():
     f.write(json.dumps(getStatus()))
     f.close()
 
-"""Use globus goauth tool to get access token for config account"""
-def generateAuthToken():
-    logger.info("- generating auth token for "+config['globus']['username'])
-    t = goauth.get_access_token(
-            config['globus']['username'],
-            config['globus']['password'],
-            os.path.join(rootPath, "globus_amazon.pem")
-    ).token
-    config['globus']['auth_token'] = t
-    logger.debug("- generated: "+t)
+"""Use globus goauth tool to get access tokens for config accounts"""
+def generateAuthTokens():
+    for end_id in config['globus']['destinations']:
+        logger.info("- generating auth token for "+config['globus']['destinations'][end_id]['username'])
+        t = goauth.get_access_token(
+                config['globus']['destinations'][end_id]['username'],
+                config['globus']['destinations'][end_id]['password'],
+                os.path.join(rootPath, "globus_amazon.pem")
+        ).token
+        config['globus']['destinations'][end_id]['auth_token'] = t
+        logger.debug("- generated: "+t)
 
-"""Refresh auth token and send autoactivate message to source and destination Globus endpoints"""
-def activateEndpoints():
-    src = config['globus']["source_endpoint_id"]
-    dest = config['globus']["destination_endpoint_id"]
-
-    generateAuthToken()
-    api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-    # TODO: Can't use autoactivate; must populate credentials
-    """try:
-        actList = api.endpoint_activation_requirements(src)[2]
-        actList.set_requirement_value('myproxy', 'username', 'data_mover')
-        actList.set_requirement_value('myproxy', 'passphrase', 'terraref2016')
-        actList.set_requirement_value('delegate_proxy', 'proxy_chain', 'some PEM cert w public key')
-    except:"""
-    api.endpoint_autoactivate(src)
-    api.endpoint_autoactivate(dest)
-
-"""Generate a submission ID that can be used to avoid double-submitting"""
-def generateGlobusSubmissionID():
+"""Generate a submission ID for given destination endpoint ID that can be used to avoid double-submitting"""
+def generateGlobusSubmissionID(end_id):
     try:
-        api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+        api = TransferAPIClient(username=config['globus']['destinations'][end_id]['username'],
+                                goauth=config['globus']['destinations'][end_id]['auth_token'])
         status_code, status_message, submission_id = api.submission_id()
     except:
         try:
             # Try activating endpoints and retrying
-            activateEndpoints()
-            api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+            generateAuthTokens()
+            api = TransferAPIClient(username=config['globus']['destinations'][end_id]['username'],
+                                    goauth=config['globus']['destinations'][end_id]['auth_token'])
             status_code, status_message, submission_id = api.submission_id()
         except:
             logger.error("- exception generating submission ID for Globus transfer")
@@ -177,7 +163,9 @@ def connectToPostgres():
 """Create PostgreSQL database tables"""
 def initializePostgresDatabase(db_connection):
     # Table creation queries
-    ct_pending = "CREATE TABLE pending_tasks (id SERIAL, contents JSON);"
+
+    # TODO: Need to stop tasks, move current pending into new tabke with dest_id as NCSA value
+    ct_pending = "CREATE TABLE pending_tasks (id SERIAL, dest_id TEXT, contents JSON);"
     ct_tasks = "CREATE TABLE globus_tasks (globus_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL, " \
                "started TEXT NOT NULL, completed TEXT, " \
                "file_count INT, bytes BIGINT, globus_user TEXT, contents JSON);"
@@ -210,7 +198,7 @@ def initializePostgresDatabase(db_connection):
 """Get at most 100 Globus batches that haven't been sent yet"""
 def readPendingTasks():
     """PENDING (have group of files; not yet created Globus transfer)"""
-    q_fetch = "SELECT id, contents FROM pending_tasks limit 100"
+    q_fetch = "SELECT id, end_id, contents FROM pending_tasks limit 100"
     results = []
 
     curs = psql_conn.cursor()
@@ -218,7 +206,8 @@ def readPendingTasks():
     for result in curs:
         results.append({
             "id": result[0],
-            "contents": result[1]
+            "end_id": result[1],
+            "contents": result[2]
         })
     curs.close()
 
@@ -245,8 +234,9 @@ def writePendingTaskToDatabase(task):
     ...}"""
     jbody = json.dumps(task)
 
-    # Attempt to insert, update if globus ID already exists
-    q_insert = "INSERT INTO pending_tasks (contents) VALUES ('%s')" % jbody
+    # Attempt to insert
+    for end_id in config['globus']['destinations']['destinations']:
+        q_insert = "INSERT INTO pending_tasks (dest_id, contents) VALUES ('%s', '%s')" % (end_id, jbody)
 
     curs = psql_conn.cursor()
     #logger.debug("Writing task %s to PostgreSQL..." % gid)
@@ -804,17 +794,18 @@ def queueGantryFilesIntoPending():
 """Initiate Globus transfer with batch of files and add to activeTasks - recurse until max xfers reached or pending empty """
 def initializeGlobusTransfer(globus_batch_obj):
     globus_batch = globus_batch_obj['contents']
+    end_id = globus_batch_obj['end_id']
     globus_batch_id = globus_batch_obj['id']
 
-
-    api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-    submissionID = generateGlobusSubmissionID()
+    api = TransferAPIClient(username=config['globus']['destinations'][end_id]['username'],
+                            goauth=config['globus']['destinations'][end_id]['auth_token'])
+    submissionID = generateGlobusSubmissionID(end_id)
 
     if submissionID:
         # Prepare transfer object
         transferObj = Transfer(submissionID,
                                config['globus']['source_endpoint_id'],
-                               config['globus']['destination_endpoint_id'],
+                               end_id,
                                verify_checksum=True)
         queue_length = 0
         for ds in globus_batch:
@@ -837,7 +828,7 @@ def initializeGlobusTransfer(globus_batch_obj):
         except:
             try:
                 # Try refreshing endpoints and retrying
-                activateEndpoints()
+                generateAuthTokens()
                 api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
                 status_code, status_message, transfer_data = api.transfer(transferObj)
             except (APIError, ClientError) as e:
@@ -907,7 +898,7 @@ def globusInitializerLoop():
 
         # Refresh Globus auth tokens
         if authWait <= 0:
-            generateAuthToken()
+            generateAuthTokens()
             authWait = config['globus']['authentication_refresh_frequency_secs']
 
 """Continually monitor FTP log for new files to transmit and add them to pendingTransfers"""
@@ -958,7 +949,7 @@ if __name__ == '__main__':
 
     # Load any previous active/pending transfers
     psql_conn = connectToPostgres()
-    activateEndpoints()
+    generateAuthTokens()
 
     # Create thread for service to begin monitoring log file & transfer queue
     logger.info("*** Service now monitoring pending transfer queue ***")

@@ -17,11 +17,10 @@
   "globus": {
     "source_path": "/gantry_data",
     "delete_path": "/gantry_data/ToDelete/sites",
-    "destination_path": "/~/globus",
     "source_endpoint_id": "",
-    "destination_endpoint_id": "",
-    "username": "globus_username",
-    "password": "globus_password",
+    "destinations": {
+      "endpoint_id": { "username": "globus_username", "password": "globus_password", "dest_path": "/~/globus"}
+    },
     "authentication_refresh_frequency_secs": 43200,
     "max_transfer_file_count": 1000,
     "max_active_tasks": 100
