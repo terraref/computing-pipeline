@@ -317,7 +317,7 @@ def create_app(test_config=None):
 
             # Omit rows with zero count in raw_data
             primary_sensor = None
-            for sensorname in ['stereoTop', 'flirIrCamera', 'scanner3DTop']:
+            for sensorname in ['stereoTop', 'flirIrCamera', 'scanner3DTop', 'ps2Top', 'EnvironmentLogger']:
                 if sensorname in df_season.columns:
                     df_season = df_season[df[sensorname] != 0]
                     primary_sensor = sensorname

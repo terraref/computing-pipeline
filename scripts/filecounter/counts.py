@@ -144,6 +144,18 @@ SENSOR_COUNT_DEFINITIONS = {
             "extractor": "terra.3dscanner.las2height"})
     ]),
 
+    "ps2Top": OrderedDict([
+        # basic products
+        ("ps2Top", {
+            "path": os.path.join(uamac_root, 'raw_data/ps2Top/'),
+            "type": 'timestamp'}),
+        ("ps2_png", {
+            "path": os.path.join(uamac_root, 'Level_1/ps2_png/'),
+            "type": 'timestamp',
+            "parent": "ps2Top",
+            "extractor": "terra.multispectral.psii2png"})
+    ]),
+
     "EnvironmentLogger": OrderedDict([
         # basic products
         ("EnvironmentLogger", {
