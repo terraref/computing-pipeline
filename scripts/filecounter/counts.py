@@ -144,6 +144,35 @@ SENSOR_COUNT_DEFINITIONS = {
             "extractor": "terra.3dscanner.las2height"})
     ]),
 
+    "VNIR": OrderedDict([
+        # basic products
+        ("VNIR", {
+            "path": os.path.join(uamac_root, 'raw_data/VNIR/'),
+            "type": 'timestamp'}),
+        ("vnir_netcdf", {
+            "path": os.path.join(uamac_root, 'Level_1/vnir_netcdf/'),
+            "type": 'timestamp',
+            "parent": "VNIR",
+            "extractor": "terra.hyperspectral"}),
+        ("vnir_soil_masks", {
+            "path": os.path.join(uamac_root, 'Level_1/vnir_soil_masks/'),
+            "type": 'timestamp',
+            "parent": "vnir_netcdf",
+            "extractor": "terra.sunshade.soil_removal"})
+    ]),
+
+    "SWIR": OrderedDict([
+        # basic products
+        ("SWIR", {
+            "path": os.path.join(uamac_root, 'raw_data/SWIR/'),
+            "type": 'timestamp'}),
+        ("swir_netcdf", {
+            "path": os.path.join(uamac_root, 'Level_1/swir_netcdf/'),
+            "type": 'timestamp',
+            "parent": "SWIR",
+            "extractor": "terra.hyperspectral"})
+    ]),
+
     "ps2Top": OrderedDict([
         # basic products
         ("ps2Top", {

@@ -14,14 +14,6 @@
       "level": "DEBUG",
       "stream": "ext://sys.stdout"
     },
-    "file": {
-      "class": "logging.handlers.TimedRotatingFileHandler",
-      "formatter": "default",
-      "level": "DEBUG",
-      "filename": "globusmonitor.log",
-      "when": "D",
-      "encoding": "utf8"
-    },
     "logstash": {
       "class": "logstash.TCPLogstashHandler",
       "level": "INFO",
@@ -29,13 +21,6 @@
       "port": 5000,
       "message_type": "gantry",
       "version": 1
-    }
-  },
-
-  "loggers": {
-    "gantry": {
-      "level": "DEBUG",
-      "handlers": ["file"]
     }
   },
 

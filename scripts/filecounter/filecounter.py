@@ -53,6 +53,16 @@ def update_nested_dict(existing, new):
             existing = {k: new[k]}
     return existing
 
+def get_season_dates(season):
+    if season == 4:
+        return ("2017-04-20", "2017-09-18")
+    elif season == 6:
+        return ('2018-04-06', '2018-08-01')
+    elif season == 9:
+        return ('2019-05-06', '2019-10-01')
+    else:
+        return ('2016-04-19', '2019-10-01')
+
 def generate_dates_in_range(start_date_string, end_date_string=None):
     """Return list of date strings between start and end dates."""
     start_date = datetime.datetime.strptime(start_date_string, '%Y-%m-%d')
@@ -273,84 +283,58 @@ def create_app(test_config=None):
     @app.route('/showcsvbyseason/<sensor_name>', defaults={'season': 6})
     @app.route('/showcsvbyseason/<sensor_name>/<int:season>')
     def showcsvbyseason(sensor_name, season):
-        if season == 6:
-            start = '2018-04-06'
-            end = '2018-08-01'
-            current_csv = pipeline_csv.format(sensor_name)
-            df = pd.read_csv(current_csv, index_col=False)
-            df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
+        (start, end) = get_season_dates(season)
+        current_csv = pipeline_csv.format(sensor_name)
+        df = pd.read_csv(current_csv, index_col=False)
+        df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
 
-            # Omit rows with zero count in raw_data
-            for sensorname in ['stereoTop', 'flirIrCamera', 'scanner3DTop']:
-                if sensorname in df_season.columns:
-                    df_season = df_season[df[sensorname] != 0]
+        # Omit rows with zero count in raw_data
+        for sensorname in ['stereoTop', 'flirIrCamera', 'scanner3DTop', 'ps2Top', 'EnvironmentLogger']:
+            if sensorname in df_season.columns:
+                df_season = df_season[df[sensorname] != 0]
 
-            percent_columns = get_percent_columns(df_season)
-            for each in percent_columns:
-                df_season[each] = df_season[each].mul(100).astype(int)
+        percent_columns = get_percent_columns(df_season)
+        for each in percent_columns:
+            df_season[each] = df_season[each].mul(100).astype(int)
 
-            dfs = df_season.style
-            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
-            html = dfs.render()
-            return html
-
-        else:
-            current_csv = pipeline_csv.format(sensor_name)
-            df = pd.read_csv(current_csv, index_col=False)
-            percent_columns = get_percent_columns(df)
-            for each in percent_columns:
-                df[each] = df[each].mul(100).astype(int)
-            dfs = df.style
-            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
-            my_html = dfs.render()
-            return my_html
+        dfs = df_season.style
+        dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
+        html = dfs.render()
+        return html
 
     @app.route('/resubmitbyseason/<sensor_name>', defaults={'season': 6})
     @app.route('/resubmitbyseason/<sensor_name>/<int:season>')
     def resubmitbyseason(sensor_name, season):
-        if season == 6:
-            start = '2018-04-06'
-            end = '2018-08-01'
-            current_csv = pipeline_csv.format(sensor_name)
-            df = pd.read_csv(current_csv, index_col=False)
-            df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
+        (start, end) = get_season_dates(season)
+        current_csv = pipeline_csv.format(sensor_name)
+        df = pd.read_csv(current_csv, index_col=False)
+        df_season = df.loc[(df['date'] >= start) & (df['date'] <= end)]
 
-            # Omit rows with zero count in raw_data
-            primary_sensor = None
-            for sensorname in ['stereoTop', 'flirIrCamera', 'scanner3DTop', 'ps2Top', 'EnvironmentLogger']:
-                if sensorname in df_season.columns:
-                    df_season = df_season[df[sensorname] != 0]
-                    primary_sensor = sensorname
+        # Omit rows with zero count in raw_data
+        primary_sensor = None
+        for sensorname in ['stereoTop', 'flirIrCamera', 'scanner3DTop', 'ps2Top', 'EnvironmentLogger']:
+            if sensorname in df_season.columns:
+                df_season = df_season[df[sensorname] != 0]
+                primary_sensor = sensorname
 
-            percent_columns = get_percent_columns(df_season)
-            for each in percent_columns:
-                df_season[each] = df_season[each].mul(100).astype(int)
+        percent_columns = get_percent_columns(df_season)
+        for each in percent_columns:
+            df_season[each] = df_season[each].mul(100).astype(int)
 
-            # Create header and key
-            html = "<h1>Seasonal Counts: %s</h1><div>" % primary_sensor
-            html += '<a style="%s">%s</a></br>' % (color_percents(100),' 100% coverage')
-            html += '<a style="%s">%s</a></br>' % (color_percents(99), '>=99% coverage')
-            html += '<a style="%s">%s</a></br>' % (color_percents(98), '>=95% coverage')
-            html += '<a style="%s">%s</a></br></br>' % (color_percents(0),  ' <95% coverage')
+        # Create header and key
+        html = "<h1>Seasonal Counts: %s</h1><div>" % primary_sensor
+        html += '<a style="%s">%s</a></br>' % (color_percents(100),' 100% coverage')
+        html += '<a style="%s">%s</a></br>' % (color_percents(99), '>=99% coverage')
+        html += '<a style="%s">%s</a></br>' % (color_percents(98), '>=95% coverage')
+        html += '<a style="%s">%s</a></br></br>' % (color_percents(0),  ' <95% coverage')
 
-            # Create daily entries
-            cols = list(df_season.columns.values)
-            for index, row in df_season.iterrows():
-                html += render_date_entry(primary_sensor, cols, row, index)
-            html += "</div>"
+        # Create daily entries
+        cols = list(df_season.columns.values)
+        for index, row in df_season.iterrows():
+            html += render_date_entry(primary_sensor, cols, row, index)
+        html += "</div>"
 
-            return html
-
-        else:
-            current_csv = pipeline_csv.format(sensor_name)
-            df = pd.read_csv(current_csv, index_col=False)
-            percent_columns = get_percent_columns(df)
-            for each in percent_columns:
-                df[each] = df[each].mul(100).astype(int)
-            dfs = df.style
-            dfs.applymap(color_percents, subset=percent_columns).set_table_attributes("border=1")
-            my_html = dfs.render()
-            return my_html
+        return html
 
     @app.route('/submitmissing/<sensor_name>/<target>/<date>')
     @utils.requires_user("admin")
