@@ -121,6 +121,15 @@ class PlotClipper(TerrarefExtractor):
     def __init__(self):
         super(PlotClipper, self).__init__()
 
+        # Our default values
+        identify_binary = os.getenv('IDENTIFY_BINARY', '/usr/bin/identify')
+
+        # Add any additional arguments to parser
+        self.parser.add_argument('--identify-binary', nargs='?', dest='identify_binary',
+                                 default=identify_binary,
+                                 help='Identify executable used to for image type capture ' +
+                                 '(default=' + identify_binary + ')')
+
         # parse command line and load default logging configuration
         self.setup(sensor='plotclipper')
 
@@ -301,7 +310,7 @@ class PlotClipper(TerrarefExtractor):
             else:
                 target_scan = ""
 
-            all_plots = self.load_all_plots(datestamp, resource)
+            all_plots = self.load_all_plots(datestamp)
             file_filters = self.get_filters()
             uploaded_file_ids = []
 
