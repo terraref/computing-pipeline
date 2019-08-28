@@ -5,70 +5,86 @@
 
 import os
 import sys
+import json
 import logging
 import yaml
 import osr
+import requests # for dsid_by_name()
 
 from osgeo import ogr
 from numpy import nan
 
 import pyclowder.files as clowder_file
+import pyclowder.datasets as clowder_dataset
 
 from pyclowder.utils import CheckMessage
 from pyclowder.datasets import upload_metadata, remove_metadata, submit_extraction
-from terrautils.extractors import TerrarefExtractor, load_json_file, confirm_clowder_info, \
-    build_metadata, build_dataset_hierarchy_crawl, file_exists, check_file_in_dataset, \
-     timestamp_to_terraref
+from terrautils.extractors import TerrarefExtractor, confirm_clowder_info, \
+     build_metadata, build_dataset_hierarchy_crawl, file_exists, check_file_in_dataset, \
+     timestamp_to_terraref, file_filtered_in
 from terrautils.betydb import get_site_boundaries
 from terrautils.spatial import geojson_to_tuples_betydb, find_plots_intersect_boundingbox, \
-    get_las_extents, clip_raster, clip_las, convert_geometry
-from terrautils.metadata import get_terraref_metadata, prepare_pipeline_metadata
+     get_las_extents, clip_raster, clip_las, convert_json_geometry, geometry_to_geojson
+from terrautils.metadata import prepare_pipeline_metadata
 from terrautils.imagefile import file_is_image_type, image_get_geobounds, get_epsg
 
 # The name of the BETYdb URL environment variable
 BETYDB_URL_ENV_NAME = 'BETYDB_URL'
 
-def find_betydb_url(metadata):
-    """Performs a shalow search for a BETYdb URL in the metadata and
+# The name of the BETYDB key environment variable
+BETYDB_KEY_ENV_NAME = 'BETYDB_KEY'
+
+def find_betydb_config(metadata, key):
+    """Performs a shalow search for a key in the metadata and
        returns it
     Args:
         metadata(dict): the metadata to search
+        key(str): the name of the key to find
     Return:
-        The found BETYdb URL or None
+        The found value or None
     """
     if 'betydb' in metadata:
-        if 'url' in metadata['betydb']:
-            return metadata['betydb']['url']
+        if key in metadata['betydb']:
+            return metadata['betydb'][key]
     return None
 
-def setup_betydb_url(url):
-    """Sets up the BETYdb URL environemt variable. Returns the old
-       value if it has been set
+def setup_env_var(env_name, value):
+    """Sets up the environemt variable. Returns the old
+       value if it had been set
     Args:
-        url(string): the BETYdb URL to set
+        env_name(str): the name of the environment variable to set
+        value(str): the value to set the environment variable to
     Return:
-        The current BETYdb URL environment value or None if the
-        variable was not set. If the variable is currently not set
-        an empty string is returned.
+        The current environment value or None if the variable was not
+        set. If the variable is currently not set an empty string is
+        returned.
     Exceptions:
-        ValueError is thrown if the URL is not a string
+        ValueError is thrown if a parameter is not a string
     """
-    if not url:
+    if not env_name or not value:
         return None
 
-    if not isinstance(url, str):
+    if not isinstance(env_name, str):
         if sys.version_info[0] < 3:
-            if isinstance(url, unicode):
-                url = url.encode('ascii', 'ignore')
+            if isinstance(env_name, unicode):
+                env_name = env_name.encode('ascii', 'ignore')
             else:
-                ValueError("BETYdb URL is not a string")
+                ValueError("Environment variable name is not a string")
         else:
-            ValueError("BETYdb URL is not a string")
+            ValueError("Environment variable name is not a string")
+    if not isinstance(value, str):
+        if sys.version_info[0] < 3:
+            if isinstance(value, unicode):
+                value = value.encode('ascii', 'ignore')
+            else:
+                raise ValueError("Environment variable value is not a string")
+        else:
+            raise ValueError("Environment variable value is not a string")
 
-    old_url = os.environ.get(BETYDB_URL_ENV_NAME, '')
-    os.environ[BETYDB_URL_ENV_NAME] = url
+    old_value = os.environ.get(env_name, '')
+    os.environ[env_name] = value
 
-    return old_url
+    return old_value
 
 def get_terraref_files(resource, spatial_meta):
     """Looks throug the list of files for ones to process
@@ -114,6 +130,51 @@ def get_terraref_files(resource, spatial_meta):
         # TODO: Add case for laser3d heightmap
 
     return found_files
+
+def dsid_by_name(host, key, name):
+    """Looks up the ID of a dataset by nanme
+
+    Args:
+        host(str): the URI of the host making the connection
+        key(str): used with the host API
+        name(str): the dataset name to look up
+
+    Return:
+        Returns the ID of the dataset if it's found. Returns None if the dataset
+        isn't found
+    """
+    url = "%sapi/datasets?key=%s&title=%s&exact=true" % (host, key, name)
+
+    try:
+        result = requests.get(url)
+        result.raise_for_status()
+
+        ds_md = result.json()
+        md_len = len(ds_md)
+    except Exception as ex:     # pylint: disable=broad-except
+        ds_md = None
+        md_len = 0
+        logging.debug(ex.message)
+
+    if ds_md and md_len > 0 and "id" in ds_md[0]:
+        return ds_md[0]["id"]
+
+    return None
+
+def get_spatial_reference_from_json(geojson):
+    """Returns the spatial reference embeddeed in the geojson.
+    Args:
+        geojson(str): the geojson to get the spatial reference from
+    Return:
+        The osr.SpatialReference that represents the geographics coordinate system
+        in the geojson. None is returned if a spatial reference isn't found
+    """
+    yaml_geom = yaml.safe_load(geojson)
+    current_geom = ogr.CreateGeometryFromJson(json.dumps(yaml_geom))
+
+    if current_geom:
+        return current_geom.GetSpatialReference()
+    return None
 
 class PlotClipper(TerrarefExtractor):
     """Extractor class for clipping sensor files to plot polygons
@@ -195,7 +256,7 @@ class PlotClipper(TerrarefExtractor):
                         sensor_name = "rgb_geotiff"
                         filename = os.path.basename(onefile)
                         found_files[filename] = {'path': onefile,
-                                                 'bounds': poly,
+                                                 'bounds': geometry_to_geojson(poly),
                                                  "sensor": sensor_name
                                                 }
 
@@ -232,6 +293,32 @@ class PlotClipper(TerrarefExtractor):
 
         return {}
 
+    # pylint: disable=too-many-arguments
+    def update_dataset_extractor_metadata(self, connector, host, key, dsid, metadata,\
+                                          extractor_name):
+        """Adds or replaces existing dataset metadata for the specified extractor
+
+        Args:
+            connector(obj): the message queue connector instance
+            host(str): the URI of the host making the connection
+            key(str): used with the host API
+            dsid(str): the dataset to update
+            metadata(str): the metadata string to update the dataset with
+            extractor_name(str): the name of the extractor to associate the metadata with
+        """
+        meta = build_metadata(host, self.extractor_info, dsid, metadata, "dataset")
+
+        try:
+            md_len = len(clowder_dataset.download_metadata(connector, host, key, dsid, extractor_name))
+        except Exception as ex:     # pylint: disable=broad-except
+            md_len = 0
+            logging.debug(ex.message)
+
+        if md_len > 0:
+            clowder_dataset.remove_metadata(connector, host, key, dsid, extractor_name)
+
+        clowder_dataset.upload_metadata(connector, host, key, dsid, meta)
+
     def check_message(self, connector, host, secret_key, resource, parameters):
         return CheckMessage.download
 
@@ -266,9 +353,10 @@ class PlotClipper(TerrarefExtractor):
             sensor_old_base = self.sensors.base
             self.sensors.base = new_base
 
-        # Check if a new BETYdb URL has been specified
+        # Check if a new BETYdb URL/KEY has been specified and set it
         if self.experiment_metadata:
-            old_betydb_url = setup_betydb_url(find_betydb_url(self.experiment_metadata))
+            old_betydb_url = setup_env_var(BETYDB_URL_ENV_NAME, find_betydb_config(self.experiment_metadata, 'url'))
+            old_betydb_key = setup_env_var(BETYDB_KEY_ENV_NAME, find_betydb_config(self.experiment_metadata, 'key'))
         else:
             old_betydb_url = None
 
@@ -311,7 +399,7 @@ class PlotClipper(TerrarefExtractor):
                 target_scan = ""
 
             all_plots = self.load_all_plots(datestamp)
-            file_filters = self.get_filters()
+            file_filters = self.get_file_filters()
             uploaded_file_ids = []
 
             for filename in files_to_process:
@@ -329,21 +417,25 @@ class PlotClipper(TerrarefExtractor):
                 num_plots = len(overlap_plots)
 
                 if num_plots > 0:
-                    self.log_info(resource, "Attempting to clip %s into %s plot shards" % (filename, len(overlap_plots)))
+                    self.log_info(resource, "Attempting to clip %s into %s plot shards" % \
+                                                                                (filename, len(overlap_plots)))
+                    file_spatial_ref = get_spatial_reference_from_json(file_bounds)
                     for plotname in overlap_plots:
-                        plot_bounds = convert_geometry(overlap_plots[plotname], file_bounds.GetSpatialReference())
+                        plot_bounds = convert_json_geometry(overlap_plots[plotname], file_spatial_ref)
                         tuples = geojson_to_tuples_betydb(yaml.safe_load(plot_bounds))
 
                         plot_display_name = self.sensors.get_display_name(sensor=sensor_name) + " (By Plot)"
                         leaf_dataset = plot_display_name + ' - ' + plotname + " - " + datestamp
                         self.log_info(resource, "Hierarchy: %s / %s / %s / %s / %s / %s / %s" % \
                                                             (season_name, experiment_name, plot_display_name,
-                                                             timestamp[:4], timestamp[5:7], timestamp[8:10], leaf_dataset))
+                                                             timestamp[:4], timestamp[5:7], timestamp[8:10],
+                                                             leaf_dataset))
                         ds_exists = dsid_by_name(host, secret_key, leaf_dataset)
-                        target_dsid = build_dataset_hierarchy_crawl(host, secret_key, self.clowder_user, self.clowder_pass,
-                                                                    self.clowderspace, season_name, experiment_name,
-                                                                    plot_display_name, timestamp[:4], timestamp[5:7],
-                                                                    timestamp[8:10], leaf_ds_name=leaf_dataset)
+                        target_dsid = build_dataset_hierarchy_crawl(host, secret_key, self.clowder_user,
+                                                                    self.clowder_pass, self.clowderspace, season_name,
+                                                                    experiment_name, plot_display_name, timestamp[:4],
+                                                                    timestamp[5:7], timestamp[8:10],
+                                                                    leaf_ds_name=leaf_dataset)
                         if (self.overwrite_ok or not ds_exists) and self.experiment_metadata:
                             self.update_dataset_extractor_metadata(connector, host, secret_key,
                                                                    target_dsid,
@@ -367,7 +459,8 @@ class PlotClipper(TerrarefExtractor):
                                 }
                                 if filename in image_ids:
                                     content['imageFileId'] = image_ids[filename]
-                                fileid = clowder_file.upload_to_dataset(connector, host, secret_key, target_dsid, out_file)
+                                fileid = clowder_file.upload_to_dataset(connector, host, secret_key, target_dsid,
+                                                                        out_file)
                                 meta = build_metadata(host, self.extractor_info, fileid, content, 'file')
                                 clowder_file.upload_metadata(connector, host, secret_key, fileid, meta)
                                 uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
@@ -396,7 +489,8 @@ class PlotClipper(TerrarefExtractor):
                             found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_file,
                                                                   remove=self.overwrite_ok)
                             if not found_in_dest or self.overwrite_ok:
-                                fileid = clowder_file.upload_to_dataset(connector, host, secret_key, target_dsid, out_file)
+                                fileid = clowder_file.upload_to_dataset(connector, host, secret_key, target_dsid,
+                                                                        out_file)
                                 uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
                             self.created += 1
                             self.bytes += os.path.getsize(out_file)
@@ -405,7 +499,8 @@ class PlotClipper(TerrarefExtractor):
                             found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, merged_out,
                                                                   remove=self.overwrite_ok)
                             if not found_in_dest or self.overwrite_ok:
-                                fileid = clowder_file.upload_to_dataset(connector, host, secret_key, target_dsid, merged_out)
+                                fileid = clowder_file.upload_to_dataset(connector, host, secret_key, target_dsid,
+                                                                        merged_out)
                                 uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
                             self.created += 1
                             self.bytes += os.path.getsize(merged_out)
@@ -426,11 +521,15 @@ class PlotClipper(TerrarefExtractor):
                 upload_metadata(connector, host, secret_key, resource['id'], extractor_md)
             except Exception as ex:     # pylint: disable=broad-except
                 self.log_error(resource, "Exception updating dataset metadata: " + str(ex))
+        except Exception as ex:     # pylint: disable=broad-except
+            self.log_error(resource, "Exception processing request: " + str(ex))
         finally:
             # Signal end of processing message and restore changed variables. Be sure to restore
-            # changed variables above with early returns
+            # changed variables above with early returns elsewhere in the code
             if not old_betydb_url is None:
-                setup_betydb_url(old_betydb_url)
+                setup_env_var(BETYDB_URL_ENV_NAME, old_betydb_url)
+            if not old_betydb_key is None:
+                setup_env_var(BETYDB_KEY_ENV_NAME, old_betydb_key)
 
             if not sensor_old_base is None:
                 self.sensors.base = sensor_old_base
