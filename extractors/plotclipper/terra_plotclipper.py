@@ -16,12 +16,13 @@ from numpy import nan
 
 import pyclowder.files as clowder_file
 import pyclowder.datasets as clowder_dataset
+import pyclowder.utils
 
 from pyclowder.utils import CheckMessage
 from pyclowder.datasets import upload_metadata, remove_metadata, submit_extraction
 from terrautils.extractors import TerrarefExtractor, confirm_clowder_info, \
      build_metadata, build_dataset_hierarchy_crawl, file_exists, check_file_in_dataset, \
-     timestamp_to_terraref, file_filtered_in
+     timestamp_to_terraref, file_filtered_in, upload_to_dataset
 from terrautils.betydb import get_site_boundaries
 from terrautils.spatial import geojson_to_tuples_betydb, find_plots_intersect_boundingbox, \
      get_las_extents, clip_raster, clip_las, convert_json_geometry, geometry_to_geojson
@@ -459,11 +460,15 @@ class PlotClipper(TerrarefExtractor):
                                 }
                                 if filename in image_ids:
                                     content['imageFileId'] = image_ids[filename]
-                                fileid = clowder_file.upload_to_dataset(connector, host, secret_key, target_dsid,
-                                                                        out_file)
+                                fileid = upload_to_dataset(connector, host, self.clowder_user, self.clowder_pass, \
+                                                           target_dsid, out_file)
                                 meta = build_metadata(host, self.extractor_info, fileid, content, 'file')
                                 clowder_file.upload_metadata(connector, host, secret_key, fileid, meta)
                                 uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+                                connector.status_update(pyclowder.utils.StatusMessage.done, \
+                                                        {"type": "file", "id": fileid}, "Done uploading file")
+                                connector.status_update(pyclowder.utils.StatusMessage.done, \
+                                                        {"type": "dataset", "id": target_dsid}, "Done updating dataset")
                             self.created += 1
                             self.bytes += os.path.getsize(out_file)
 
@@ -489,9 +494,11 @@ class PlotClipper(TerrarefExtractor):
                             found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_file,
                                                                   remove=self.overwrite_ok)
                             if not found_in_dest or self.overwrite_ok:
-                                fileid = clowder_file.upload_to_dataset(connector, host, secret_key, target_dsid,
-                                                                        out_file)
+                                fileid = upload_to_dataset(connector, host, self.clowder_user, self.clowder_pass, \
+                                                           target_dsid, out_file)
                                 uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+                                connector.status_update(pyclowder.utils.StatusMessage.done, \
+                                                        {"type": "file", "id": fileid}, "Done uploading file")
                             self.created += 1
                             self.bytes += os.path.getsize(out_file)
 
@@ -499,11 +506,15 @@ class PlotClipper(TerrarefExtractor):
                             found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, merged_out,
                                                                   remove=self.overwrite_ok)
                             if not found_in_dest or self.overwrite_ok:
-                                fileid = clowder_file.upload_to_dataset(connector, host, secret_key, target_dsid,
-                                                                        merged_out)
+                                fileid = upload_to_dataset(connector, host, self.clowder_user, self.clowder_pass, \
+                                                           target_dsid, merged_out)
                                 uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
+                                connector.status_update(pyclowder.utils.StatusMessage.done, \
+                                                        {"type": "file", "id": fileid}, "Done uploading file")
                             self.created += 1
                             self.bytes += os.path.getsize(merged_out)
+                            connector.status_update(pyclowder.utils.StatusMessage.done, \
+                                                    {"type": "dataset", "id": target_dsid}, "Done updating dataset")
 
                             # Trigger las2height extractor
                             submit_extraction(connector, host, secret_key, target_dsid, "terra.3dscanner.las2height")
