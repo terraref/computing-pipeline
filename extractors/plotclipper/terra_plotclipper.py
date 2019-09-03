@@ -332,7 +332,7 @@ class PlotClipper(TerrarefExtractor):
             if 'spatial_metadata' in self.terraref_metadata:
                 spatial_meta = self.terraref_metadata['spatial_metadata']
             else:
-                ValueError("No spatial metadata found.")
+                raise ValueError("No spatial metadata found.")
 
         # Get the best username, password, and space
         old_un, old_pw, old_space = (self.clowder_user, self.clowder_pass, self.clowderspace)
