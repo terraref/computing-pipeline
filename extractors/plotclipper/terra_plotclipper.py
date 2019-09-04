@@ -9,7 +9,6 @@ import json
 import logging
 import yaml
 import osr
-import requests # for dsid_by_name()
 
 from osgeo import ogr
 from numpy import nan
@@ -22,7 +21,7 @@ from pyclowder.utils import CheckMessage
 from pyclowder.datasets import upload_metadata, remove_metadata, submit_extraction
 from terrautils.extractors import TerrarefExtractor, confirm_clowder_info, \
      build_metadata, build_dataset_hierarchy_crawl, file_exists, check_file_in_dataset, \
-     timestamp_to_terraref, file_filtered_in, upload_to_dataset
+     timestamp_to_terraref, file_filtered_in, upload_to_dataset, get_datasetid_by_name
 from terrautils.betydb import get_site_boundaries
 from terrautils.spatial import geojson_to_tuples_betydb, find_plots_intersect_boundingbox, \
      get_las_extents, clip_raster, clip_las, convert_json_geometry, geometry_to_geojson
@@ -131,36 +130,6 @@ def get_terraref_files(resource, spatial_meta):
         # TODO: Add case for laser3d heightmap
 
     return found_files
-
-def dsid_by_name(host, key, name):
-    """Looks up the ID of a dataset by nanme
-
-    Args:
-        host(str): the URI of the host making the connection
-        key(str): used with the host API
-        name(str): the dataset name to look up
-
-    Return:
-        Returns the ID of the dataset if it's found. Returns None if the dataset
-        isn't found
-    """
-    url = "%sapi/datasets?key=%s&title=%s&exact=true" % (host, key, name)
-
-    try:
-        result = requests.get(url)
-        result.raise_for_status()
-
-        ds_md = result.json()
-        md_len = len(ds_md)
-    except Exception as ex:     # pylint: disable=broad-except
-        ds_md = None
-        md_len = 0
-        logging.debug(ex.message)
-
-    if ds_md and md_len > 0 and "id" in ds_md[0]:
-        return ds_md[0]["id"]
-
-    return None
 
 def get_spatial_reference_from_json(geojson):
     """Returns the spatial reference embeddeed in the geojson.
@@ -334,40 +303,27 @@ class PlotClipper(TerrarefExtractor):
             else:
                 raise ValueError("No spatial metadata found.")
 
-        # Get the best username, password, and space
-        old_un, old_pw, old_space = (self.clowder_user, self.clowder_pass, self.clowderspace)
-        self.clowder_user, self.clowder_pass, self.clowderspace = self.get_clowder_context(host, secret_key)
-
-        # Ensure that the clowder information is valid
-        if not confirm_clowder_info(host, secret_key, self.clowderspace, self.clowder_user,
-                                    self.clowder_pass):
-            self.log_error(resource, "Clowder configuration is invalid. Not processing request")
-            self.clowder_user, self.clowder_pass, self.clowderspace = (old_un, old_pw, old_space)
+        # Setup overrides and get the restore function
+        restore_fn = self.setup_overrides(host, secret_key, resource)
+        if not restore_fn:
             self.end_message(resource)
             return
 
-        # Change the base path of files to include the user by tweaking the sensor's value
-        sensor_old_base = None
-        if self.get_terraref_metadata is None:
-            _, new_base = self.get_username_with_base_path(host, secret_key, resource['id'],
-                                                           self.sensors.base)
-            sensor_old_base = self.sensors.base
-            self.sensors.base = new_base
-
-        # Check if a new BETYdb URL/KEY has been specified and set it
-        if self.experiment_metadata:
-            old_betydb_url = setup_env_var(BETYDB_URL_ENV_NAME, find_betydb_config(self.experiment_metadata, 'url'))
-            old_betydb_key = setup_env_var(BETYDB_KEY_ENV_NAME, find_betydb_config(self.experiment_metadata, 'key'))
-        else:
-            old_betydb_url = None
-
-        # Determine which files in dataset need clipping
-        if self.terraref_metadata:
-            files_to_process = get_terraref_files(resource, spatial_meta)
-        else:
-            files_to_process = self.find_image_files(resource['local_paths'])
-
         try:
+            # Check if a new BETYdb URL/KEY has been specified and set it
+            if self.experiment_metadata:
+                old_betydb_url = setup_env_var(BETYDB_URL_ENV_NAME, find_betydb_config(self.experiment_metadata, 'url'))
+                old_betydb_key = setup_env_var(BETYDB_KEY_ENV_NAME, find_betydb_config(self.experiment_metadata, 'key'))
+            else:
+                old_betydb_url = None
+                old_betydb_key = None
+
+            # Determine which files in dataset need clipping
+            if self.terraref_metadata:
+                files_to_process = get_terraref_files(resource, spatial_meta)
+            else:
+                files_to_process = self.find_image_files(resource['local_paths'])
+
             # Build up a list of image IDs
             image_ids = {}
             if 'files' in resource:
@@ -431,7 +387,7 @@ class PlotClipper(TerrarefExtractor):
                                                             (season_name, experiment_name, plot_display_name,
                                                              timestamp[:4], timestamp[5:7], timestamp[8:10],
                                                              leaf_dataset))
-                        ds_exists = dsid_by_name(host, secret_key, leaf_dataset)
+                        ds_exists = get_datasetid_by_name(host, secret_key, leaf_dataset)
                         target_dsid = build_dataset_hierarchy_crawl(host, secret_key, self.clowder_user,
                                                                     self.clowder_pass, self.clowderspace, season_name,
                                                                     experiment_name, plot_display_name, timestamp[:4],
@@ -542,10 +498,9 @@ class PlotClipper(TerrarefExtractor):
             if not old_betydb_key is None:
                 setup_env_var(BETYDB_KEY_ENV_NAME, old_betydb_key)
 
-            if not sensor_old_base is None:
-                self.sensors.base = sensor_old_base
+            if restore_fn:
+                restore_fn()
 
-            self.clowder_user, self.clowder_pass, self.clowderspace = (old_un, old_pw, old_space)
             self.end_message(resource)
 
 if __name__ == "__main__":
