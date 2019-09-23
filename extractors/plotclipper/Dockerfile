@@ -19,6 +19,7 @@ RUN apt-get update \
 # Install laser3d science package
 RUN pip install --upgrade pip 
 RUN pip install wheel laspy multiprocess plyfile \
+    && pip install --upgrade pyclowder \
     && pip install --upgrade terraref-laser3d \
     && pip install --upgrade cryptography
 
