@@ -8,7 +8,6 @@ import sys
 import json
 import logging
 import yaml
-import osr
 
 from osgeo import ogr
 from numpy import nan
@@ -19,7 +18,10 @@ import pyclowder.utils
 
 from pyclowder.utils import CheckMessage
 from pyclowder.datasets import upload_metadata, remove_metadata, submit_extraction
-from terrautils.extractors import TerrarefExtractor, confirm_clowder_info, \
+
+import osr
+
+from terrautils.extractors import TerrarefExtractor, \
      build_metadata, build_dataset_hierarchy_crawl, file_exists, check_file_in_dataset, \
      timestamp_to_terraref, file_filtered_in, upload_to_dataset, get_datasetid_by_name
 from terrautils.betydb import get_site_boundaries
@@ -487,15 +489,18 @@ class PlotClipper(TerrarefExtractor):
 
             # Tell Clowder this is completed so subsequent file updates don't daisy-chain
             try:
-                content = {
-                    "files_created": uploaded_file_ids
-                }
-                if self.experiment_metadata:
-                    content.update(prepare_pipeline_metadata(self.experiment_metadata))
-                extractor_md = build_metadata(host, self.extractor_info, resource['id'], content, 'dataset')
-                self.log_info(resource, "uploading extractor metadata to Level_1 dataset")
-                remove_metadata(connector, host, secret_key, resource['id'], self.extractor_info['name'])
-                upload_metadata(connector, host, secret_key, resource['id'], extractor_md)
+                if uploaded_file_ids or not clowder_dataset.download_metadata(connector, host, secret_key,
+                                                                              resource['id'],
+                                                                              self.extractor_info['name']):
+                    content = {
+                        "files_created": uploaded_file_ids
+                    }
+                    if self.experiment_metadata:
+                        content.update(prepare_pipeline_metadata(self.experiment_metadata))
+                    extractor_md = build_metadata(host, self.extractor_info, resource['id'], content, 'dataset')
+                    self.log_info(resource, "uploading extractor metadata to Level_1 dataset")
+                    remove_metadata(connector, host, secret_key, resource['id'], self.extractor_info['name'])
+                    upload_metadata(connector, host, secret_key, resource['id'], extractor_md)
             except Exception as ex:     # pylint: disable=broad-except
                 self.log_error(resource, "Exception updating dataset metadata: " + str(ex))
         except Exception as ex:     # pylint: disable=broad-except
