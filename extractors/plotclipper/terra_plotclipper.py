@@ -296,6 +296,9 @@ class PlotClipper(TerrarefExtractor):
         self.start_message(resource)
         super(PlotClipper, self).process_message(connector, host, secret_key, resource, parameters)
 
+        # Get the triggering dataset ID for later checks
+        trigger_dataset_id = resource['id'] if resource['type'] == 'dataset' else resource['parent']['id']
+
         # Load metadata from dataset
         if self.terraref_metadata:
             if 'spatial_metadata' in self.terraref_metadata:
@@ -393,6 +396,13 @@ class PlotClipper(TerrarefExtractor):
                                                                     experiment_name, plot_display_name, timestamp[:4],
                                                                     timestamp[5:7], timestamp[8:10],
                                                                     leaf_ds_name=leaf_dataset)
+
+                        # We check here to make sure we aren't trying to clip an already clipped image
+                        # We do this by comparing the dataset ID that triggered the call with the dataset ID
+                        # of the target dataset - if they are the same, we're trying to clip ourselves
+                        if target_dsid == trigger_dataset_id:
+                            continue
+
                         if (self.overwrite_ok or not ds_exists) and self.experiment_metadata:
                             self.update_dataset_extractor_metadata(connector, host, secret_key,
                                                                    target_dsid,
