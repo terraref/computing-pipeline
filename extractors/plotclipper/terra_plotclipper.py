@@ -207,7 +207,7 @@ class PlotClipper(TerrarefExtractor):
                     # If the file has a geo shape we store it for clipping
                     bounds = image_get_geobounds(onefile)
                     epsg = get_epsg(onefile)
-                    if bounds[0] != nan:
+                    if not epsg is None and bounds[0] != nan:
                         ring = ogr.Geometry(ogr.wkbLinearRing)
                         ring.AddPoint(bounds[2], bounds[1])     # Upper left
                         ring.AddPoint(bounds[3], bounds[1])     # Upper right
@@ -419,6 +419,10 @@ class PlotClipper(TerrarefExtractor):
                         if filename.endswith(".tif") and (not file_exists(out_file) or self.overwrite_ok):
                             # If file is a geoTIFF, simply clip it and upload it to Clowder
                             clip_raster(file_path, tuples, out_path=out_file, compress=True)
+
+                            if not os.path.exists(out_file):
+                                logging.error("Clipped file doesn't exist: " + out_file)
+                                continue
 
                             found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_file,
                                                                   remove=self.overwrite_ok)
