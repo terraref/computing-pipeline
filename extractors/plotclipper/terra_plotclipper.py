@@ -148,6 +148,32 @@ def get_spatial_reference_from_json(geojson):
         return current_geom.GetSpatialReference()
     return None
 
+def calculate_overlap_percent(check_bounds, bounding_box):
+    """Calculates and returns the percentage overlap between the two boundaries.
+       The calculation determines the overlap shape between the two parameters and
+       then calculates the percentage by dividing the overlap area by the bounding
+       box area, and returns that value.
+    Args:
+        check_bounds(str): GeoJSON of boundary to check
+        bounding_box(str): GeoJSON of boundary to check against
+    Return:
+        The calculated overlap percent (0.0 - 1.0) or 0.0 if there is no overlap.
+        If an exception is detected, a warning message is logged and 0.0 is returned.
+    """
+    try:
+        check_poly = ogr.CreateGeometryFromJson(str(check_bounds))
+        bbox_poly = ogr.CreateGeometryFromJson(str(bounding_box))
+
+        if check_poly and bbox_poly:
+            intersection = bbox_poly.Intersection(check_poly)
+            if intersection:
+                return intersection.Area()/bbox_poly.Area()
+    except Exception as ex:
+        logging.warning("Exception caught while calculating shape overlap: %s", str(ex))
+
+    return 0.0
+
+
 class PlotClipper(TerrarefExtractor):
     """Extractor class for clipping sensor files to plot polygons
     """
@@ -384,6 +410,10 @@ class PlotClipper(TerrarefExtractor):
                     file_spatial_ref = get_spatial_reference_from_json(file_bounds)
                     for plotname in overlap_plots:
                         plot_bounds = convert_json_geometry(overlap_plots[plotname], file_spatial_ref)
+                        if calculate_overlap_percent(plot_bounds, file_bounds) < 0.20:
+                            logging.info("Skipping plot with too small overlap: %s", plotname)
+                            continue
+
                         tuples = geojson_to_tuples_betydb(yaml.safe_load(plot_bounds))
 
                         plot_display_name = self.sensors.get_display_name(sensor=sensor_name) + " (By Plot)"
@@ -421,7 +451,7 @@ class PlotClipper(TerrarefExtractor):
                             clip_raster(file_path, tuples, out_path=out_file, compress=True)
 
                             if not os.path.exists(out_file):
-                                logging.error("Clipped file doesn't exist: " + out_file)
+                                logging.error("Clipped file doesn't exist: %s", out_file)
                                 continue
 
                             found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_file,
