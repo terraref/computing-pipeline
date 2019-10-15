@@ -167,7 +167,7 @@ def calculate_overlap_percent(check_bounds, bounding_box):
         if check_poly and bbox_poly:
             intersection = bbox_poly.Intersection(check_poly)
             if intersection:
-                return intersection.Area()/bbox_poly.Area()
+                return intersection.Area()/check_poly.Area()
     except Exception as ex:
         logging.warning("Exception caught while calculating shape overlap: %s", str(ex))
 
