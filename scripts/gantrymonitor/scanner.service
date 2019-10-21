@@ -1,0 +1,20 @@
+# Put this in /lib/systemd/system
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable scanner.service
+#   sudo systemctl start scanner.service
+#
+#   sudo systemctl status scanner.service
+
+[Unit]
+Description=Gantry Scanner Service
+After=multi-user.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/mburnet2/computing-pipeline/scripts/gantrymonitor
+ExecStart=/usr/bin/python /home/mburnet2/computing-pipeline/scripts/gantrymonitor/gantry_scanner_service.py
+User=1006
+
+[Install]
+WantedBy=multi-user.target
