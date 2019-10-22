@@ -3,7 +3,7 @@ name: Issue Report
 about: Report issues such as features not working, changing the way something works,
   or enhancing a current feature.
 title: Issue report
-labels: ''
+labels: 'bug'
 assignees: ''
 
 ---
