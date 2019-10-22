@@ -1,4 +1,11 @@
-_please edit this template before submitting a new pull request_
+---
+name: Pull Request
+about: Fill out this template before submitting a Pull Request.
+title: Pull Request
+labels: 'pull request'
+assignees: ''
+
+---
 
 <!--- 
 Title: Provide a summarize changes in the pull request title above. 
