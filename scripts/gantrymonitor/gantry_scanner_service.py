@@ -900,6 +900,8 @@ def globusInitializerLoop():
                             break
                     else:
                         break
+            else:
+                logger.debug("- currently %s active tasks; will not exceed %s" % (active_count, config["globus"]["max_active_tasks"]))
 
             # Reset wait to check gantry incoming directory again
             globusWait = config['gantry']['globus_transfer_frequency_secs']
