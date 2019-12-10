@@ -238,7 +238,7 @@ def writePendingTaskToDatabase(task):
     jbody = json.dumps(task)
 
     # Attempt to insert
-    for end_id in config['globus']['destinations']['destinations']:
+    for end_id in config['globus']['destinations']:
         q_insert = "INSERT INTO pending_tasks (dest_id, contents) VALUES ('%s', '%s')" % (end_id, jbody)
 
     curs = psql_conn.cursor()
