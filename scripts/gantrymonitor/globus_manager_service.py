@@ -60,33 +60,17 @@ def loadJsonFile(filename):
         logger.error("- unable to open or parse JSON from %s" % filename)
         return {}
 
-"""Use globus goauth tool to get access token for config account"""
-def generateAuthToken():
-    logger.info("- generating auth token for "+config['globus']['username'])
-    t = goauth.get_access_token(
-            config['globus']['username'],
-            config['globus']['password'],
-            os.path.join(rootPath, "globus_amazon.pem")
-    ).token
-    config['globus']['auth_token'] = t
-    logger.debug("- generated: "+t)
-
-"""Refresh auth token and send autoactivate message to source and destination Globus endpoints"""
-def activateEndpoints():
-    src = config['globus']["source_endpoint_id"]
-    dest = config['globus']["destination_endpoint_id"]
-
-    generateAuthToken()
-    api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
-    # TODO: Can't use autoactivate; must populate credentials
-    """try:
-        actList = api.endpoint_activation_requirements(src)[2]
-        actList.set_requirement_value('myproxy', 'username', 'data_mover')
-        actList.set_requirement_value('myproxy', 'passphrase', 'terraref2016')
-        actList.set_requirement_value('delegate_proxy', 'proxy_chain', 'some PEM cert w public key')
-    except:"""
-    api.endpoint_autoactivate(src)
-    api.endpoint_autoactivate(dest)
+"""Use globus goauth tool to get access tokens for config accounts"""
+def generateAuthTokens():
+    for end_id in config['globus']['destinations']:
+        logger.info("- generating auth token for "+config['globus']['destinations'][end_id]['username'])
+        t = goauth.get_access_token(
+                config['globus']['destinations'][end_id]['username'],
+                config['globus']['destinations'][end_id]['password'],
+                os.path.join(rootPath, "globus_amazon.pem")
+        ).token
+        config['globus']['destinations'][end_id]['auth_token'] = t
+        logger.debug("- generated: "+t)
 
 """Query Globus API to get current transfer status of a given task"""
 def getGlobusTaskData(task):
@@ -108,7 +92,7 @@ def getGlobusTaskData(task):
         try:
             # Refreshing auth tokens and retry
             generateAuthToken()
-            authToken = config['globus']['auth_token']
+            authToken = config['globus']['destinations'][end_id]['auth_token']
             api = TransferAPIClient(username=guser, goauth=authToken)
             status_code, status_message, task_data = api.task(task['globus_id'])
         except gaierror as e:
@@ -587,8 +571,7 @@ if __name__ == '__main__':
 
     # Connect to Postgres & start processing
     psql_conn = connectToPostgres()
-    if psql_conn:
-        activateEndpoints()
+    generateAuthTokens()
 
-        logger.info("*** Service now monitoring existing Globus transfers ***")
-        globusMonitorLoop()
+    logger.info("*** Service now monitoring existing Globus transfers ***")
+    globusMonitorLoop()
