@@ -800,6 +800,8 @@ def initializeGlobusTransfer(globus_batch_obj):
     end_id = globus_batch_obj['end_id']
     globus_batch_id = globus_batch_obj['id']
 
+    if 'auth_token' not in config['globus']['destinations'][end_id]:
+        generateAuthTokens()
     api = TransferAPIClient(username=config['globus']['destinations'][end_id]['username'],
                             goauth=config['globus']['destinations'][end_id]['auth_token'])
     submissionID = generateGlobusSubmissionID(end_id)
