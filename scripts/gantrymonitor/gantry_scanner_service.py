@@ -241,11 +241,11 @@ def writePendingTaskToDatabase(task):
     for end_id in config['globus']['destinations']:
         q_insert = "INSERT INTO pending_tasks (dest_id, contents) VALUES ('%s', '%s')" % (end_id, jbody)
 
-    curs = psql_conn.cursor()
-    #logger.debug("Writing task %s to PostgreSQL..." % gid)
-    curs.execute(q_insert)
-    psql_conn.commit()
-    curs.close()
+        curs = psql_conn.cursor()
+        #logger.debug("Writing task %s to PostgreSQL..." % gid)
+        curs.execute(q_insert)
+        psql_conn.commit()
+        curs.close()
 
 """Write a Globus task into PostgreSQL, insert/update as needed"""
 def writeTaskToDatabase(task):
