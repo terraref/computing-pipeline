@@ -832,7 +832,8 @@ def initializeGlobusTransfer(globus_batch_obj):
             try:
                 # Try refreshing endpoints and retrying
                 generateAuthTokens()
-                api = TransferAPIClient(username=config['globus']['username'], goauth=config['globus']['auth_token'])
+                api = TransferAPIClient(username=config['globus']['destinations'][end_id]['username'],
+                                        goauth=config['globus']['destinations'][end_id]['auth_token'])
                 status_code, status_message, transfer_data = api.transfer(transferObj)
             except (APIError, ClientError) as e:
                 logger.error("- problem initializing Globus transfer")
@@ -862,7 +863,7 @@ def initializeGlobusTransfer(globus_batch_obj):
             removePendingTask(globus_batch_id)
             return True
         else:
-            # If failed, leave pending list as-is and try again on next iteration (e.g. in 180 seconds)
+            # If failed, leave pending list as-is and try again on next iteration
             logger.error("- Globus transfer initialization failed for %s (%s: %s)" % (ds, status_code, status_message))
             return False
 
