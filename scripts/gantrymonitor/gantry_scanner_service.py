@@ -36,6 +36,8 @@ status_lastNasLogLine = ""
 app = Flask(__name__)
 api = restful.Api(app)
 
+ignore_active_count = True
+
 # ----------------------------------------------------------
 # OS & GLOBUS
 # ----------------------------------------------------------
@@ -878,7 +880,7 @@ def globusInitializerLoop():
         # Check pending queue and initiate transfers if ready
         if globusWait <= 0:
             active_count = getActiveTransferCount()
-            if active_count < config["globus"]["max_active_tasks"]:
+            if active_count < config["globus"]["max_active_tasks"] or ignore_active_count:
                 logger.debug("- currently %s active tasks; starting more from pending queue" % active_count)
 
                 pending_tasks = readPendingTasks()
