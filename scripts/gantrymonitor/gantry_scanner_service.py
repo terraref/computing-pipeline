@@ -98,7 +98,7 @@ def writeStatus():
 """Use globus goauth tool to get access tokens for config accounts"""
 def generateAuthTokens():
     for end_id in config['globus']['destinations']:
-        logger.info("- generating auth token for "+config['globus']['destinations'][end_id]['username'])
+        logger.info("- generating auth token for "+config['globus']['destinations'][end_id]['username']+" (%s)" % end_id)
         t = goauth.get_access_token(
                 config['globus']['destinations'][end_id]['username'],
                 config['globus']['destinations'][end_id]['password'],
