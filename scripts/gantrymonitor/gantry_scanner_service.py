@@ -633,12 +633,10 @@ def buildGlobusBundle(queued_files):
                 fobj = queued_files[ds]['files'][fkey]
                 if fobj["path"].find(config['globus']['source_path']) > -1:
                     src_path = os.path.join(fobj["path"], fobj["name"])
-                    dest_path = os.path.join(config['globus']['destination_path'],
-                                             fobj["path"].replace(config['globus']['source_path'], ""),
-                                             fobj["name"])
+                    dest_path = os.path.join(fobj["path"].replace(config['globus']['source_path'], ""), fobj["name"])
                 else:
                     src_path = os.path.join(config['globus']['source_path'], fobj["path"], fobj["name"])
-                    dest_path = os.path.join(config['globus']['destination_path'], fobj["path"],  fobj["name"])
+                    dest_path = os.path.join(fobj["path"],  fobj["name"])
 
                 # Clean up dest path to new folder structure
                 # ua-mac/raw_data/LemnaTec/EnvironmentLogger/2016-01-01/2016-08-03_04-05-34_environmentlogger.json
@@ -799,6 +797,7 @@ def queueGantryFilesIntoPending():
 def initializeGlobusTransfer(globus_batch_obj):
     globus_batch = globus_batch_obj['contents']
     end_id = globus_batch_obj['end_id']
+    end_dest_path = config['globus']['destinations'][end_id]['dest_path']
     globus_batch_id = globus_batch_obj['id']
 
     if 'auth_token' not in config['globus']['destinations'][end_id]:
@@ -825,7 +824,7 @@ def initializeGlobusTransfer(globus_batch_obj):
                             srcpath = "/gantry_data"+srcpath
                     else:
                         srcpath = fobj['src_path']
-                    transferObj.add_item(srcpath, fobj['path'])
+                    transferObj.add_item(srcpath, os.path.join(end_dest_path, fobj['path']))
                     queue_length += 1
 
         # Send transfer to Globus
