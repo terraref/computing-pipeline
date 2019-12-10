@@ -239,6 +239,7 @@ def writePendingTaskToDatabase(task):
 
     # Attempt to insert
     for end_id in config['globus']['destinations']:
+        if end_id == "endpoint_id": continue # skip example entry
         q_insert = "INSERT INTO pending_tasks (dest_id, contents) VALUES ('%s', '%s')" % (end_id, jbody)
 
         curs = psql_conn.cursor()
