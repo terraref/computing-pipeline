@@ -881,11 +881,11 @@ def globusInitializerLoop():
         if globusWait <= 0:
             active_count = getActiveTransferCount()
             if active_count < config["globus"]["max_active_tasks"] or ignore_active_count:
-                logger.debug("- currently %s active tasks; starting more from pending queue" % active_count)
+                logger.debug("- currently %s tasks with unknown status; starting more from pending queue" % active_count)
 
                 pending_tasks = readPendingTasks()
                 for p in pending_tasks:
-                    if active_count < config["globus"]["max_active_tasks"]:
+                    if active_count < config["globus"]["max_active_tasks"] or ignore_active_count:
                         xfer_start = initializeGlobusTransfer(p)
                         if xfer_start:
                             active_count += 1
