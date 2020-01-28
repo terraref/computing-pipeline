@@ -43,8 +43,8 @@ test_one = True
 # ---------------------------------
 # Clowder instance configuration
 # ---------------------------------
-clowder_host = "https://terraref.ncsa.illinois.edu/clowder"
 clowder_admin_key = "SECRET_KEY"
+clowder_host = "https://terraref.ncsa.illinois.edu/clowder/"
 # The following user will be shown as the creator and owner of uploaded datasets
 clowder_user   = "terrarefglobus+uamac@ncsa.illinois.edu"
 clowder_pass   = "PASSWORD"
@@ -116,7 +116,7 @@ def upload_dataset(dataset_path, level, product, timestamp, sess, logfile):
                 if dry_run:
                     print("...%s successfully loaded." % os.path.join(dataset_path, f))
 
-    if clean_md is None:
+    if clean_md is None and product is not "EnvironmentLogger":
         logfile.write('%s,%s,"%s",%s\n' % (level, product, dataset_path, "ERR: No metadata found"))
         return False
 
@@ -134,8 +134,8 @@ def upload_dataset(dataset_path, level, product, timestamp, sess, logfile):
     logfile.write('%s,%s,"%s",%s\n' % (level, product, dataset_path, "OK: %s" % dsid))
 
     # Upload metadata
-    if not dry_run:
-        sess.post("%s/api/datasets/%s/metadata.jsonld" % (clowder_host, dsid),
+    if not dry_run and product is not "EnvironmentLogger":
+        sess.post("%sapi/datasets/%s/metadata.jsonld" % (clowder_host, dsid),
                   headers={'Content-Type':'application/json'},
                   data=json.dumps({
                       "@context": ["https://clowder.ncsa.illinois.edu/contexts/metadata.jsonld",
