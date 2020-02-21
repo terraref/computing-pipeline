@@ -824,7 +824,11 @@ def initializeGlobusTransfer(globus_batch_obj):
                             srcpath = "/gantry_data"+srcpath
                     else:
                         srcpath = fobj['src_path']
-                    transferObj.add_item(srcpath, os.path.join(end_dest_path, fobj['path']))
+                    # TODO: This is a temporary fix, need to adjust the configuration dest_path to not assume raw_data
+                    final_path = os.path.join(end_dest_path, fobj['path'])
+                    if final_path.endswith(".ply"):
+                        final_path = final_path.replace("raw_data", "Level_1")
+                    transferObj.add_item(srcpath, final_path)
                     queue_length += 1
 
         # Send transfer to Globus
