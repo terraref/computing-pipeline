@@ -60,8 +60,10 @@ def get_season_dates(season):
         return ('2018-04-06', '2018-08-01')
     elif season == 9:
         return ('2019-05-06', '2019-10-01')
+    elif season == 10:
+        return ('2019-11-25', '2020-03-03')
     else:
-        return ('2016-04-19', '2019-10-01')
+        return ('2016-04-19', '2020-03-03')
 
 def generate_dates_in_range(start_date_string, end_date_string=None):
     """Return list of date strings between start and end dates."""

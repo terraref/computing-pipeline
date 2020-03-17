@@ -20,6 +20,9 @@
                         <a href="{{ url_for('showcsvbyseason',sensor_name=sensor,season=9)}}">Season 9</a>
                         <a href="{{ url_for('resubmitbyseason',sensor_name=sensor,season=9)}}">(S9 Resubmission)</a>
                     </li>
+                    <li>
+                        <a href="{{ url_for('showcsvbyseason',sensor_name=sensor,season=10)}}">Season 10</a>
+                    </li>
                     <li><a href="{{ url_for('showcsv',sensor_name=sensor)}}">Last 2 Weeks</a></li>
                     <li><a href="{{ url_for('showcsv',sensor_name=sensor,days=0)}}">All Available Dates</a></li>
                 </ul>
