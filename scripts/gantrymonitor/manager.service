@@ -1,0 +1,20 @@
+# Put this in /lib/systemd/system
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable manager.service
+#   sudo systemctl start manager.service
+#
+#   sudo systemctl status manager.service
+
+[Unit]
+Description=Gantry Transfer Manager Service
+After=multi-user.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/mburnet2/computing-pipeline/scripts/gantrymonitor
+ExecStart=/usr/bin/python /home/mburnet2/computing-pipeline/scripts/gantrymonitor/globus_manager_service.py
+User=1006
+
+[Install]
+WantedBy=multi-user.target
