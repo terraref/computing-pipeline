@@ -2,6 +2,9 @@
 
 import os
 import yaml
+import osr
+import json
+from osgeo import gdal, ogr
 
 from pyclowder.utils import CheckMessage
 from pyclowder.files import upload_to_dataset
@@ -10,10 +13,81 @@ from terrautils.extractors import TerrarefExtractor, is_latest_file, load_json_f
     build_metadata, build_dataset_hierarchy_crawl, file_exists, check_file_in_dataset
 from terrautils.betydb import add_arguments, get_sites, get_sites_by_latlon, submit_traits, \
     get_site_boundaries
-from terrautils.spatial import geojson_to_tuples_betydb, find_plots_intersect_boundingbox, \
+from terrautils.spatial import geojson_to_tuples_betydb, \
     get_las_extents, clip_raster, clip_las, centroid_from_geojson
 from terrautils.metadata import get_terraref_metadata, get_season_and_experiment
 
+
+# TODO: Update to use terrautils 1.5 and py3 and remove these
+def convert_geometry(geometry, new_spatialreference):
+    """Converts the geometry to the new spatial reference if possible
+
+    geometry - The geometry to transform
+    new_spatialreference - The spatial reference to change to
+
+    Returns:
+        The transformed geometry or the original geometry. If either the
+        new Spatial Reference parameter is None, or the geometry doesn't
+        have a spatial reference, then the original geometry is returned.
+    """
+    if not new_spatialreference or not geometry:
+        return geometry
+
+    return_geometry = geometry
+    try:
+        geom_sr = geometry.GetSpatialReference()
+        if geom_sr and not new_spatialreference.IsSame(geom_sr):
+            transform = osr.CreateCoordinateTransformation(geom_sr, new_spatialreference)
+            new_geom = geometry.Clone()
+            if new_geom:
+                new_geom.Transform(transform)
+                return_geometry = new_geom
+    except Exception as ex:
+        logging.warning("Exception caught while transforming geometries: " + str(ex))
+        logging.warning("    Returning original geometry")
+
+    return return_geometry
+
+def find_plots_intersect_boundingbox(bounding_box, all_plots, fullmac=True):
+    """Take a list of plots from BETY and return only those overlapping bounding box.
+
+    fullmac -- only include full plots (omit KSU, omit E W partial plots)
+
+    """
+    bbox_poly = ogr.CreateGeometryFromJson(str(bounding_box).replace("u'", "'").replace("'", '"'))
+    bb_sr = bbox_poly.GetSpatialReference()
+    intersecting_plots = dict()
+
+    for plotname in all_plots:
+        if fullmac and (plotname.find("KSU") > -1 or plotname.endswith(" E") or plotname.endswith(" W")):
+            continue
+
+        bounds = all_plots[plotname]
+
+        yaml_bounds = yaml.safe_load(bounds)
+        current_poly = ogr.CreateGeometryFromJson(json.dumps(yaml_bounds))
+
+        # Check for a need to convert coordinate systems
+        check_poly = current_poly
+        if bb_sr:
+            poly_sr = current_poly.GetSpatialReference()
+            if poly_sr and not bb_sr.IsSame(poly_sr):
+                # We need to convert to the same coordinate system before an intersection
+                check_poly = convert_geometry(current_poly, bb_sr)
+                transform = osr.CreateCoordinateTransformation(poly_sr, bb_sr)
+                new_poly = current_poly.Clone()
+                if new_poly:
+                    new_poly.Transform(transform)
+                    check_poly = new_poly
+
+        intersection_with_bounding_box = bbox_poly.Intersection(check_poly)
+
+        if intersection_with_bounding_box is not None:
+            intersection = json.loads(intersection_with_bounding_box.ExportToJson())
+            if 'coordinates' in intersection and len(intersection['coordinates']) > 0:
+                intersecting_plots[plotname] = bounds
+
+    return intersecting_plots
 
 class PlotClipper(TerrarefExtractor):
     def __init__(self):
@@ -43,33 +117,58 @@ class PlotClipper(TerrarefExtractor):
         # Determine which files in dataset need clipping
         files_to_process = {}
         for f in resource['local_paths']:
-            if f.startswith("ir_geotiff") and f.endswith(".tif"):
+            filename = os.path.basename(f)
+            bounds = None
+            if filename.startswith("ir_geotiff") and filename.endswith(".tif"):
                 sensor_name = "ir_geotiff"
-                filename = os.path.basename(f)
+                path = f
+                bounds = spatial_meta['flirIrCamera']['bounding_box']['coordinates']
                 files_to_process[filename] = {
                     "path": f,
-                    "bounds": spatial_meta['flirIrCamera']['bounding_box']
+                    "bounds": {
+                        "type": "Polygon",
+                        "coordinates": []
+                    }
                 }
 
-            elif f.startswith("rgb_geotiff") and f.endswith(".tif"):
+            elif filename.startswith("rgb_geotiff") and filename.endswith(".tif"):
                 sensor_name = "rgb_geotiff"
-                filename = os.path.basename(f)
                 if f.endswith("_left.tif"): side = "left"
                 else:                       side = "right"
+                path = f
+                bounds = spatial_meta[side]['bounding_box']['coordinates']
                 files_to_process[filename] = {
                     "path": f,
-                    "bounds": spatial_meta[side]['bounding_box']
+                    "bounds": {
+                        "type": "Polygon",
+                        "coordinates": []
+                    }
                 }
 
-            elif f.endswith(".las"):
+            elif filename.endswith(".las"):
                 sensor_name = "laser3d_las"
-                filename = os.path.basename(f)
-                files_to_process[filename] = {
-                    "path": f,
-                    "bounds": get_las_extents(f)
-                }
+                path = f
+                bounds = get_las_extents(f)['coordinates']
 
             # TODO: Add case for laser3d heightmap
+
+            if bounds is not None:
+                # fix ordering
+                bounds_fmt = [[
+                    [bounds[0][1], bounds[0][0]],
+                    [bounds[1][1], bounds[1][0]],
+                    [bounds[2][1], bounds[2][0]],
+                    [bounds[3][1], bounds[3][0]],
+                    [bounds[0][1], bounds[0][0]]
+                ]]
+
+                files_to_process[filename] = {
+                    "path": path,
+                    "bounds": {
+                        "type": "Polygon",
+                        "coordinates": bounds_fmt
+                    }
+                }
 
         # Fetch experiment name from terra metadata
         timestamp = resource['dataset_info']['name'].split(" - ")[1]
@@ -116,12 +215,12 @@ class PlotClipper(TerrarefExtractor):
                         """If file is a geoTIFF, simply clip it and upload it to Clowder"""
                         clip_raster(file_path, tuples, out_path=out_file, compress=True)
 
-                        found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, merged_out, remove=self.overwrite)
+                        found_in_dest = check_file_in_dataset(connector, host, secret_key, target_dsid, out_file, remove=self.overwrite)
                         if not found_in_dest or self.overwrite:
-                            fileid = upload_to_dataset(connector, host, secret_key, target_dsid, merged_out)
+                            fileid = upload_to_dataset(connector, host, secret_key, target_dsid, out_file)
                             uploaded_file_ids.append(host + ("" if host.endswith("/") else "/") + "files/" + fileid)
                         self.created += 1
-                        self.bytes += os.path.getsize(merged_out)
+                        self.bytes += os.path.getsize(out_file)
 
                     elif filename.endswith(".las"):
                         """If file is LAS, we can merge with any existing scan+plot output safely"""
