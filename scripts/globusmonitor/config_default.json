@@ -1,5 +1,4 @@
 {
-  "log_path": "/home/globusmonitor/data/log",
   "status_log_path": "/home/globusmonitor/data/log/monitor_status.json",
 
   "globus": {
