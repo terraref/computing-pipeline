@@ -6,7 +6,9 @@ RUN apt-get -y update \
     && pip install flask-restful \
         python-logstash \
         globusonline-transfer-api-client \
-        psycopg2
+        psycopg2 python-etcd
+
+
 
 COPY *.py *.json *.pem /home/globusmonitor/
 
